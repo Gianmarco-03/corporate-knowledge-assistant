@@ -8,6 +8,8 @@
 - **Aggiornamento:** audit v2 rientrati 7/7 APPROVED_WITH_WARNINGS, salvati come `01-NN-RISK-AUDIT-v2.md` + ACK (`187f184`); plan-gate RISK_APPROVED; inviati `test_design_1..7` (1=02, 2=04, 3=07, 4=08, 5=09, 6=13, 7=16). **Prossimo:** salvare i test design come `01-NN-TEST-DESIGN.md` + ACK, `READ-GATE` = TEST_SPEC_READY, poi §6 punto 6.
 - **Decisioni utente pendenti** (non bloccano l'audit, sì l'execute): oha→curl in 04; piani 35–54 KB (spezzare?); memoria worker 2 GiB vs 16 OCR; PP-OCRv6 condizionale; DocLayNet 20→40 pagine; proposte ADR-0005 (offset Unicode scalar, ordinale sezioni omonime, testo di sezione senza sottosezioni, `cka-text-v1`); rifiuto PDF con filtri LZW/RunLength e limite ObjStm; riavvio Docling per documento e `page_range`; tolleranze del controllo analitico bbox (13); pin pip 24.3.1 / pip-tools 7.4.1 da verificare.
 
+- **Aggiornamento 2 (2026-10-19):** decisioni utente in 01-CONTEXT (D-09 emendata → PP-OCRv6, D-23..D-30). 01-07 diviso in 01-07 v3 + 01-18 v1; 01-13 v3. Re-gate giro 5: 18/18 conformi (`743ff2c`). Inviati `risk_audit_15` (07 v3), `_16` (13 v3) — **terzo e ultimo giro** per 07 e 13: un REVISE va portato all'utente — e `_17` (18 v1). In volo anche `test_design_1..7`: _3 (07 v2) e _6 (13 v2) saranno STALE, salvarli agli atti e richiederli di nuovo sulle v3; validi _1=02, _2=04, _4=08, _5=09, _7=16. Onda 5 = {08, 12, 18} oltre il tetto di 2: da risolvere in `onde-slice`.
+
 ## 1. Dove siamo in una riga
 
 Fase 1 «Spike tecnici» (critica): discuss chiuso, 17 PLAN scritti e conformi ai 6 gate (tre giri, `01-GATE.md`), **audit GPT al primo giro: 7/7 REVISE** — tocca al giro di correzioni (passo 6-bis di `skills/plan/SKILL.md`).
@@ -76,3 +78,4 @@ Mappa content_id → piano: risk_audit_1 = 01-02, _2 = 01-04, _3 = 01-07, _4 = 0
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · handoff di fine sessione (contesto in saturazione, richiesta utente)
 **Modifica:** Claude (Anthropic) · 2026-10-19 · §0: giro di correzioni e audit v2 inviati
+**Modifica:** Claude (Anthropic) · 2026-10-19 · §0 aggiornamento 2: divisione 07/18, 13 v3, audit 15..17
