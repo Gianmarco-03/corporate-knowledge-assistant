@@ -5,7 +5,7 @@
 ## 0. Aggiornamento 2026-10-19 (prevale sulle sezioni sotto)
 
 - §6 punti 1–4 **fatti**: audit 1–4 e deepsearch 1–5 salvati + ACK (`3a2f37f`); giro di correzioni sui 7 piani (plan_version 2) + allineamento a `session.sh` di 03, 05, 10, 11, 12, 14, 15; re-gate giro 4 = 17/17 conformi (`01-GATE.md`); commit `3ac5650`, branch `task/PLAN-010-{02,04,07,08,09,13,16}` = `3ac5650` pushati; **inviati `risk_audit_8..14`** (mappa: 8=02, 9=04, 10=07, 11=08, 12=09, 13=13, 14=16), giro 2 di 3; `status_2` sul tracker.
-- **Prossimo:** attendere le risposte (controllare `C:\Agent Bridge\CorporateKnowledgeAssistant\implementation-risk-audit\`), salvarle verbatim come `01-NN-RISK-AUDIT-v2.md` + ACK; poi §6 punto 5 (test-design GPT) o terzo giro.
+- **Aggiornamento:** audit v2 rientrati 7/7 APPROVED_WITH_WARNINGS, salvati come `01-NN-RISK-AUDIT-v2.md` + ACK (`187f184`); plan-gate RISK_APPROVED; inviati `test_design_1..7` (1=02, 2=04, 3=07, 4=08, 5=09, 6=13, 7=16). **Prossimo:** salvare i test design come `01-NN-TEST-DESIGN.md` + ACK, `READ-GATE` = TEST_SPEC_READY, poi §6 punto 6.
 - **Decisioni utente pendenti** (non bloccano l'audit, sì l'execute): oha→curl in 04; piani 35–54 KB (spezzare?); memoria worker 2 GiB vs 16 OCR; PP-OCRv6 condizionale; DocLayNet 20→40 pagine; proposte ADR-0005 (offset Unicode scalar, ordinale sezioni omonime, testo di sezione senza sottosezioni, `cka-text-v1`); rifiuto PDF con filtri LZW/RunLength e limite ObjStm; riavvio Docling per documento e `page_range`; tolleranze del controllo analitico bbox (13); pin pip 24.3.1 / pip-tools 7.4.1 da verificare.
 
 ## 1. Dove siamo in una riga
