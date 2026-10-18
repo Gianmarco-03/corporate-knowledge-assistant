@@ -15,6 +15,7 @@ Skill di servizio del loop GSD+ECC (spec: `docs/superpowers/specs/loop-gsd-ecc-d
    - **un solo piano con superficie API per onda** — la specifica OpenAPI e il client generato per `apps/web` si rigenerano per intero: due rigenerazioni nella stessa onda collidono;
    - **un solo piano per servizio e per onda che aggiunge migrazioni SQL** — la numerazione delle migrazioni di un servizio segue la convenzione della WIRING-MAP e due piani paralleli prenderebbero lo stesso numero;
    - **un solo piano per onda che aggiunge membri al workspace Cargo** — la lista `members` è un seam condiviso.
+3-bis. **Proprietà dei file fra fasi** (strategia «provider-first, insiemi di file chiusi per fase», decisione utente 2026-10-18) — prima di comporre le onde lancia `node scripts/gate-proprieta-file.cjs --fase X`: uscita 1 (un file di X reclamato anche da un'altra fase, fuori da whitelist, innesti della WIRING-MAP e riaperture `riapre_perimetro` di una fase decimale) o 2 (non eseguito) → **rifiuta** e rimbalza a `plan`: un'onda non serializza ciò che due fasi si contendono. Nelle **onde di dipendenza cross-fase** (esecuzione per onde dopo la riconciliazione, con fasi indipendenti in parallelo come Provider di ingestion e Provider di decisione) due piani di fasi diverse stanno nella stessa onda solo se l'intersezione dei loro `files_modified` è fatta di soli file in whitelist; anche allora si applicano i vincoli del punto 3 (lockfile, un solo rigeneratore del client TS per onda, sezioni append-only di `Cargo.toml`/`package.json` → onde separate o serializzazione dichiarata).
 4. **Tetto di concorrenza** — massimo esecutori per onda da config (`workflow.max_esecutori_onda`, default **2**); onde più larghe si spezzano.
 
 ## Output: `0X-ONDE.md`
@@ -40,9 +41,11 @@ Ogni onda dichiara: slice, motivo del raggruppamento, ordine di merge e punti d'
 
 - **Ciclo nelle dipendenze** → rifiuta e rimbalza a `plan` con il ciclo nominato.
 - **Piano senza `files_modified`** → rifiuta e rimbalza a `plan`: senza la lista dei file la sicurezza del parallelo non è dimostrabile.
+- **`gate-proprieta-file.cjs --fase X` non verde** (1 o 2) → rifiuta e rimbalza a `plan` con le violazioni elencate dallo script.
 
 ## Cosa NON fa
 
 Non esegue nulla, non modifica i piani, non decide l'ordine DENTRO una slice (è del piano), non scrive lo stato (lo fa `plan` via `update-orchestrator-state`).
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+**Modifica:** Claude (Anthropic) · 2026-10-18 · strategia provider-first e insiemi di file chiusi (decisione utente)

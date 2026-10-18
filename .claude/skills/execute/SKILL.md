@@ -35,7 +35,7 @@ Terzo verbo del loop GSD+ECC (spec: `docs/superpowers/specs/loop-gsd-ecc-design.
    **Correzioni: agente nuovo, mai ripresa.** Un difetto da correggere dopo il rapporto si affida a un esecutore **nuovo** con un compito stretto: la ripresa ricarica l'intero transcript.
    **Dipendenze d'onda**: se un piano dell'onda N dipende da codice dell'onda N−1, si fonde `main` nel branch del piano (merge, mai rebase; sulle fasi critiche senza ri-registrarlo). Se quel codice contraddice le premesse del piano, è deviazione (b).
    **Contratto d'uscita**: rapporto su file `.planning/tmp/rapporto-0X-YY.yaml` (schema sotto) scritto PRIMA di ogni narrazione finale, così sopravvive ai crash; campi liberi in caveman full, hash, test ref ed errori verbatim.
-   **Divieti per gli esecutori**: `STATE.md`/`ROADMAP.md`/`ORCHESTRATOR-STATUS.md`/`WIRING-MAP.md`, `--no-verify`, uscire dai `files_modified` senza deviazione registrata nel rapporto.
+   **Divieti per gli esecutori**: `STATE.md`/`ROADMAP.md`/`ORCHESTRATOR-STATUS.md`/`WIRING-MAP.md`, `--no-verify`, uscire dai `files_modified` senza deviazione registrata nel rapporto, modificare un file posseduto da un'altra fase (deviazione (b), sotto).
 6. **Fine onda** — **onda con PIÙ slice**: spawn di `integratore-onda` (contratto in `.claude/agents/integratore-onda.md`): merge nell'ordine di `0X-ONDE.md`, conflitti motivati, gate d'onda completo sul main fuso, pulizia dei worktree. Rosso di merito → rimbalzo alla slice colpevole. **Onda con UNA sola slice**: nessun integratore; il merge `--no-ff` lo fa l'orchestratore e il gate d'onda si esegue **una sola volta, sul `main` fuso**.
    **Gate d'onda** (ogni passo si salta SOLO se il relativo manifest non esiste ancora, e lo si stampa come «non applicabile»; nessun bypass, né variabili d'ambiente né percorsi esentati):
    - Rust, se esiste `Cargo.toml` alla radice: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`;
@@ -85,6 +85,7 @@ note: "..."
 
 - **(a) dentro il piano** (fix necessario, dipendenza mancante) → auto-fix, registrato nel rapporto e nel SUMMARY, si prosegue.
 - **(b) tocca `0X-CONTRATTO.md`, un oracolo o una soglia di evaluation, oppure un seam della WIRING-MAP** fuori da quanto §4 di `0X-WIRING.md` consente (crearlo, cambiarne la forma, riempirlo), o il piano risulta non plug-in-only → STOP della slice, rimbalzo a `plan` — mai assorbita in silenzio.
+- **(b) anche: tocca un file posseduto da un'altra fase** (insiemi di file chiusi, decisione utente 2026-10-18): un file fuori dai `files_modified` del piano che `node scripts/gate-proprieta-file.cjs` attribuisce a un'altra fase — non in `scripts/proprieta-file.whitelist.json`, non innesto della WIRING-MAP di cui la fase è `fase-proprietaria` — è deviazione (b): STOP della slice, rimbalzo a `plan`. Un file in whitelist si tocca solo nel modo dichiarato (`append` in coda alla propria sezione, `regenerate` solo rigenerando, mai a mano). Un **difetto trovato in un file chiuso** di una fase precedente non si corregge qui, nemmeno se banale: si registra nel rapporto come deviazione con file, difetto e motivo, e la correzione va in una **fase decimale di gap-closure** (es. 7.1, inserita con `gsd-phase`) i cui piani dichiarano `riapre_perimetro: [N]`; la slice prosegue solo se il difetto non la blocca, altrimenti si ferma in attesa della fase decimale.
 - **(c) interruzione esterna** (rate limit, crash) → `update-orchestrator-state --evento`; alla ripresa il preflight (safe-resume) riparte dal primo task non committato.
 
 ## Cosa NON fa
@@ -92,3 +93,4 @@ note: "..."
 Non giudica la qualità (è di `verify`), non chiude la fase, non fa UAT, non decide nulla.
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+**Modifica:** Claude (Anthropic) · 2026-10-18 · strategia provider-first e insiemi di file chiusi (decisione utente)

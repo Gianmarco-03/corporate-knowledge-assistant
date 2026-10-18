@@ -1,6 +1,7 @@
 # Requirements: Corporate Knowledge Assistant (CKA)
 
 **Modifica:** Claude (gsd-roadmapper) · 2026-10-18 · creazione da `.planning/intel/requirements.md` (30 requisiti) + 7 requisiti derivati dalle milestone e dai documenti di qualità
+**Modifica:** Claude (gsd-roadmapper) · 2026-10-18 · traccia riallineata alla roadmap rivista per U-04 (15 fasi: Spike, Fondazione, due fasi Provider, consumer 5-15)
 
 **Defined:** 2026-10-18
 **Core Value:** Un utente autenticato ottiene risposte supportate da citazioni verificabili, solo dai documenti che è autorizzato a vedere, oppure un rifiuto motivato.
@@ -85,7 +86,7 @@ Rinviati; tracciati ma fuori dalla roadmap corrente.
 
 - **IMG-01**: Triage JEV di pagine e immagini (sperimentale, non bloccante per l'happy path — ADR-0002).
 - **CACHE-01**: Cache distribuita (Redis) per retrieval/embedding di query, solo dopo misura di hit rate e deployment multi-replica (A-07).
-- **CONV-01**: Conversazioni multi-turno (entità `Conversation`), salvo che Q-05 le porti nell'MVP in Fase 5.
+- **CONV-01**: Conversazioni multi-turno (entità `Conversation`), salvo che Q-05 le porti nell'MVP in Fase 8.
 
 ## Out of Scope
 
@@ -105,43 +106,43 @@ Rinviati; tracciati ma fuori dalla roadmap corrente.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLAT-01 | Phase 1 | Pending |
-| PLAT-02 | Phase 1 | Pending |
-| PLAT-03 | Phase 1 | Pending |
-| PLAT-06 | Phase 1 | Pending |
 | PLAT-07 | Phase 1 | Pending |
-| AUTH-01 | Phase 2 | Pending |
-| AUTH-02 | Phase 2 | Pending |
-| AUTH-03 | Phase 2 | Pending |
-| DOC-01 | Phase 3 | Pending |
-| DOC-02 | Phase 3 | Pending |
-| PLAT-05 | Phase 3 | Pending |
-| SEC-01 | Phase 4 | Pending |
-| SEC-02 | Phase 4 | Pending |
-| QRY-01 | Phase 5 | Pending |
-| QRY-02 | Phase 5 | Pending |
-| QRY-03 | Phase 5 | Pending |
-| QRY-04 | Phase 5 | Pending |
-| QRY-05 | Phase 5 | Pending |
-| VIEW-01 | Phase 6 | Pending |
-| VIEW-02 | Phase 6 | Pending |
-| SEC-03 | Phase 7 | Pending |
-| SEC-04 | Phase 7 | Pending |
-| SEC-05 | Phase 7 | Pending |
-| AUD-01 | Phase 8 | Pending |
-| AUD-02 | Phase 8 | Pending |
-| AUD-03 | Phase 8 | Pending |
-| DOC-03 | Phase 9 | Pending |
-| ONL-01 | Phase 9 | Pending |
-| ONL-02 | Phase 9 | Pending |
-| ONL-03 | Phase 9 | Pending |
-| EVAL-01 | Phase 10 | Pending |
-| EVAL-02 | Phase 10 | Pending |
-| PLAT-04 | Phase 11 | Pending |
-| DOC-04 | Phase 11 | Pending |
-| OBS-01 | Phase 11 | Pending |
-| DLV-01 | Phase 12 | Pending |
-| DLV-02 | Phase 12 | Pending |
+| PLAT-02 | Phase 2 | Pending |
+| PLAT-03 | Phase 2 | Pending |
+| PLAT-06 | Phase 2 | Pending |
+| PLAT-01 | Phase 4 | Pending |
+| AUTH-01 | Phase 5 | Pending |
+| AUTH-02 | Phase 5 | Pending |
+| AUTH-03 | Phase 5 | Pending |
+| DOC-01 | Phase 6 | Pending |
+| DOC-02 | Phase 6 | Pending |
+| PLAT-05 | Phase 6 | Pending |
+| SEC-01 | Phase 7 | Pending |
+| SEC-02 | Phase 7 | Pending |
+| QRY-01 | Phase 8 | Pending |
+| QRY-02 | Phase 8 | Pending |
+| QRY-03 | Phase 8 | Pending |
+| QRY-04 | Phase 8 | Pending |
+| QRY-05 | Phase 8 | Pending |
+| VIEW-01 | Phase 9 | Pending |
+| VIEW-02 | Phase 9 | Pending |
+| SEC-03 | Phase 10 | Pending |
+| SEC-04 | Phase 10 | Pending |
+| SEC-05 | Phase 10 | Pending |
+| AUD-01 | Phase 11 | Pending |
+| AUD-02 | Phase 11 | Pending |
+| AUD-03 | Phase 11 | Pending |
+| DOC-03 | Phase 12 | Pending |
+| ONL-01 | Phase 12 | Pending |
+| ONL-02 | Phase 12 | Pending |
+| ONL-03 | Phase 12 | Pending |
+| EVAL-01 | Phase 13 | Pending |
+| EVAL-02 | Phase 13 | Pending |
+| PLAT-04 | Phase 14 | Pending |
+| DOC-04 | Phase 14 | Pending |
+| OBS-01 | Phase 14 | Pending |
+| DLV-01 | Phase 15 | Pending |
+| DLV-02 | Phase 15 | Pending |
 
 **Coverage:**
 - v1 requirements: 37 total (30 dai documenti + 7 derivati)
@@ -152,4 +153,4 @@ Mappatura dagli ID dell'intel (`REQ-{slug}`): login-email-password→AUTH-01, ro
 
 ---
 *Requirements defined: 2026-10-18*
-*Last updated: 2026-10-18 after creazione della roadmap*
+*Last updated: 2026-10-18 after revisione della roadmap per U-04*

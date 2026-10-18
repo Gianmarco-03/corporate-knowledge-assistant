@@ -23,12 +23,35 @@ Convivono due plugin: **GSD** (requisiti, roadmap, fasi, piani, stato) ed **ECC*
 
 **Ordine dei verifier (mai invertire, mai doppiare)**: ECC → verifica ingegneristica (test/lint/build, code review, security, e2e, regressione di evaluation) → GSD → verifica di obiettivo («abbiamo davvero completato la fase?»).
 
+## 1-bis. Strategia di consegna provider-first
+
+Decisione utente 2026-10-18 (U-04 nel ROADMAP, sezione «Strategia di consegna», che resta la fonte di verità per numeri di fase e whitelist): **provider-first, insiemi di file chiusi per fase**.
+
+**Ordine di progetto dei verbi** (diverso dall'ordine numerico di esecuzione):
+1. `discuss` di **tutte** le fasi: le decisioni di prodotto che vincolano i provider si chiudono prima che i provider siano pianificati.
+2. `plan` + `execute` + `verify` della fase **Spike**: misure e ADR, codice usa-e-getta fuori dall'albero di prodotto.
+3. `plan` della **Fondazione** e delle fasi **Provider**: porte, DTO, innesti e perimetri fissati nei rispettivi `0X-CONTRATTO.md`.
+4. `plan` di **tutte le fasi consumatrici**, ciascuna contro i contratti e i trait-porta di Fondazione e Provider, mai contro codice provvisorio.
+5. **Riconciliazione dei piani provider** prima di qualsiasi codice: per ogni trait-porta, operazioni del provider ⊇ unione dei bisogni dei piani consumatori; ogni operazione provider ha almeno un piano consumatore che la usa. Un delta riapre il piano provider (`plan_version` +1, re-gate, nuovo test design).
+6. `execute` + `verify` per **onde di dipendenza** (le fasi senza dipendenze reciproche, come i due Provider, possono procedere in parallelo).
+
+**Fondazione**: costruisce complete le parti comuni — composition root, configurazione, pool DB, telemetria, modello d'errore, scheletro del router, framework delle migrazioni — e **pre-registra gli innesti vuoti di ogni fase successiva** (file-modulo, righe di registrazione nei composition root, registro delle route del frontend, cartelle delle migrazioni, membri del workspace, dipendenze note in `[workspace.dependencies]`), così le fasi successive riempiono solo i propri file (§4.2).
+
+**Provider**: gli adapter dietro i trait-porta (DocumentStore, DocumentParser, Chunker, Embedder, VectorIndex, DecisionEngine/JEV con tutte le operazioni, AnswerGenerator, AuditSink, Cache) si implementano **completi** nella propria fase, prima dei consumatori. Ogni operazione cita almeno un piano consumatore (`consumatori: [0X-YY, …]`): niente operazioni speculative. È l'unica eccezione a `perimetro-check`: il contenuto per una fase futura resta vietato, salvo un'operazione provider della fase Provider corrente che cita un piano consumatore; senza consumatore citato è da correggere. Nella Fondazione i seam inter-fase restano innesti vuoti.
+
+**Insiemi di file chiusi**: ogni fase possiede un insieme chiuso di file, dichiarato nel proprio contratto e ricavabile dai `files_modified` dei suoi piani; le altre fasi non li modificano. Eccezioni:
+- la **whitelist** `scripts/proprieta-file.whitelist.json` (`{glob, tipo: append | regenerate | shared-doc, motivo}`), allineata al ROADMAP: sezioni di dipendenze dei `Cargo.toml` e di `apps/web/package.json`, `.env.example`, `.planning/WIRING-MAP.md`, una sezione per fase in `docs/architecture/data-model.md`, `docs/architecture/api-contract.md` e `CLAUDE.md` (append); `Cargo.lock`, `apps/web/package-lock.json`, OpenAPI e client TS generati, `.sqlx/` (regenerate). I file di migrazione non ci stanno: sono file nuovi con la fascia di numerazione della fase nel nome;
+- gli **innesti** della WIRING-MAP: creati vuoti dalla Fondazione (`created-in`), riempiti dalla sola `fase-proprietaria`;
+- le **fasi decimali di gap-closure** (es. 7.1): un difetto in un file chiuso si corregge così, con piani che dichiarano `riapre_perimetro: [N]` e la deviazione registrata con motivo — mai in silenzio dentro un'altra fase.
+
+Lo controlla il gate **`proprieta-file`** (`scripts/gate-proprieta-file.cjs`): legge i `files_modified` di tutti i `.planning/phases/*/*-PLAN.md` (CRLF normalizzati, liste inline o a blocco), costruisce la mappa file → piani con confronto glob-aware e segnala ogni file reclamato da piani di **più fasi** fuori dalle eccezioni; più piani della stessa fase sono ammessi (li serializza `onde-slice`). `--fase NN` limita ai conflitti che coinvolgono NN, `--root` punta a un albero alternativo. Uscita 0 conforme, 1 violazioni (file, piani, proprietario suggerito), 2 non eseguito (niente `.planning`, niente piani, fase senza piani, piano senza `files_modified`), che blocca come 1. Agisce in `plan` (gate su tutti i piani del ROADMAP), in `onde-slice` (rifiuto prima delle onde), in `execute` (toccare un file di un'altra fase = deviazione (b)) e nella valvola d'eccezione di `verify`. Non è negli hook git.
+
 ## 2. Architettura
 
 **4 verbi** — `discuss | plan | execute | verify` — che ripiegano su skill esistenti (GSD, ECC, gate di progetto), più le skill di servizio:
 - `onde-slice`, `update-orchestrator-state`, `ricerca-punti-aperti`, `deep-research-handoff`;
 - la triade di wiring `wiring-search` → `wiring-design` → `wiring-build`;
-- i gate `solid-check`, `crate-boundary-check`, `security-scanner`, `eval-oracle-check`, `perimetro-check` (`scripts/gate-perimetro.cjs`);
+- i gate `solid-check`, `crate-boundary-check`, `security-scanner`, `eval-oracle-check`, `perimetro-check` (`scripts/gate-perimetro.cjs`), `proprieta-file` (`scripts/gate-proprieta-file.cjs`, §1-bis);
 - il contratto agente `integratore-onda` (`.claude/agents/integratore-onda.md`, unico agente vendorizzato).
 
 Gli agenti `gsd-*` **non sono vendorizzati**: si usano quelli dell'installazione utente (`~/.claude/agents/gsd-*`, GSD 1.42.3, `gsd-tools` in `$HOME/.claude/gsd-core/bin/gsd-tools.cjs`). Il bridge SUMMARY è un **passo interno di `execute`**, non una skill.
@@ -67,7 +90,7 @@ Richiede `discuss X` completato. Se X-1 è in exec, pianifica **contro `0(X-1)-C
 3. **Wiring prima dei piani** — `wiring-search` + `wiring-design`, tra slice e tra fasi (§4.2). `wiring-build` scrive codice: è la wave 0 di `execute`.
 4. **Architettura locale (ECC)** — `ecc:code-architect` per slice grossa: blueprint (crate, trait-porta, file, flusso, ordine).
 5. **Piani** — `gsd-plan-phase X --skip-research` in un **subagente fresco** (mai `fork`), vincolato a CONTEXT + RESEARCH + `0X-WIRING.md` + blueprint + contratto X-1; il subagente non risponde al posto dell'utente, riporta in caveman e non scrive lo stato. I piani li scrive sempre GSD.
-6. **Gate paralleli sui piani** — `solid-check`, `crate-boundary-check`, `security-scanner`, `perimetro-check` sempre; `eval-oracle-check` solo se un piano tocca dataset di evaluation, valori attesi o soglie (JEV, retrieval). Verdetto per piano `conforme`/`da correggere`; ricircolo fino a conformità; 3 giri falliti → stop e presentazione all'utente.
+6. **Gate paralleli sui piani** — `solid-check`, `crate-boundary-check`, `security-scanner`, `perimetro-check`, `proprieta-file` (su tutti i piani del ROADMAP) sempre; `eval-oracle-check` solo se un piano tocca dataset di evaluation, valori attesi o soglie (JEV, retrieval). Verdetto per piano `conforme`/`da correggere`; ricircolo fino a conformità; 3 giri falliti → stop e presentazione all'utente.
    **6-bis. Rischi e test design** — fase **critica**: GPT su AgentBridge, `implementation-risk-audit` poi `test-design`, fino a `plan-gate = TEST_SPEC_READY` (limite proprio di 3 giri d'audit; branch `task/PLAN-…` mai ribasato dopo l'audit). Fase **non critica**: un agente Claude separato (fresco, distinto da planner ed esecutori) scrive `0X-YY-TEST-DESIGN.md` nello stesso formato (`RISK-N`, `TEST-N` con `catches`, `uncovered` motivati).
 7. **Contratto e onde** — `0X-CONTRATTO.md`: rotte+DTO, tabelle e migrazioni per servizio, tipi di `crates/contracts`, trait-porta, route e componenti di `apps/web`, **seam della WIRING-MAP** creati o riempiti; `onde-slice`; `update-orchestrator-state --plan`; commit di tutti gli artefatti di fase.
 
@@ -83,9 +106,10 @@ I gate agiscono **una volta, sul piano**; a codice scritto lo stesso rischio è 
 | crate-boundary-check | nessun servizio dipende da un altro servizio; dipendenze interne solo verso `crates/contracts` e `crates/telemetry`; `domain` senza `sqlx`, `reqwest`, `axum`, SDK provider; wiring solo nel composition root | controllo meccanico su `cargo metadata` e sugli `use` di `src/domain/**` + test architetturali |
 | security-scanner (ASVS L1, OWASP LLM Top 10, RFC 7519/8725) | authz deny-by-default per endpoint; regola no-leak verso reranker/JEV/LLM/cache/log/telemetria; JWT e Argon2id; segreti; token nello storage del browser; upload; SSRF sulle fonti online; prompt injection | `ecc:security-reviewer` sul diff in `verify` |
 | eval-oracle-check (solo se il piano tocca dataset, valori attesi o soglie) | provenienza degli oracoli citata nel piano | test di evaluation marcati + triplo guardrail + regressione sull'evaluation corpus in `verify` |
-| perimetro-check | niente ponti per fasi successive: ciò che copre una fase futura compare solo come seam vuoto o segnaposto nudo | filtro in `verify` 3-bis |
+| perimetro-check | niente ponti per fasi successive: ciò che copre una fase futura compare solo come seam vuoto o segnaposto nudo; eccezione: operazione provider della fase Provider corrente con `consumatori: [0X-YY, …]` (senza consumatore = da correggere) | filtro in `verify` 3-bis |
+| proprieta-file | nessun file reclamato da piani di più fasi, salvo whitelist, innesti della WIRING-MAP e riaperture `riapre_perimetro` delle fasi decimali | deviazione (b) in `execute`; valvola d'eccezione in `verify` |
 
-**Valvola d'eccezione in `verify`** — i gate si riaccendono **solo su segnale**: dipendenza fra crate o import nel `domain` non previsti → `crate-boundary-check`; valore atteso, citazione attesa o soglia non previsti → `eval-oracle-check` **e rimbalzo al planning**; superfici sensibili non pianificate (auth/JWT, RBAC, log e telemetria, parser e upload, fonti online, prompt verso LLM o JEV, segreti) → `security-scanner` sui soli file toccati.
+**Valvola d'eccezione in `verify`** — i gate si riaccendono **solo su segnale**: dipendenza fra crate o import nel `domain` non previsti → `crate-boundary-check`; diff di fase che tocca un file posseduto da un'altra fase → `proprieta-file` (senza deviazione registrata con motivo è un gap, e la modifica va in una fase decimale di gap-closure); valore atteso, citazione attesa o soglia non previsti → `eval-oracle-check` **e rimbalzo al planning**; superfici sensibili non pianificate (auth/JWT, RBAC, log e telemetria, parser e upload, fonti online, prompt verso LLM o JEV, segreti) → `security-scanner` sui soli file toccati.
 
 **Oracoli di evaluation (triplo guardrail)** — un valore atteso (domanda, risposta, citazione attesa, numero estratto, soglia) è legittimo solo se viene da: (1) un estratto verbatim, con pagina, del documento sorgente; (2) una derivazione documentata dal documento sorgente; (3) una decisione utente ratificata. **Mai generato eseguendo la pipeline RAG.** Il guardrail ha tre passi: (1) Claude deriva il valore con un agente separato dall'implementatore; (2) GPT, contratto `double-check` in sessione pulita, riceve solo documento sorgente e derivazione, mai il codice — **sempre**; (3) l'utente ratifica guardando derivazione e fonte. Servono tre verdi; un disaccordo qualsiasi diventa TO-DO. Tolleranze: citazione = documento + versione + pagina esatti, span con overlap; numeri estratti esatti.
 
@@ -101,7 +125,9 @@ Oltre ai seam tra le slice di una fase, il loop gestisce i **seam tra fasi**. `.
 - in `execute`, toccare un seam della mappa fuori da quanto il PLAN dichiara è una deviazione (b);
 - `verify` riconcilia i seam reali con la mappa e porta a `filled` le righe riempite dalla fase (lo stato `filled` lo imposta solo `verify`).
 
-**Confine con `perimetro-check`**: un seam per una fase futura è ammesso SOLO vuoto (trait senza implementazione, registry senza voci, punto di montaggio senza rotte, segnaposto nudo). Il contenuto della fase futura resta vietato.
+**Confine con `perimetro-check`**: un seam per una fase futura è ammesso SOLO vuoto (trait senza implementazione, registry senza voci, punto di montaggio senza rotte, segnaposto nudo). Il contenuto della fase futura resta vietato, salvo le operazioni provider con consumatore citato (§1-bis).
+
+**Pre-registrazione di progetto (§1-bis)**: nella Fondazione `wiring-search` lavora in modalità di progetto (goal di **tutte** le fasi successive) e `wiring-design` progetta un innesto vuoto per ogni fase successiva — file-modulo, righe di registrazione nei composition root e negli indici, cartelle delle migrazioni, membri del workspace. Ogni file d'innesto ha **una sola** `fase-proprietaria` (colonna della WIRING-MAP, letta da `gate-proprieta-file.cjs`); un registro alimentato da più fasi si spezza in un file d'innesto per fase. Il file con le righe di registrazione resta della Fondazione e non va in whitelist, perché le fasi successive non vi appendono.
 
 **Default dei seam**: append-registry esplicito in file noti, ogni slice appende in coda; mai auto-discovery, salvo richiesta esplicita; mai `match` sul tipo dove serve un registry.
 
@@ -116,7 +142,7 @@ Oltre ai seam tra le slice di una fase, il loop gestisce i **seam tra fasi**. `.
 7. **Bridge per piano** (solo a merge verde) — §7.
 8. **Stato** — `--exec` a ogni fine onda, più `APPEND-STATUS` sulla dashboard a ogni tappa.
 
-**Deviazioni a tre livelli**: (a) dentro il piano → auto-fix registrato nel rapporto e nel SUMMARY; (b) **tocca il contratto di fase, un oracolo o una soglia di evaluation, oppure un seam della WIRING-MAP → STOP della slice, rimbalzo al planning, mai in silenzio**; (c) interruzione esterna → `--evento` + safe-resume dal primo task non committato.
+**Deviazioni a tre livelli**: (a) dentro il piano → auto-fix registrato nel rapporto e nel SUMMARY; (b) **tocca il contratto di fase, un oracolo o una soglia di evaluation, oppure un seam della WIRING-MAP → STOP della slice, rimbalzo al planning, mai in silenzio**; (c) interruzione esterna → `--evento` + safe-resume dal primo task non committato. È deviazione (b) anche toccare un file posseduto da un'altra fase fuori whitelist; un difetto trovato in un file chiuso si registra con motivo e si corregge in una fase decimale di gap-closure (`riapre_perimetro: [N]`), mai nella slice che lo scopre (§1-bis).
 
 ## 6. `verify`
 
@@ -140,11 +166,11 @@ Ciò che GSD esige per piano chiuso: SUMMARY col frontmatter obbligatorio (`requ
 
 ## 8. Contratto di fase e pipeline sfalsata
 
-Obiettivo: `plan X` senza attendere `exec X-1`. Le catene che li legano sono la codebase reale, i SUMMARY come contesto e le decisioni prese in corsa. Soluzione: `0X-CONTRATTO.md` prodotto da `plan` (rotte+DTO, schema per servizio, tipi di `crates/contracts`, trait-porta, componenti esportati, seam della WIRING-MAP) → `plan X+1` consuma il contratto invece dei SUMMARY; il contratto è **congelato in exec** (deviazione che lo tocca → rimbalzo al planning); `verify` riconcilia. Limite deliberato: la UI di dettaglio resta late-bound, valutata dal vivo su localhost.
+Obiettivo: `plan X` senza attendere `exec X-1`. Le catene che li legano sono la codebase reale, i SUMMARY come contesto e le decisioni prese in corsa. Soluzione: `0X-CONTRATTO.md` prodotto da `plan` (rotte+DTO, schema per servizio, tipi di `crates/contracts`, trait-porta, componenti esportati, seam della WIRING-MAP) → `plan X+1` consuma il contratto invece dei SUMMARY; il contratto è **congelato in exec** (deviazione che lo tocca → rimbalzo al planning); `verify` riconcilia. Limite deliberato: la UI di dettaglio resta late-bound, valutata dal vivo su localhost. Con la strategia provider-first (§1-bis) il meccanismo si estende: tutte le fasi consumatrici si pianificano contro i contratti di Fondazione e Provider prima che questi siano eseguiti, e la riconciliazione dei piani provider chiude il cerchio prima del codice.
 
 ## 9. `onde-slice`
 
-Input: frontmatter dei PLAN (`files_modified`, `depends_on`), `0X-WIRING.md`, contratto. Algoritmo: grafo delle dipendenze → livelli; sovrapposizione `files_modified` a coppie, glob-aware (anche un solo file in comune, `Cargo.lock` e `package-lock.json` compresi → niente parallelo); vincoli meccanici: un solo piano con superficie API per onda (rigenerazione OpenAPI e client per intero), un solo piano per servizio e per onda che aggiunge migrazioni, un solo piano per onda che aggiunge membri al workspace; tetto di concorrenza **2**. Output: `0X-ONDE.md` committato. Rifiuta su cicli o piani senza `files_modified` → rimbalzo a `plan`.
+Input: frontmatter dei PLAN (`files_modified`, `depends_on`), `0X-WIRING.md`, contratto. Algoritmo: grafo delle dipendenze → livelli; sovrapposizione `files_modified` a coppie, glob-aware (anche un solo file in comune, `Cargo.lock` e `package-lock.json` compresi → niente parallelo); vincoli meccanici: un solo piano con superficie API per onda (rigenerazione OpenAPI e client per intero), un solo piano per servizio e per onda che aggiunge migrazioni, un solo piano per onda che aggiunge membri al workspace; tetto di concorrenza **2**. Output: `0X-ONDE.md` committato. Rifiuta su cicli, piani senza `files_modified` o `gate-proprieta-file.cjs --fase X` non verde → rimbalzo a `plan`. Nelle onde cross-fase due piani di fasi diverse condividono un'onda solo se l'intersezione dei loro file è tutta in whitelist, e restano i vincoli meccanici su lockfile e rigenerazioni.
 
 ## 9-bis. `ricerca-punti-aperti`
 
@@ -168,10 +194,11 @@ Regole di sanità: **indice, non archivio** (una riga + puntatore all'artefatto)
 - Database di sviluppo e test: PostgreSQL + pgvector su **Docker Desktop** (Compose del repo), mai un remoto.
 - AgentBridge: progetto `CorporateKnowledgeAssistant`, contratti in `C:\Agent Bridge\docs\contracts.md`.
 - Lingua: documenti, skill e commit in italiano; codice e identificatori in inglese.
-- **Avvio**: `/gsd:ingest-docs` sui documenti esistenti → roadmap a fasi → la prima fase multi-slice fa da **pilota** del wiring (anche inter-fase); gli attriti si registrano come correzioni di procedura datate. Da lì `/discuss 1` → `/plan 1` → `/execute 1` → `/verify 1`.
+- **Avvio**: `/gsd:ingest-docs` sui documenti esistenti → roadmap a fasi → la prima fase multi-slice fa da **pilota** del wiring (anche inter-fase); gli attriti si registrano come correzioni di procedura datate. Da lì l'ordine dei verbi segue la strategia provider-first (§1-bis): `discuss` di tutte le fasi, Spike, `plan` di Fondazione e Provider, `plan` dei consumatori, riconciliazione, esecuzione per onde di dipendenza.
 
 ## 13. Fuori scope (YAGNI)
 
-Codex come implementatore o scrittore di test (slot spento per decisione utente); piani scritti da GPT; estensione degli interni di gsd-core; parallelismo fra fasi in exec (solo plan sfalsato); UI di dettaglio pianificata in anticipo; una fase 0 di ricerca di mercato.
+Codex come implementatore o scrittore di test (slot spento per decisione utente); piani scritti da GPT; estensione degli interni di gsd-core; parallelismo fra fasi in exec oltre le onde di dipendenza della strategia provider-first (§1-bis); UI di dettaglio pianificata in anticipo; una fase 0 di ricerca di mercato.
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+**Modifica:** Claude (Anthropic) · 2026-10-18 · strategia provider-first e insiemi di file chiusi (decisione utente)

@@ -77,7 +77,14 @@ Alcuni punti sono wiring point anche se oggi li tocca una sola slice, perché og
    ```
    Mai `cat`/`Read` di `ROADMAP.md`, mai i success criteria o i dettagli delle fasi future: il wiring prepara la **forma** dell'aggancio, non il contenuto di fasi non ancora discusse.
 3. **Candidati.** Un seam inter-fase è candidato solo se **(a)** un goal futuro estende un comportamento che X costruisce (nuova variante, nuova rotta sullo stesso servizio, nuova tabella nello stesso servizio, nuovo tipo di evento sullo stesso registro) e **(b)** senza il seam quella fase dovrebbe modificare l'interno del codice di X. Ogni candidato cita il goal letterale che lo motiva e il file di X dove vivrebbe. Niente candidati speculativi senza un goal che li nomini.
-4. Se un goal futuro tocca un'area che X non costruisce affatto, **non** è un seam di X: sarà la fase futura a creare il proprio punto di aggancio. Annotalo come «nessun seam per X».
+4. Se un goal futuro tocca un'area che X non costruisce affatto, **non** è un seam di X: sarà la fase futura a creare il proprio punto di aggancio. Annotalo come «nessun seam per X». Eccezione: se l'aggancio richiederebbe una riga in un file che X possiede (composition root, indice delle route, registro, `Cargo.toml` radice), è comunque un seam di X, perché con gli insiemi di file chiusi la fase futura non può toccare quel file.
+5. **Modalità di progetto — fase Fondazione** (decisione utente 2026-10-18, strategia «provider-first, insiemi di file chiusi per fase», spec §1-bis). Quando X è la Fondazione, l'asse inter-fase copre **tutte** le fasi successive del ROADMAP, ancora dai soli goal (più, se esistono, i CONTEXT già discussi: nella strategia provider-first `discuss` precede tutti i `plan`). Per ogni fase successiva elenca gli innesti che la Fondazione deve pre-registrare vuoti, così quella fase riempirà solo file propri:
+   - file-modulo della fase (`services/<svc>/src/app/<feature>.rs`, moduli HTTP, `src/events/<feature>.rs`, `apps/web/src/features/<feature>/routes.tsx`, eventuali `mocks/handlers.ts` e frammenti OpenAPI);
+   - righe di registrazione nei file della Fondazione (`app.rs`, `apps/web/src/app/routes.tsx`, `src/events/registry.rs`, `src/mocks/handlers.ts`, struct di configurazione);
+   - cartelle delle migrazioni dei servizi che la fase tocca;
+   - membri del workspace e `[workspace.dependencies]` dei crate che la fase introdurrà;
+   - trait-porta e operazioni che la fase Provider implementerà e le fasi consumatrici useranno.
+   Ogni candidato porta la **fase proprietaria** prevista (l'unica che riempirà il file). Un file che più fasi vorrebbero riempire si segnala come «da spezzare in un innesto per fase» per `wiring-design`. In modalità di progetto la regola (a)+(b) dello step 3 si legge così: basta che la fase futura debba agganciarsi a un file della Fondazione.
 
 ### Step 5 — Classifica ogni punto
 - **Kind** (tassonomia della WIRING-MAP): `trait-port | registry | router-mount | migration-sequence | openapi-tag | ts-client | frontend-route | audit/outbox-event-registry | workspace-member | compose-service | config-key`.
@@ -105,9 +112,9 @@ Redazione · input letti (con sha di main) · WIRING-MAP presente/assente · sta
 Riepilogo: n ALTO/MEDIO/BASSO; slice genuinamente file-disgiunte.
 
 ## §2 — Seam inter-fase
-| rif | punto | kind | azione per X (crea vuoto / riempie / consuma) | fase futura o d'origine | motivo (goal citato o riga WIRING-MAP) |
-|---|---|---|---|---|---|
-| WM-007 o cand-1 | ... | ... | ... | ... | ... |
+| rif | punto | kind | azione per X (crea vuoto / riempie / consuma) | fase futura o d'origine | fase proprietaria del file | motivo (goal citato o riga WIRING-MAP) |
+|---|---|---|---|---|---|---|
+| WM-007 o cand-1 | ... | ... | ... | ... | ... | ... |
 Segnali: righe WIRING-MAP non trovate nel codice; goal futuri senza seam in X.
 
 ## §3 — Convenzioni e plug-in contract   (wiring-design)
@@ -121,3 +128,4 @@ Segnali: righe WIRING-MAP non trovate nel codice; goal futuri senza seam in X.
 L'inventario è l'input di **`wiring-design`**, che sceglie la convenzione per ogni punto, decide quali candidati inter-fase diventano promesse e aggiorna la WIRING-MAP. Qui non si progetta, non si crea nulla e non si toccano WIRING-MAP, piani o codice.
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+**Modifica:** Claude (Anthropic) · 2026-10-18 · strategia provider-first e insiemi di file chiusi (decisione utente)

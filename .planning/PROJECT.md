@@ -1,6 +1,7 @@
 # Corporate Knowledge Assistant (CKA)
 
 **Modifica:** Claude (gsd-roadmapper) · 2026-10-18 · creazione da ingest dei documenti (`.planning/intel/`)
+**Modifica:** Claude (gsd-roadmapper) · 2026-10-18 · aggiunta della decisione U-04 e riallineamento dei rimandi di fase alla roadmap rivista (15 fasi)
 
 ## What This Is
 
@@ -40,7 +41,7 @@ Elenco completo con ID e tracciabilità in `.planning/REQUIREMENTS.md` (37 requi
 - Message broker dedicato — transactional outbox su PostgreSQL basta finché non c'è un requisito misurato
 - Database vettoriale separato — prima va misurato `pgvector`
 - Framework agentico — la pipeline è deterministica
-- Cache distribuita (Redis) senza misura — primo adapter `NoOpCache` (A-07 da chiudere in Fase 11)
+- Cache distribuita (Redis) senza misura — primo adapter `NoOpCache` (A-07 da chiudere in Fase 14)
 - Sidecar JEV / quarto servizio — l'integrazione JEV è HTTPS diretto dal backend Rust
 - Plugin dinamici a runtime — Open-Closed via trait stabili, non plugin
 - Auto-approvazione dei documenti scoperti online — disabilitata nell'MVP
@@ -50,7 +51,7 @@ Elenco completo con ID e tracciabilità in `.planning/REQUIREMENTS.md` (37 requi
 
 - **Stato:** definizione dell'architettura completata a livello di ADR, SPEC e PRD; nessun codice. Le directory `apps/`, `services/`, `crates/`, `tests/`, `infra/`, `evaluation/` contengono solo `.gitkeep`.
 - **Fonti di verità:** `README.md`, `DEPENDENCIES.md`, `docs/architecture/architecture.md`, `docs/architecture/interfaces-and-concurrency.md`, `docs/data/corpus-strategy.md`, `docs/adr/0001-*`, `docs/adr/0002-*`, `docs/product/requirements.md`. Sintesi in `.planning/intel/`.
-- **Lacune M0:** sono stub su template esterni `docs/product/project-charter.md`, `docs/architecture/api-contract.md`, `docs/architecture/data-model.md`, `docs/security/threat-model.md`, `docs/quality/test-plan.md`, `docs/quality/llm-evaluation.md`, `deliverables/checklist.md`. Il threat model si chiude in Fase 1; data model e contratto API si completano nella fase che introduce ciascuna entità o endpoint.
+- **Lacune M0:** sono stub su template esterni `docs/product/project-charter.md`, `docs/architecture/api-contract.md`, `docs/architecture/data-model.md`, `docs/security/threat-model.md`, `docs/quality/test-plan.md`, `docs/quality/llm-evaluation.md`, `deliverables/checklist.md`. Il threat model si chiude in Fase 1 (Spike tecnici); data model e contratto API si completano nella fase che introduce ciascuna entità o endpoint.
 - **Dominio iniziale:** documenti finanziari/societari ricchi di testo, tabelle e grafici; corpus iniziale 10-30 documenti; TAT-DQA candidato per l'evaluation, DocLayNet per test di parsing, FinanceBench dopo verifica delle condizioni d'uso.
 - **Metodologia:** loop GSD+ECC a 4 verbi (`discuss | plan | execute | verify`, vedi `CLAUDE.md`). Le fasi marcate "Criticità: critica" in ROADMAP ricevono `implementation-risk-audit` + `test-design` da GPT via AgentBridge; le altre ricevono test design da un agente Claude separato.
 - **Lingua:** documenti e commit in italiano; codice e identificatori in inglese.
@@ -63,7 +64,7 @@ Elenco completo con ID e tracciabilità in `.planning/REQUIREMENTS.md` (37 requi
 - **Contratti**: HTTP/JSON con OpenAPI, `/api/v1` pubblico e `/internal/v1` interno, UUID opachi, UTC RFC 3339, idempotency key sulle mutazioni, propagazione di `request_id` e trace context, errori `code`/`message`/`request_id` — interfaces-and-concurrency.md (C-01)
 - **Sicurezza**: deny-by-default; nessun chunk non autorizzato raggiunge reranker, JEV, LLM, cache o log; ricontrollo autorizzativo prima di citazioni/link e nel viewer — NFR-001, BR-004
 - **JEV**: solo segnali semantici dietro la porta `DecisionEngine`; mai autorizzazione, provenance, licenze, malware, deduplicazione esatta o mapping citazioni; fake deterministico nei test unitari — ADR-0002
-- **Concorrenza**: ogni fan-out con limite, deadline globale, cancellazione e budget di retry; upload in streaming; worker con lease e `FOR UPDATE SKIP LOCKED`; nessuna chiamata esterna in transazione. Vale per tutte le fasi, la verifica end-to-end è in Fase 11 — NFR-003, C-06, C-07
+- **Concorrenza**: ogni fan-out con limite, deadline globale, cancellazione e budget di retry; upload in streaming; worker con lease e `FOR UPDATE SKIP LOCKED`; nessuna chiamata esterna in transazione. Vale per tutte le fasi, la verifica end-to-end è in Fase 14 — NFR-003, C-06, C-07
 - **Ambiente**: Docker Desktop + Docker Compose su Windows; immagini non-root, health check, nessun segreto in immagini o Compose versionati — U-01
 - **Prestazioni (iniziali, p95, da riesaminare dopo baseline)**: upload ack ≤ 500 ms; PDF digitale 25 pagine/10 MB ≤ 15 s; 100 pagine ≤ 60 s; scannerizzato 25 pagine ≤ 45 s; job fallito visibile ≤ 5 s — README.md (C-31)
 
@@ -92,6 +93,7 @@ Elenco completo con ID e tracciabilità in `.planning/REQUIREMENTS.md` (37 requi
 - U-01: Ambiente locale Docker Desktop + Docker Compose (chiude A-08).
 - U-02: Metodologia loop GSD+ECC (solo processo).
 - U-03 (FR-007): un unico requisito di viewer: la citazione apre versione e pagina corrette (obbligatorio); il passaggio è evidenziato quando il parser fornisce coordinate, altrimenti fallback alla pagina (PDF scannerizzati, DOCX). Diventa VIEW-01.
+- U-04: strategia provider-first e insiemi di file chiusi per fase (2026-10-18). Si discutono prima tutte le fasi; poi si eseguono gli spike; poi si pianificano Fondazione e Provider; poi ogni fase consumer contro le trait-porta; poi si riconciliano i piani provider; solo allora parte l'esecuzione. Le parti comuni (composition root, config, pool DB, telemetria, errori, router, migrazioni, hook vuoti per ogni fase successiva in Rust e frontend) si costruiscono per intero e per prime; ogni provider esterno è completo, con fake e contract test, in una fase precedente ai suoi consumer, e ogni sua operazione è tracciata ad almeno una fase consumer. Ogni fase possiede un insieme chiuso di file che le fasi successive non modificano, salvo una whitelist di file append-only o rigenerati (dettaglio in ROADMAP.md, "Strategia di consegna").
 </decisions>
 
 | Decisione | Motivazione | Esito |
@@ -100,6 +102,7 @@ Elenco completo con ID e tracciabilità in `.planning/REQUIREMENTS.md` (37 requi
 | Corpus incrementale con quarantena, JEV solo segnali (ADR-0002) | Sicurezza deterministica, decisioni semantiche delegabili | — Pending |
 | Docker Desktop + Compose (U-01) | Ambiente locale unico e riproducibile | — Pending |
 | Viewer: pagina obbligatoria, passaggio se ci sono coordinate (U-03) | Risolve il WARNING FR-007 senza vincolare parser/OCR | — Pending |
+| Provider-first e insiemi di file chiusi per fase (U-04) | Le fasi consumer pianificano contro porte stabili e non toccano file comuni o di provider | — Pending |
 | Argon2id, PostgreSQL un cluster, migrazioni per servizio, JEV via HTTPS diretto (DEPENDENCIES "Decisa") | Allineate agli ADR | — Pending |
 
 **Proposte da validare (non decise):** Tokio, axum/tower, serde, sqlx, `pgvector`, JWT asimmetrici, reqwest+Rustls, thiserror/anyhow, tracing+OpenTelemetry, Vite, React Router, TanStack Query, PDF.js, client OpenAPI generato, Vitest, Playwright, audit/outbox append-only, `NoOpCache`. Ognuna si conferma nella fase indicata in ROADMAP.md.
@@ -111,4 +114,4 @@ Elenco completo con ID e tracciabilità in `.planning/REQUIREMENTS.md` (37 requi
 Dopo ogni transizione di fase: requisiti validati → Validated con riferimento di fase; requisiti invalidati → Out of Scope con motivo; nuove decisioni → Key Decisions; "What This Is" aggiornato se diverge. Dopo ogni milestone: revisione completa e verifica del Core Value.
 
 ---
-*Last updated: 2026-10-18 after ingest dei documenti e creazione della roadmap*
+*Last updated: 2026-10-18 after decisione U-04 e revisione della roadmap*

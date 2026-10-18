@@ -1,0 +1,15 @@
+[
+  { "glob": "Cargo.lock", "tipo": "regenerate", "motivo": "ROADMAP «Strategia di consegna»: lockfile del workspace Cargo, si rigenera con cargo, mai fuso a mano" },
+  { "glob": "apps/web/package-lock.json", "tipo": "regenerate", "motivo": "ROADMAP «Strategia di consegna»: lockfile npm di apps/web, si rigenera con npm install, mai fuso a mano" },
+  { "glob": "apps/web/src/api/generated/**", "tipo": "regenerate", "motivo": "ROADMAP «Strategia di consegna»: client TypeScript generato dalla spec OpenAPI, mai editato a mano; un solo rigeneratore per onda (onde-slice). Percorso convenzionale: da confermare quando si decide il generatore" },
+  { "glob": "**/openapi/generated/**", "tipo": "regenerate", "motivo": "ROADMAP «Strategia di consegna»: documenti OpenAPI generati. Percorso convenzionale: da confermare con la decisione contract-first / generata da Rust (DEPENDENCIES.md)" },
+  { "glob": "**/.sqlx/**", "tipo": "regenerate", "motivo": "cache offline delle query sqlx, si rigenera con cargo sqlx prepare (se adottata)" },
+  { "glob": "**/Cargo.toml", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: SOLO le sezioni [dependencies] / [workspace.dependencies], in coda; members, package e il resto restano della fase proprietaria (di norma la Fondazione)" },
+  { "glob": "apps/web/package.json", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: SOLO la sezione dependencies/devDependencies; scripts e il resto restano della Fondazione" },
+  { "glob": ".env.example", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: chiavi in coda alla sezione del servizio, nella fase del codice che le legge" },
+  { "glob": ".planning/WIRING-MAP.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: registro dei seam, righe nuove e registro delle variazioni in coda" },
+  { "glob": ".planning/**", "tipo": "shared-doc", "motivo": "artefatti GSD e del loop (STATE, ROADMAP, fasi): li scrivono i verbi e il notaio, mai gli esecutori; un piano non dovrebbe elencarli" },
+  { "glob": "docs/architecture/data-model.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: una sezione per fase, in coda" },
+  { "glob": "docs/architecture/api-contract.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: una sezione per fase, in coda" },
+  { "glob": "CLAUDE.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: una voce per fase nella sezione comandi" }
+]

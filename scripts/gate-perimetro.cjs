@@ -12,6 +12,16 @@
 // futura resta vietato. Lo script li segnala comunque; e' l'agente-gate a riconoscerli come seam
 // legittimi confrontandoli con la WIRING-MAP.
 //
+// ECCEZIONE PROVIDER-FIRST (decisione utente 2026-10-18, strategia «provider-first, insiemi di file
+// chiusi per fase»): in una fase PROVIDER (adapter dietro i trait-porta: DocumentStore,
+// DocumentParser, Chunker, Embedder, VectorIndex, DecisionEngine/JEV, AnswerGenerator, AuditSink,
+// Cache) un'operazione del provider che serve a una fase consumatrice FUTURA e' ammessa completa,
+// purche' citi il piano consumatore che la usa: `consumatori: [0X-YY, …]`. Un'operazione provider
+// senza consumatore citato e' speculativa → da correggere. Nella Fondazione i seam inter-fase
+// restano innesti vuoti. Lo script etichetta ogni riga `consumatori: [...]` con l'esistenza del
+// piano citato (`pianificato` / `non pianificato`): al passaggio di riconciliazione, quando tutte
+// le fasi consumatrici sono pianificate, un consumatore `non pianificato` e' da correggere.
+//
 // Lo script e' la parte meccanica: trova i rimandi. Il giudizio (rimando legittimo, per esempio
 // «l'ingestion da fonti online NON e' qui, va alla fase 5», oppure ponte da togliere) resta
 // all'agente-gate, che lo scrive nel GATE.md. Uno script che giudicasse da solo sbaglierebbe
@@ -21,7 +31,8 @@
 // inserite); il ROADMAP intitola «### Phase N: Nome» o «### Phase N.M: Nome (INSERTED)».
 // «02», «2», «02.1» e «2.1» sono normalizzati allo stesso id.
 //
-//   node scripts/gate-perimetro.cjs piani <dir-fase>          # ogni *-PLAN.md della fase
+//   node scripts/gate-perimetro.cjs piani <dir-fase>          # ogni *-PLAN.md della fase,
+//                                                             # piu' le righe `consumatori: [...]`
 //   node scripts/gate-perimetro.cjs voci  <dir-fase>          # human_verification del VERIFICATION
 //                                                             # e finding di GAPS/REVIEW della fase
 //
@@ -90,12 +101,42 @@ function fasiSuccessive(idCorrente) {
   return elenco.slice(i + 1).map((f) => ({ ...f, re: reDellaFase(f.id) }));
 }
 
-/** Righe con un rimando a una fase successiva o una parola-ponte. */
-function rimandi(testo, successive) {
+/** Id dei piani gia' scritti in .planning/phases, normalizzati («05-02» → «5-2»). */
+function pianiEsistenti() {
+  const dirFasi = path.join(RADICE, ".planning", "phases");
+  const out = new Set();
+  if (!fs.existsSync(dirFasi)) return out;
+  for (const d of fs.readdirSync(dirFasi)) {
+    const pd = path.join(dirFasi, d);
+    if (!fs.statSync(pd).isDirectory()) continue;
+    for (const f of fs.readdirSync(pd)) {
+      const m = f.match(/^([0-9]+(?:\.[0-9]+)?)-([0-9]+)-PLAN\.md$/);
+      if (m) out.add(`${normalizza(m[1])}-${Number(m[2])}`);
+    }
+  }
+  return out;
+}
+
+/** Etichette per una riga `consumatori: [0X-YY, …]` di un'operazione provider. */
+function consumatori(riga, esistenti) {
+  const m = riga.match(/\bconsumatori\s*:\s*\[([^\]]*)\]/i);
+  if (!m) return [];
+  const ids = m[1].split(",").map((x) => x.trim().replace(/^["'`]|["'`]$/g, "")).filter(Boolean);
+  if (!ids.length) return ["consumatori vuoto"];
+  return ids.map((id) => {
+    const k = id.match(/^([0-9]+(?:\.[0-9]+)?)-([0-9]+)$/);
+    const noto = k && esistenti.has(`${normalizza(k[1])}-${Number(k[2])}`);
+    return `consumatore ${id} ${noto ? "pianificato" : "non pianificato"}`;
+  });
+}
+
+/** Righe con un rimando a una fase successiva, una parola-ponte o una lista `consumatori:`. */
+function rimandi(testo, successive, esistenti = new Set()) {
   const out = [];
   testo.split("\n").forEach((riga, n) => {
     const fase = successive.filter((f) => f.re.test(riga)).map((f) => f.id);
-    const ponte = PAROLE_PONTE.filter((re) => re.test(riga)).map((re) => riga.match(re)[0].toLowerCase());
+    const ponte = PAROLE_PONTE.filter((re) => re.test(riga)).map((re) => riga.match(re)[0].toLowerCase())
+      .concat(consumatori(riga, esistenti));
     if (fase.length || ponte.length) out.push({ riga: n + 1, fase, ponte, testo: riga.trim().slice(0, 220) });
   });
   return out;
@@ -120,10 +161,11 @@ function piani(dir) {
   const successive = fasiSuccessive(idDellaCartella(dir));
   const file = fs.readdirSync(dir).filter((f) => /-PLAN\.md$/.test(f)).sort();
   if (!file.length) esci(`nessun PLAN in ${dir}`);
+  const esistenti = pianiEsistenti();
   let esito = 0;
   for (const f of file) {
     const p = path.join(dir, f);
-    esito |= stampa(p, rimandi(leggi(p), successive));
+    esito |= stampa(p, rimandi(leggi(p), successive, esistenti));
   }
   return esito;
 }
@@ -161,3 +203,4 @@ if (modo === "voci") process.exit(voci(dir));
 esci(`modo sconosciuto: ${modo}`);
 
 // **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+// **Modifica:** Claude (Anthropic) · 2026-10-18 · strategia provider-first e insiemi di file chiusi (decisione utente)
