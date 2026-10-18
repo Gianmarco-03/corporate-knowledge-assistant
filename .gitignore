@@ -21,3 +21,24 @@ evaluation/results/*
 .idea/
 .vscode/
 .DS_Store
+
+# Stato locale di Claude Code (.claude/ si versiona, questo no)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/todos/
+.claude/shell-snapshots/
+.claude/statsig/
+.claude/projects/
+.claude/ide/
+history.jsonl
+scheduled_tasks.lock
+
+# Intermedi GSD fra agenti (brief e rapporti degli esecutori)
+.planning/tmp/
+
+# Rust
+target/
+
+# Playwright
+playwright-report/
+test-results/

@@ -1,0 +1,21 @@
+# Fine riga: LF nel repository e nelle copie di lavoro dei file di testo.
+# Gli hook e gli script shell DEVONO restare LF anche su Windows: con CRLF
+# `sh` fallisce su `\r` e un hook che non parte e' silenzioso.
+* text=auto eol=lf
+*.sh text eol=lf
+.githooks/* text eol=lf
+*.cjs text eol=lf
+*.py text eol=lf
+
+# Binari: mai normalizzati, mai diffati come testo.
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.bundle binary

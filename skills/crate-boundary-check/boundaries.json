@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "crates": {
+    "identity-service": {
+      "path": "services/identity-service",
+      "kind": "service",
+      "allowed_internal": ["contracts", "telemetry"],
+      "pure_paths": ["src/domain"]
+    },
+    "document-service": {
+      "path": "services/document-service",
+      "kind": "service",
+      "allowed_internal": ["contracts", "telemetry"],
+      "pure_paths": ["src/domain"]
+    },
+    "rag-service": {
+      "path": "services/rag-service",
+      "kind": "service",
+      "allowed_internal": ["contracts", "telemetry"],
+      "pure_paths": ["src/domain"]
+    },
+    "contracts": {
+      "path": "crates/contracts",
+      "kind": "library",
+      "allowed_internal": [],
+      "pure_paths": ["src"],
+      "forbidden_cargo_deps": ["sqlx", "reqwest", "axum", "tower", "tower-http", "hyper", "hyper-util"]
+    },
+    "telemetry": {
+      "path": "crates/telemetry",
+      "kind": "library",
+      "allowed_internal": [],
+      "pure_paths": []
+    }
+  },
+  "pure_forbidden_crates": [
+    "sqlx", "reqwest", "axum", "axum_extra", "tower", "tower_http", "hyper", "hyper_util",
+    "tonic", "tokio_postgres", "postgres", "deadpool_postgres", "diesel", "sea_orm",
+    "redis", "deadpool_redis",
+    "async_openai", "openai_api_rs", "ollama_rs", "anthropic", "typesafe",
+    "aws_sdk_s3", "aws_config", "object_store", "rust_s3",
+    "lopdf", "pdf_extract", "pdfium_render", "tesseract", "leptess"
+  ],
+  "pure_forbidden_modules": [
+    "crate::infrastructure", "crate::adapters", "crate::api", "crate::http",
+    "crate::db", "crate::persistence", "crate::routes", "crate::app"
+  ],
+  "composition_roots": ["src/main.rs", "src/app.rs", "src/app/"],
+  "wiring_patterns": [
+    "PgPoolOptions::new", "PgPool::connect", "TcpListener::bind", "axum::serve"
+  ],
+  "non_crate_areas": [
+    "apps/", "docs/", ".planning/", "evaluation/", "infra/", "scripts/", "skills/",
+    ".claude/", ".githooks/", ".github/", "tests/", "data/", "deliverables/",
+    "Cargo.toml", "Cargo.lock", "README.md", "CLAUDE.md", "DEPENDENCIES.md"
+  ]
+}

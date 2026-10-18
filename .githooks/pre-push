@@ -1,0 +1,138 @@
+#!/bin/sh
+#
+# .githooks/pre-push — la meta' LENTA del gemello locale della CI.
+#
+# Qui gira cio' che NON dipende dallo scope di un singolo commit: le suite
+# complete (cargo test --workspace, npx vitest run in apps/web) e, di nuovo,
+# tutti i controlli del pre-commit — perche' un commit puo' essere entrato
+# con 'git commit --no-verify', o con modifiche non indicizzate che al
+# pre-commit hanno reso verde un albero diverso dall'indice.
+#
+# Scope dei controlli ripetuti:
+#   * segreti: i NOMI su ogni file tracciato in ciascun commit in partenza,
+#     le RIGHE aggiunte da tutti i commit in partenza (non ancora sul remoto);
+#   * security-scanner: l'istantanea dell'albero di ciascun commit in
+#     partenza (git archive), non l'albero di lavoro;
+#   * cargo fmt, clippy, test, crate-boundary-check, lint, tsc, vitest,
+#     lint-stato: l'albero di lavoro (gli strumenti compilano un workspace).
+#
+# Regola verde/rosso: solo 0 e' verde; un controllo non eseguito blocca come
+# un controllo fallito; l'unico salto ammesso e' «NON APPLICABILE» (manifest
+# assente), sempre stampato. Quello che non passa di qui non arriva al remoto.
+#
+# git fornisce su stdin le ref in partenza (<ref locale> <sha locale>
+# <ref remota> <sha remoto>): un push di SOLE cancellazioni non porta nuovo
+# contenuto al remoto e non esegue nulla — e' l'assenza di qualcosa da
+# controllare, non un'eccezione.
+#
+# NESSUNA VIA D'USCITA: nessuna variabile d'ambiente di scavalcamento,
+# nessun elenco di percorsi esentati, nessun ramo condizionale sul ref o
+# sull'autore.
+#
+# Attivazione su una postazione nuova: `sh scripts/attiva-hook.sh`. Questo
+# file e' VERSIONATO e attivato via `core.hooksPath`, per la stessa ragione
+# del pre-commit: l'assenza di un hook e' silenziosa per definizione.
+
+set -u
+
+RADICE=$(git rev-parse --show-toplevel) || exit 1
+cd "$RADICE" || exit 1
+
+ZERO_SHA="0000000000000000000000000000000000000000"
+
+# --- 1. Le ref in partenza --------------------------------------------------
+# Per ogni ref non cancellata: lo sha in partenza e l'intervallo dei commit
+# che il remoto non ha ancora (tutto cio' che non e' raggiungibile da una
+# ref remota nota, se la ref remota e' nuova).
+SHA_IN_PARTENZA=""
+INTERVALLI=""
+while read -r ref_locale sha_locale ref_remota sha_remota; do
+    [ -z "$ref_locale" ] && continue
+    [ "$sha_locale" = "$ZERO_SHA" ] && continue
+    SHA_IN_PARTENZA="$SHA_IN_PARTENZA $sha_locale"
+    if [ "$sha_remota" = "$ZERO_SHA" ]; then
+        INTERVALLI="$INTERVALLI|$sha_locale --not --remotes"
+    else
+        INTERVALLI="$INTERVALLI|$sha_remota..$sha_locale"
+    fi
+done
+
+if [ -z "$SHA_IN_PARTENZA" ]; then
+    printf "pre-push: sole cancellazioni di ref remote (o nessuna ref).\n"
+    printf "Nessun nuovo contenuto in partenza: nulla da validare.\n"
+    exit 0
+fi
+
+if [ ! -f .githooks/controlli-comuni.sh ]; then
+    printf "pre-push: .githooks/controlli-comuni.sh non esiste: i controlli non\n" >&2
+    printf "sono eseguibili, il push e' rifiutato invece di essere accettato\n" >&2
+    printf "senza controlli.\n" >&2
+    exit 1
+fi
+. .githooks/controlli-comuni.sh
+
+LAVORO=$(mktemp -d) || exit 1
+trap 'rm -rf "$LAVORO"' EXIT
+
+# --- 2. Segreti nei commit in partenza --------------------------------------
+titolo "segreti nei commit in partenza (.env e chiavi mai committati)"
+NOMI=""
+RIGHE=""
+for sha in $SHA_IN_PARTENZA; do
+    TROVATI=$(git ls-tree -r --name-only "$sha" | filtra_nomi_segreti)
+    [ -n "$TROVATI" ] && NOMI="${NOMI:+$NOMI
+}$TROVATI"
+done
+VECCHIO_IFS=$IFS
+IFS='|'
+for intervallo in $INTERVALLI; do
+    [ -z "$intervallo" ] && continue
+    IFS=$VECCHIO_IFS
+    # shellcheck disable=SC2086 # l'intervallo e' volutamente diviso in parole
+    TROVATE=$(git log -p -U0 --no-color --format= $intervallo | filtra_righe_segrete)
+    [ -n "$TROVATE" ] && RIGHE="${RIGHE:+$RIGHE
+}$TROVATE"
+    IFS='|'
+done
+IFS=$VECCHIO_IFS
+if [ -n "$NOMI" ]; then
+    printf "file da segreto tracciati:\n%s\n" "$NOMI" | sed "s/^/  /" >&2
+fi
+if [ -n "$RIGHE" ]; then
+    printf "righe aggiunte con valori segreti:\n%s\n" "$RIGHE" | sed "s/^/  /" >&2
+fi
+if [ -n "$NOMI" ] || [ -n "$RIGHE" ]; then
+    esito "FAIL" "segreti" "un segreto entrato nella storia va rimosso dalla storia, non solo dall'ultimo commit"
+else
+    esito "PASS" "segreti"
+fi
+
+# --- 3. Rust ----------------------------------------------------------------
+passo_cargo_fmt
+passo_cargo_clippy
+passo_confini
+passo_cargo_test
+
+# --- 4. security-scanner sull'albero di ciascun commit in partenza ----------
+for sha in $SHA_IN_PARTENZA; do
+    destinazione="$LAVORO/$sha"
+    mkdir -p "$destinazione"
+    if git archive --format=tar "$sha" | tar -x -C "$destinazione"; then
+        passo_sicurezza "$destinazione" "albero di $sha"
+    else
+        esito "FAIL" "security-scanner" "albero di $sha non estratto (git archive)"
+    fi
+done
+
+# --- 5. Frontend ------------------------------------------------------------
+passo_web_lint
+passo_web_tsc
+passo_web_vitest
+
+# --- 6. Stato GSD -----------------------------------------------------------
+passo_lint_stato
+
+# --- 7. Il verdetto, con TUTTI i fallimenti insieme ------------------------
+verdetto "pre-push" "PUSH" "git push --no-verify"
+
+# **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)

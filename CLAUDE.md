@@ -2,47 +2,68 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project status
+## Cos'è questo progetto
 
-Corporate Knowledge Assistant: an enterprise RAG assistant for financial/corporate documents, with auth, RBAC, verifiable citations, an in-app document viewer, audit, and incremental knowledge-base updates.
+Corporate Knowledge Assistant (CKA): assistente RAG aziendale per documenti finanziari e societari, con autenticazione, RBAC, citazioni verificabili, viewer in-app, audit e aggiornamento incrementale della knowledge base. Progetto portfolio.
 
-The repo is in the **architecture definition** phase. There is no source code, build system, lockfile, or test runner yet. Every code directory holds only a `.gitkeep`. There are no build, lint, or test commands to run. When implementation starts, add the real commands here.
+**Stato:** definizione dell'architettura. Non esiste ancora codice, build system né test runner: le directory di codice contengono solo `.gitkeep`. Quando parte l'implementazione, aggiungere qui i comandi reali.
 
-Project documentation is written in **Italian**. Keep new docs, ADRs, and doc edits in Italian to match.
+**Lingua:** documenti, skill e commit in italiano; codice e identificatori in inglese (convenzione Rust).
 
-## Where the decisions live
+## Riferimenti obbligatori
 
-Read these before proposing or writing code. They are the source of truth:
+Fonti di verità, da leggere prima di proporre o scrivere codice:
 
-- `README.md` — MVP scope, the 3 services, performance targets (Time To Queryable), principles.
-- `DEPENDENCIES.md` — every stack choice tagged **Decisa** (decided), **Proposta** (default, needs a spike), or **Aperta** (open). Do not treat a Proposta/Aperta item as settled; do not introduce a dependency from the "avoid in MVP" list.
-- `docs/architecture/interfaces-and-concurrency.md` — HTTP endpoints per service, the internal Rust port traits, the concurrency model, and the race conditions that must be tested.
-- `docs/architecture/architecture.md` — container view, ingestion and query flows, data ownership.
-- `docs/adr/` — accepted decisions. Record new irreversible or costly decisions as a new ADR from `0000-template.md`.
-- `deliverables/checklist.md` — milestones M0–M4 (M1 = vertical slice upload → retrieval → cited answer).
+- `README.md`: scope MVP, i 3 servizi, target prestazionali (Time To Queryable), principi.
+- `DEPENDENCIES.md`: ogni scelta di stack è **Decisa**, **Proposta** (default da validare con uno spike) o **Aperta**. Una Proposta o un'Aperta non è una decisione presa. Le dipendenze nell'elenco «da evitare nell'MVP» non si introducono.
+- `docs/architecture/interfaces-and-concurrency.md`: endpoint HTTP per servizio, trait-porta Rust, modello di concorrenza, race condition da testare.
+- `docs/architecture/architecture.md`: vista dei container, flussi di ingestion e query, ownership dei dati.
+- `docs/adr/`: decisioni accettate. Una decisione irreversibile o costosa diventa un nuovo ADR da `0000-template.md`.
+- `docs/superpowers/specs/loop-gsd-ecc-design.md`: spec del loop di sviluppo.
 
-Several docs (`api-contract.md`, `data-model.md`, `test-plan.md`, etc.) are stubs that point to templates in `../../00-shared-templates/` (outside this repo).
+Alcuni documenti (`api-contract.md`, `data-model.md`, `test-plan.md`, …) sono stub che rimandano a template in `../../00-shared-templates/`, fuori dal repo.
 
-## Architecture
+## Architettura
 
-Exactly **three domain microservices**, in Rust; do not add a fourth bounded context:
+Esattamente **tre microservizi di dominio** in Rust; nessun quarto bounded context.
 
-1. **Identity & Access** (`services/identity-service/`) — users, Argon2id password hashes, roles (`admin`, `manager`, `employee`, `guest`), asymmetrically signed JWTs, JWKS. No MFA in the MVP.
-2. **Document & Indexing** (`services/document-service/`) — upload, online sources with quarantine, parsing/OCR, chunking, embedding, versioning, ACLs, `pgvector` index, authorized retrieval, viewer content. The ingestion worker is a run mode of this service, not a separate service.
-3. **RAG & Answer** (`services/rag-service/`) — query flow, JEV `DecisionEngine`, reranking, evidence gate, structured generation, citation validation, refusal, audit, evaluation.
+1. **Identity & Access** (`services/identity-service/`): utenti, hash Argon2id, ruoli (`admin`, `manager`, `employee`, `guest`), JWT firmati asimmetricamente, JWKS. Niente MFA nell'MVP.
+2. **Document & Indexing** (`services/document-service/`): upload, fonti online con quarantena, parsing/OCR, chunking, embedding, versionamento, ACL, indice `pgvector`, retrieval autorizzato, contenuto per il viewer. Il worker di ingestion è una modalità di esecuzione di questo servizio.
+3. **RAG & Answer** (`services/rag-service/`): flusso query, `DecisionEngine` JEV, reranking, evidence gate, generazione strutturata, validazione delle citazioni, rifiuto, audit, evaluation.
 
-Frontend (`apps/web/`, React + TypeScript), reverse proxy, workers, and DB are deployment components, not bounded contexts. `crates/` holds internal Rust libraries (`contracts`, `telemetry`); domain models are **not** shared between services.
+Frontend (`apps/web/`, React + TypeScript), reverse proxy, worker e database sono componenti di deployment. `crates/` contiene librerie Rust interne (`contracts`, `telemetry`); i modelli di dominio **non** si condividono fra servizi.
 
-Key cross-cutting rules:
+Regole trasversali:
 
-- **Data ownership**: one PostgreSQL cluster, but separate schema/DB and credentials per service. No cross-service joins. Each service owns its own SQL migrations. Cross-service data flows through HTTP contracts or a transactional outbox with idempotent consumers (`event_id` unique).
-- **Ports and adapters**: use cases depend on internal traits (`DocumentSource`, `DocumentStore`, `DocumentParser`, `Chunker`, `Embedder`, `VectorIndex`, `DecisionEngine`, `AnswerGenerator`, `AccessPolicy`, `AuditSink`, `Cache`). Provider/SDK/DB types never cross a domain port. The first `Cache` adapter is `NoOpCache`; no Redis without a measurement.
-- **JEV** (typesafe.ai decision engine) is called over HTTPS (`POST /v1/systemone`) through a Rust adapter behind `DecisionEngine`, no SDK. Use it only for semantic decisions (query validation, rerank, evidence sufficiency/contradiction, claim–citation validation). RBAC, provenance, citation mapping, file validation, and dedup stay deterministic. Unit tests use a deterministic fake, never the real API. A JEV failure must never bypass a security check.
-- **Security**: deny by default. No unauthorized chunk may reach the reranker, JEV, LLM, cache, or logs. Re-check authorization before returning citations/links, and again in the viewer.
-- **API conventions**: public routes under `/api/v1`, internal under `/internal/v1`; opaque UUIDs; UTC RFC 3339; idempotency key on mutating operations; propagate `request_id` and trace context; errors carry `code`, `message`, `request_id`.
-- **Concurrency**: async for I/O, bounded pools for CPU work (`spawn_blocking` or isolated processes for parsing/OCR). Every fan-out has a limit, a global deadline, cancellation, and a retry budget. Streaming upload (never buffer the whole file). Job workers use leases + `FOR UPDATE SKIP LOCKED`. No external calls inside a DB transaction. Document versions publish atomically: queries see the old or the new version, never a partial index.
-- **Corpus**: the knowledge corpus (dynamic, online discovery goes through quarantine and approval) is separate from the evaluation corpus (versioned, immutable).
+- **Ownership dei dati**: un cluster PostgreSQL, ma schema/database e credenziali separati per servizio. Nessuna join fra servizi; migrazioni proprie per servizio. I dati attraversano i confini solo via contratti HTTP o transactional outbox con consumer idempotenti (`event_id` univoco).
+- **Porte e adapter**: i casi d'uso dipendono da trait interni (`DocumentSource`, `DocumentStore`, `DocumentParser`, `Chunker`, `Embedder`, `VectorIndex`, `DecisionEngine`, `AnswerGenerator`, `AccessPolicy`, `AuditSink`, `Cache`). Tipi di provider, SDK o database non attraversano una porta di dominio. Primo adapter di `Cache`: `NoOpCache`; Redis solo dopo una misura.
+- **JEV** (decision engine typesafe.ai): HTTPS (`POST /v1/systemone`) tramite adapter Rust dietro `DecisionEngine`, senza SDK. Solo decisioni semantiche (validazione query, rerank, sufficienza/contraddizione delle evidenze, validazione claim–citazione). RBAC, provenance, mapping delle citazioni, validazione dei file e deduplicazione restano deterministici. Nei test unitari si usa un fake deterministico. Un guasto JEV non bypassa mai un controllo di sicurezza.
+- **Sicurezza**: deny by default. Nessun chunk non autorizzato raggiunge reranker, JEV, LLM, cache o log. L'autorizzazione si ricontrolla prima di restituire citazioni e link, e di nuovo nel viewer.
+- **Convenzioni API**: rotte pubbliche sotto `/api/v1`, interne sotto `/internal/v1`; UUID opachi; UTC RFC 3339; idempotency key sulle operazioni mutanti; propagazione di `request_id` e trace context; errori con `code`, `message`, `request_id`.
+- **Concorrenza**: async per l'I/O, pool limitati per il lavoro CPU-bound (`spawn_blocking` o processi isolati per parsing/OCR). Ogni fan-out ha limite, deadline globale, cancellazione e budget di retry. Upload in streaming. Worker con lease + `FOR UPDATE SKIP LOCKED`. Nessuna chiamata esterna dentro una transazione. Le versioni di documento si pubblicano atomicamente.
+- **Corpus**: knowledge corpus (dinamico; la discovery online passa da quarantena e approvazione) separato dall'evaluation corpus (versionato, immutabile).
 
-## Configuration
+## Flusso di lavoro: loop GSD+ECC a 4 verbi
 
-`.env.example` lists the expected variables (`DATABASE_URL`, `JWT_*`, `JEV_API_URL`, `TYPESAFE_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`, `EMBEDDING_MODEL`, ...). Real `.env*` files are git-ignored.
+Metodologia portata da Gestionale Light il 2026-10-18 (decisione utente). Spec: `docs/superpowers/specs/loop-gsd-ecc-design.md`.
+
+- **Verbi**: `discuss | plan | execute | verify`, skill in `skills/<verbo>/SKILL.md`. GSD comanda requisiti, roadmap, piani e stato; ECC (plugin installato a scope progetto) comanda implementazione e verifica ingegneristica. Ordine della verifica: ECC → GSD, mai inverso né in parallelo.
+- **Skill**: codice canonico in `skills/`; `.claude/skills/` contiene solo il mirror markdown, mai script duplicati. Gate sui piani: `solid-check`, `crate-boundary-check`, `security-scanner`, `eval-oracle-check`, `perimetro-check` (`scripts/gate-perimetro.cjs`). Wiring: `wiring-search` → `wiring-design` → `wiring-build`, **intra e inter-fase**, con registro di progetto `.planning/WIRING-MAP.md`. Un seam per una fase futura si crea solo vuoto: il suo contenuto resta vietato dal perimetro.
+- **Stato**: `.planning/` è versionata. `STATE.md` e `ROADMAP.md` si scrivono solo via `gsd-tools` (`node "$HOME/.claude/gsd-core/bin/gsd-tools.cjs"`), mai direttamente. `.planning/ORCHESTRATOR-STATUS.md` lo scrive solo `update-orchestrator-state`. Agenti `gsd-*` dall'installazione utente (GSD 1.42.3); vendorizzato solo `.claude/agents/integratore-onda.md`.
+- **Ricerca esterna**: di default la fa Claude (WebSearch/WebFetch, context7, `anthropic-skills:deep-research`), citando URL e data. Quando l'utente lo chiede, va a ChatGPT Deep Research tramite `skills/deep-research-handoff` su AgentBridge: in quel caso le fonti non si riverificano e la ricerca si attribuisce a GPT con il suo ID.
+- **AgentBridge** (`http://127.0.0.1:8765`, solo loopback; progetto `CorporateKnowledgeAssistant`; contratti in `C:\Agent Bridge\docs\contracts.md`):
+  - `ask-deepsearch`, su richiesta dell'utente;
+  - `implementation-risk-audit` + `test-design`, **solo sulle fasi critiche**: identity, RBAC + retrieval autorizzato, ingestion. Altrove il test design lo fa un agente Claude separato;
+  - `double-check`, **sempre**, come verificatore esterno del triplo guardrail sugli oracoli dell'evaluation corpus;
+  - `status-tracker`, una voce `APPEND-STATUS` a ogni tappa reale.
+  Ogni `READ-RESPONSE` va seguito da `ACK-RESPONSE`.
+- **Codex**: operativo ma non usato in questo progetto (decisione utente). Implementano i `gsd-executor` in worktree isolati, tetto di 2 concorrenti. I test rossi (`test-write`) li scrive un agente Claude fresco, distinto dall'esecutore.
+- **Stile**: gli intermedi fra agenti (brief, manifest, rapporti YAML) sono in caveman; i deliverable (CONTEXT, PLAN, CONTRATTO, SUMMARY, VERIFICATION), i commit e tutto ciò che legge l'utente sono in prosa. `.caveman.json` tiene la sessione principale in prosa.
+- **Firma**: ogni nuovo artefatto o voce di stato porta `**Modifica:** <Autore> · <data> · <cosa>`. Una regola superata resta scritta con un paragrafo *Storia*, mai cancellata in silenzio.
+- **Regola dei dubbi** (elenco vivo, lo aggiorna l'utente): su ciò che è qui elencato si procede senza chiedere. Elenco attualmente vuoto.
+- **Hook git**: `.githooks/pre-commit` e `pre-push`, attivati con `scripts/attiva-hook.sh`, senza bypass. Backup: `scripts/backup.sh`.
+- Questo è l'**unico CLAUDE.md** del repo: niente `.claude/CLAUDE.md`.
+
+## Configurazione
+
+`.env.example` elenca le variabili attese (`DATABASE_URL`, `JWT_*`, `JEV_API_URL`, `TYPESAFE_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL`, `EMBEDDING_MODEL`, …). I file `.env*` reali sono ignorati da git. Ambiente locale: Docker Desktop + Compose per PostgreSQL con `pgvector` (decisione utente 2026-10-18).

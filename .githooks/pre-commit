@@ -1,0 +1,118 @@
+#!/bin/sh
+#
+# .githooks/pre-commit — la meta' VELOCE del gemello locale della CI.
+#
+# La CI protegge il ramo, gli hook proteggono la STORIA. La validazione e'
+# divisa in due tempi:
+#
+#   * QUI (pre-commit) gira cio' che e' rapido e dipende da cio' che sta per
+#     essere committato: segreti nel diff dell'indice, cargo fmt, clippy sul
+#     workspace, crate-boundary-check, security-scanner sull'istantanea
+#     dell'indice, lint e tsc del frontend, lint-stato dello stato GSD.
+#   * AL PUSH (.githooks/pre-push) si ripete tutto questo e girano le suite
+#     complete (cargo test --workspace, vitest), che costano troppo per
+#     pagarle a ogni commit.
+#
+# Regola verde/rosso: solo 0 e' verde. Un controllo NON ESEGUITO blocca
+# esattamente come un controllo fallito, perche' un controllo che si salta e'
+# indistinguibile da un controllo che passa. L'unico salto ammesso e'
+# «NON APPLICABILE»: il manifest del passo non esiste ancora (niente
+# Cargo.toml, niente apps/web/package.json, niente .planning/), ed e' sempre
+# stampato a video.
+#
+# LO SCOPE. I segreti e il security-scanner giudicano l'INDICE, non l'albero
+# di lavoro: il diff dell'indice e un'istantanea dei file nell'indice
+# (git checkout-index in una directory temporanea). Un gate verde su uno
+# scope sbagliato e' peggio di nessun gate, perche' AUTORIZZA. cargo fmt,
+# clippy, crate-boundary-check, lint, tsc e lint-stato lavorano invece
+# sull'albero di lavoro (gli strumenti compilano un workspace, non un
+# indice): con modifiche non indicizzate il loro verdetto riguarda l'albero,
+# e il pre-push lo ripete prima che qualcosa lasci la macchina.
+#
+# NESSUNA VIA D'USCITA: nessuna variabile d'ambiente di scavalcamento,
+# nessun elenco di percorsi esentati, nessun ramo condizionale sul messaggio
+# del commit o sull'autore. L'unica uscita pulita senza controlli e'
+# l'indice senza contenuto analizzabile, che e' l'assenza di qualcosa da
+# controllare, non un'eccezione.
+#
+# Attivazione su una postazione nuova: `sh scripts/attiva-hook.sh`. Questo
+# file e' VERSIONATO e attivato via `core.hooksPath`: un hook scritto in
+# .git/hooks esisterebbe su una sola postazione e nessuno se ne accorgerebbe,
+# perche' l'assenza di un hook e' silenziosa per definizione.
+
+set -u
+
+RADICE=$(git rev-parse --show-toplevel) || exit 1
+cd "$RADICE" || exit 1
+
+# Filtro dell'indice: Added/Copied/Modified/Renamed, senza le cancellazioni
+# (un file che non esiste piu' non ha contenuto da analizzare).
+FILTRO_INDICE="ACMR"
+
+# --- 1. Lo scope: l'INDICE, non l'albero di lavoro -------------------------
+INDICE=$(git diff --cached --name-only --diff-filter="$FILTRO_INDICE")
+
+if [ -z "$INDICE" ]; then
+    printf "pre-commit: indice senza file analizzabili (nessuna aggiunta, copia,\n"
+    printf "modifica o rinomina). Non c'e' nulla da validare: nessun controllo eseguito.\n"
+    exit 0
+fi
+
+printf "pre-commit: %s file nell'indice da validare.\n" \
+    "$(printf "%s\n" "$INDICE" | wc -l | tr -d ' ')"
+
+if [ ! -f .githooks/controlli-comuni.sh ]; then
+    printf "pre-commit: .githooks/controlli-comuni.sh non esiste: i controlli non\n" >&2
+    printf "sono eseguibili, il commit e' rifiutato invece di essere accettato\n" >&2
+    printf "senza controlli.\n" >&2
+    exit 1
+fi
+. .githooks/controlli-comuni.sh
+
+# L'istantanea dell'indice vive in una directory temporanea rimossa a ogni uscita.
+ISTANTANEA=$(mktemp -d) || exit 1
+trap 'rm -rf "$ISTANTANEA"' EXIT
+
+# --- 2. Segreti nell'indice -------------------------------------------------
+titolo "segreti nell'indice (.env e chiavi mai committati)"
+NOMI=$(printf "%s\n" "$INDICE" | filtra_nomi_segreti)
+RIGHE=$(git diff --cached -U0 --no-color --diff-filter="$FILTRO_INDICE" | filtra_righe_segrete)
+if [ -n "$NOMI" ]; then
+    printf "file da segreto nell'indice:\n%s\n" "$NOMI" | sed "s/^/  /" >&2
+fi
+if [ -n "$RIGHE" ]; then
+    printf "righe aggiunte con valori segreti:\n%s\n" "$RIGHE" | sed "s/^/  /" >&2
+fi
+if [ -n "$NOMI" ] || [ -n "$RIGHE" ]; then
+    esito "FAIL" "segreti" "rimuovere dall'indice con 'git rm --cached' e spostare i valori in .env"
+else
+    esito "PASS" "segreti"
+fi
+
+# --- 3. Rust ----------------------------------------------------------------
+passo_cargo_fmt
+passo_cargo_clippy
+passo_confini
+
+# --- 4. security-scanner sull'istantanea dell'indice ------------------------
+if git diff --cached -z --name-only --diff-filter="$FILTRO_INDICE" \
+        | git checkout-index -z --stdin --prefix="$ISTANTANEA/"; then
+    passo_sicurezza "$ISTANTANEA" "istantanea dell'indice"
+else
+    esito "FAIL" "security-scanner" "istantanea dell'indice non prodotta (git checkout-index)"
+fi
+
+# --- 5. Frontend ------------------------------------------------------------
+passo_web_lint
+passo_web_tsc
+
+# --- 6. Stato GSD -----------------------------------------------------------
+passo_lint_stato
+
+# --- 7. Il verdetto, con TUTTI i fallimenti insieme ------------------------
+# Si eseguono tutti i controlli e si riportano tutti: chi committa deve
+# vedere l'elenco completo di cio' che deve sistemare, non scoprirlo un giro
+# alla volta.
+verdetto "pre-commit" "COMMIT" "git commit --no-verify"
+
+# **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)

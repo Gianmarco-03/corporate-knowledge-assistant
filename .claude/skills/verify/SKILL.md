@@ -1,0 +1,43 @@
+---
+name: verify
+description: Quarto verbo del loop GSD+ECC di Corporate Knowledge Assistant — la verifica in fila indiana, mai in concorrenza. Prima la banda ECC (cargo fmt/clippy/test e lint/tsc/vitest, code review per linguaggio, security, e2e, regressione sull'evaluation corpus quando la fase tocca retrieval o generazione, tutto sul diff di fase), poi la cerniera di stato (--verify-ecc), POI la goal verification GSD (gsd-verifier), il filtro del perimetro, la ricerca pre-UAT, la riconciliazione del contratto e della WIRING-MAP e l'instradamento (chiusura fase + UAT umana filtrata, oppure ciclo gap). USARE dopo l'ultima onda di execute X ("verifica la fase X", "/verify X"). MAI invertire l'ordine ECC → GSD.
+---
+
+# verify
+
+Quarto verbo del loop GSD+ECC (spec: `docs/superpowers/specs/loop-gsd-ecc-design.md` §6). Prerequisiti: tutte le onde chiuse e un SUMMARY per OGNI piano (il bridge deve aver parlato) — altrimenti rimanda a `/execute X`.
+
+**Invariante**: l'ordine è ECC → cerniera → GSD. Quando GSD parla, il giudizio ECC è già un fatto registrato nello stato, non un'opinione concorrente. Mai il contrario, mai in parallelo.
+
+## Passi
+
+1. **Banda ECC — verifica ingegneristica** (internamente parallelizzabile):
+   - **tests / lint / build** — catene complete, condizione d'ingresso per tutto il resto. Ogni passo si salta SOLO se il relativo manifest non esiste ancora, e lo si stampa come «non applicabile»; nessun bypass, né variabili d'ambiente né percorsi esentati.
+     - Rust, se esiste `Cargo.toml` alla radice: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` (i test d'integrazione su PostgreSQL+pgvector girano sul database locale di Docker Desktop, mai su un remoto);
+     - web, se esiste `apps/web/package.json`, in `apps/web`: `npm run lint`, `npx tsc --noEmit`, `npx vitest run`.
+   - **lint dello stato** — `node scripts/lint-stato.cjs`: STATE.md ≤ 20 KB, ogni decisione ≤ 300 caratteri, ogni riga di DECISIONS-INDEX col puntatore. Rosso = qualcuno ha archiviato dove doveva indicizzare.
+   - **code review** — reviewer per linguaggio sul **diff di fase**: `ecc:rust-reviewer` su `services/` e `crates/`; `ecc:database-reviewer` su migrazioni SQL, query `sqlx`, indici `pgvector` e lock dei job worker; `ecc:typescript-reviewer` ed `ecc:react-reviewer` su `apps/web`. I finding gravi si correggono QUI e si ricommittano — è codice appena nato dalla fase, non storico. I residui accettati si registrano con motivo.
+   - **security** — `ecc:security-reviewer` sul diff di fase (deny-by-default, regola no-leak, JWT, segreti, upload, SSRF, prompt injection), più la **valvola d'eccezione** (skill `plan`, mappa dei gate): dipendenza fra crate o import nel `domain` non previsti → `crate-boundary-check`; valore atteso di evaluation, citazione attesa o soglia (JEV, retrieval) non previsti → `eval-oracle-check` e rimbalzo a `plan`; superfici sensibili non pianificate (auth/JWT, RBAC, log e telemetria, parser e upload, fetch di fonti online, prompt verso LLM o JEV, segreti) → `security-scanner` sui soli file toccati.
+   - **e2e** — `ecc:e2e-runner` sui flussi critici della fase (login, upload, query, citazione, viewer, RBAC), con `npx playwright test` in `apps/web`, quando c'è superficie UI e l'app gira in locale. Senza configurazione Playwright → «non applicabile», stampato.
+   - **regressione sull'evaluation corpus** — **solo se la fase tocca retrieval o generazione** (chunking, embedding, indice vettoriale, retrieval autorizzato, rerank, evidence gate, prompt, generazione strutturata, validazione delle citazioni, soglie JEV). Si esegue l'evaluation sul corpus versionato e immutabile di `evaluation/datasets/` con il comando o l'endpoint dichiarato nel contratto di fase (`POST /internal/v1/evaluations`), e si confrontano le metriche con la baseline ratificata in `evaluation/results/`. Un peggioramento oltre la soglia è un **gap**, con le metriche e i casi peggiorati. Le soglie stanno nel CONTEXT o nel contratto di fase: se mancano, la regressione non si dichiara verde e la soglia diventa TO-DO utente, mai inventata. Baseline assente → il risultato si registra come **baseline proposta**, da ratificare dall'utente, non come regressione superata; una baseline non si aggiorna mai in silenzio.
+2. **Cerniera** — `update-orchestrator-state --verify-ecc`: verdetto ingegneristico nello STATUS (per piano: esito, finding gravi corretti, residui accettati con motivo, esito della regressione di evaluation se applicabile) PRIMA che GSD apra bocca.
+3. **Banda GSD — goal verification** — spawn `gsd-verifier`: must_haves contro la codebase reale, tracciabilità dei requisiti → `0X-VERIFICATION.md`. Esiti:
+   - **`passed`** → chiusura fase coi verbi gsd-tools (`phase complete`) e **UAT umana SOLO sui deliverable `human_judgment: true`** dei blocchi coverage dei SUMMARY (`/gsd-verify-work X` li presenta): l'automazione provata si è auto-passata, all'utente restano i giudizi di merito. Dopo la chiusura controlla `git diff .planning/REQUIREMENTS.md`: `phase complete` spunta anche requisiti coperti solo in parte.
+   - **`gaps_found`** → ciclo gap coi verbi del loop: `/plan X --gaps` (con gate sui piani) → `/execute X --gaps` → `/verify X`. Mai chiudere la fase con gap aperti.
+3-bis. **Filtro del perimetro — prima di ogni giro gap e prima della UAT** (gate `perimetro-check`). Lancia `node scripts/gate-perimetro.cjs voci <dir-fase>`: elenca i punti `human_verification` del VERIFICATION e i finding di GAPS/REVIEW che rimandano a una fase successiva o parlano di ponti e segnaposto. Per ognuno controlla il goal della fase nel ROADMAP (`gsd-tools roadmap get-phase N`): se un'area la copre una fase successiva, il punto **si scarta d'ufficio**. Nel VERIFICATION diventa «differito alla fase N», senza correzione, test, ricerca o domanda all'utente, e **non arriva in UAT**: nemmeno per giudicare la resa del segnaposto o di un seam vuoto. Lo stesso vale per un finding di review prima di aprire `/plan X --gaps`. Restano all'utente solo i punti sull'area che la fase stessa costruisce.
+4. **Ricerca pre-UAT — ultimo passo prima di reiterare** — PRIMA di presentare all'utente i punti aperti (UAT `human_judgment: true`, punti `human_verification`, decisioni pendenti), invoca `ricerca-punti-aperti`: triage fra giudizi puri e punti ricercabili, ricerca di Claude nel canale di default (GPT via `deep-research-handoff` solo se l'utente lo chiede), presentazione divisa per specie — conferme a un tocco → orientati → giudizi puri. La ratifica resta dell'utente.
+5. **Riconciliazione del contratto e della WIRING-MAP**:
+   - diff tra i SUMMARY reali e `0X-CONTRATTO.md`: **onorato** → i piani sfalsati di X+1 restano validi così come sono; **deviato** → si ritoccano SOLO i punti divergenti dei piani X+1 (la deviazione è già documentata dal rimbalzo di `execute`);
+   - seam reali contro `.planning/WIRING-MAP.md`, §6 di `0X-WIRING.md` e la sezione seam del contratto: ogni riga `WM-NNN` con `created-in` = X deve risultare `created` ed esistere nella forma dichiarata (e, se predisposta per una fase futura, essere **ancora vuota**); ogni riga con X fra i `filled-by` deve avere il contributo della fase fuso. Seam mancante, di forma diversa o riempito oltre il vuoto → gap. Concordanza → `verify` porta a `filled` le righe che la fase ha riempito (`created` → `filled`, con il puntatore al SUMMARY) e registra la variazione in coda alla mappa; lo stato `filled` lo imposta solo questo passo. Un cambio di forma non si fa qui: rimbalza a `wiring-design` in `plan`.
+6. **Stato finale** — `update-orchestrator-state --verify`: fase verificata, UAT pendenti elencate (già classificate dalla ricerca pre-UAT), prossima azione (`/discuss X+1` o il giro gap). Commit degli artefatti di verifica (VERIFICATION, eventuali risultati di evaluation, WIRING-MAP aggiornata, STATUS).
+
+## Cosa NON fa
+
+- Mai review del codice storico (solo il diff di fase).
+- Mai auto-chiudere una UAT umana: il giudizio di merito è SOLO dell'utente.
+- Mai portare in UAT, né in un giro gap, un punto su un'area che una fase successiva copre (passo 3-bis).
+- Mai eseguire la banda GSD prima della cerniera, o le due bande in parallelo.
+- Mai marcare la fase completa se il verifier GSD non ha detto `passed`.
+- Mai aggiornare la baseline di evaluation senza ratifica dell'utente.
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
