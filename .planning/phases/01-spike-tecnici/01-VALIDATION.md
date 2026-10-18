@@ -44,7 +44,7 @@ created: 2026-10-18
 |---|---|---|
 | 1 S-01 memoria costante | `spikes/s01-upload/results/{mem_by_size.csv,dhat_*.json,oha_*.json,correctness.csv}` | 01-04 |
 | 4 A-02 storage | `spikes/s01-upload/results/{adapters.csv,storage.csv,gc.csv,dedup_timing.csv}`, ADR-0003 | 01-04 |
-| 2 file ostili + isolamento | `spikes/s02-parser/results/isolation/{hostile.csv,calibration.csv,overhead.csv}` | 01-07 |
+| 2 file ostili + isolamento | `spikes/s02-parser/results/isolation/{calibration.csv,limits.json}` (01-07); `{hostile.csv,budget.csv,overhead.csv}` (01-18) | 01-07, 01-18 |
 | 2 PDF digitali, tabelle | `spikes/s02-parser/results/extract/{text_cer.csv,bbox_iou.csv,tables.csv,table_pages.csv,docling.csv}` | 01-08 |
 | 2 pagina DOCX/MD | `spikes/s02-parser/results/locator/{locator_samples.json,roundtrip.csv,rect_transform.csv}`, ADR-0005 | 01-09 |
 | 2 scansioni, TTQ-parse, decisione parser | `spikes/s02-parser/results/ocr/{ocr.csv,ocr_throughput.csv,ttq_parse.csv}`, `spikes/s02-parser/RISULTATI.md`, ADR-0004 | 01-13 |
@@ -84,9 +84,11 @@ Requisito di fase: PLAT-07 per tutti i task. «Threat» = ID del registro `<thre
 | 01-06-T1 | 01-06 | 3 | auto (agente separato) | T-01-06-01 | controllo `node -e` di `queries.json` |
 | 01-06-T2 | 01-06 | 3 | auto (GPT double-check) | T-01-06-02, -03 | guardrail.gpt valorizzato, TO-DO sui dissensi |
 | 01-06-T3 | 01-06 | 3 | checkpoint ratifica | T-01-06-02 | ≥ 60 query con tre assi verdi |
-| 01-07-T1 | 01-07 | 4 | auto | T-01-07-04, -06 | build worker + `tesseract --version` + manifest ostili |
+| 01-07-T1 | 01-07 | 4 | auto | T-01-07-04, -06 | build worker + `tesseract --version` |
 | 01-07-T2 | 01-07 | 4 | auto | T-01-07-01..03, -05 | `cargo check -p s02-parser --all-targets` + grep `pre_exec`, `killpg`, `take(` |
-| 01-07-T3 | 01-07 | 4 | auto (misura) | T-01-07-01, -02 | header di `results/isolation/*.csv` + `hw.json` |
+| 01-07-T3 | 01-07 | 4 | auto | T-01-07-01, -02 | prescan e figlio PDFium/DOCX |
+| 01-07-T4 | 01-07 | 4 | auto (misura) | T-01-07-01, -02 | `calibration.csv` + `limits.json` + `hw.json` |
+| 01-18-T1/T2 | 01-18 | 5 | auto (misura) | T-01-18-01..06 | manifest ostili prima dei CSV; header di `hostile.csv`, `budget.csv`, `overhead.csv` |
 | 01-11-T1 | 01-11 | 4 | auto | T-01-11-01, -02, -05 | `cargo check -p s04-jev --all-targets` + `assert_visible` + scanner |
 | 01-11-T2 | 01-11 | 4 | auto (misura) | T-01-11-01, -03, -04 | header di `results/jev/*.csv`; `unauthorized_sent` = 0 |
 | 01-08-T1 | 01-08 | 5 | auto | T-01-08-03, -04 | `cargo check -p s02-parser` + `data/s02/fetch.sh` + scanner |
@@ -143,3 +145,5 @@ Requisito di fase: PLAT-07 per tutti i task. «Threat» = ID del registro `<thre
 - [x] `nyquist_compliant: true` in frontmatter
 
 **Approval:** pending
+
+**Modifica:** Claude (Anthropic) · 2026-10-19 · righe di 01-07 riallineate alla divisione 01-07/01-18

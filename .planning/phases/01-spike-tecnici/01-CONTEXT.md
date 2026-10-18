@@ -50,12 +50,16 @@ Ricerca a supporto: `01-RICERCA-DISCUSSIONE.md` (Area A upload/storage/threat, A
 
 ### Decisioni dopo l'audit GPT v1 (utente, 2026-10-19)
 
-- **D-09 emendata:** lo sfidante OCR è **PP-OCRv6** (PaddleOCR 3.7.0, 2026-06-11; default `PP-OCRv6_medium`, 50 lingue), selezionato con flag esplicito e pesi identificati; PP-OCRv5 resta solo come riferimento secondario se v6 non è selezionabile. La regola «si cambia solo se vince nettamente» su Tesseract resta. Fonti: [PaddleOCR 3.x, uso della pipeline OCR](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html), [release v3.7.0](https://github.com/PaddlePaddle/PaddleOCR/releases), consultate 2026-10-19. *Storia:* la prima stesura vincolava PP-OCRv5 (Area B §2); deepsearch_1 documentava solo v5/v4/v3 per `ocr_version`.
+- **D-09 emendata:** lo sfidante OCR è **PP-OCRv6** (PaddleOCR 3.7.0, 2026-06-11; default `PP-OCRv6_medium`, 50 lingue), selezionato con flag esplicito e pesi identificati; PP-OCRv5 è un riferimento secondario opzionale, misurato accanto a v6 e senza effetto sulla decisione; se v6 non è selezionabile in modo esplicito (o i modelli risolti non sono della famiglia v6) la misura PaddleOCR si ferma e la scelta torna all'utente. La regola «si cambia solo se vince nettamente» su Tesseract resta. Fonti: [PaddleOCR 3.x, uso della pipeline OCR](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html), [release v3.7.0](https://github.com/PaddlePaddle/PaddleOCR/releases), consultate 2026-10-19. *Storia:* la prima stesura vincolava PP-OCRv5 (Area B §2); deepsearch_1 documentava solo v5/v4/v3 per `ocr_version`.
 - **D-23:** nello spike S-01 il carico si genera con `curl` + `xargs -P` invece di `oha`, che non varia il corpo delle richieste (deviazione da RESEARCH §3, ratificata).
 - **D-24:** proposte ratificate per ADR-0005 (locator): offset in Unicode scalar su testo NFC, conversione UTF-16 nel viewer; `section_path` con ordinale fra sorelle omonime; testo di sezione = solo testo proprio, sottosezioni escluse; proiezione canonica versionata `cka-text-v1` (ogni modifica = nuova versione).
 - **D-25:** i PDF con stream LZW/RunLength o filtri ignoti, o con object stream oltre il limite, si rifiutano (`Unsupported`/`DecompressionLimit`). È un progetto dimostrativo: il limite **va dichiarato nella documentazione ufficiale** (ADR-0004 e documentazione utente/README del prodotto, sezione limiti noti).
 - **D-26:** tolleranze del controllo analitico delle bbox (0,5 px / 1 pt / 3 pt) e pin `pip==24.3.1` / `pip-tools==7.4.1` accettati per lo spike; da rifinire in produzione.
 - **D-27 (rinviata a dopo la misura):** se `docling_isolation.csv` mostra che `page_range` non riduce il costo, si sceglie fra le opzioni in «Deferred Ideas» (Docling e pagine-tabella).
+
+- **D-28:** memoria del worker resta **2 GiB** (compose di 01-02 invariato): 01-13 misura e riporta il `max_admitted` reale per concorrenza richiesta e il dimensionamento in ADR-0004 si dichiara estrapolato da quel dato.
+- **D-29:** DocLayNet in 01-08 passa da 20 a **40 pagine**, split per documento 20 di taratura + 20 di verifica (holdout); l'esito si giudica solo sull'holdout.
+- **D-30:** il piano 01-07 si divide: 01-07 (contratto del job, lanciatore, prescan, figli, calibrazione dei limiti) e il nuovo 01-18 (casi ostili, budget aggregato, overhead, `RISULTATI-isolamento.md`), così 01-08 parte senza attendere le misure ostili. Respinta la divisione della fase in 1.1/1.2 (i decimali sono riservati alla gap-closure; nuovo audit di tutti i piani; conflitti `proprieta-file` sui file condivisi degli spike).
 
 ### Claude's Discretion
 - **S-07 (firme Rust candidate di tutte le porte)**: le scrive lo spike, incluse le variazioni emerse qui — `Embedder` deve coprire anche l'embedding della query (oggi `embed_batch(&[ChunkDraft])` non basta); `DecisionEngine::validate_query` restituisce la complessità (D-18); il locator a due varianti (D-10) entra nei tipi di `crates/contracts`.
@@ -137,3 +141,5 @@ Ricerca a supporto: `01-RICERCA-DISCUSSIONE.md` (Area A upload/storage/threat, A
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · discuss 1 (decisioni utente)
 **Modifica:** Claude (Anthropic) · 2026-10-19 · D-09 emendata (PP-OCRv6), D-23..D-27 e opzioni Docling/pagine-tabella (decisioni utente dopo l'audit GPT v1)
+**Modifica:** Claude (Anthropic) · 2026-10-19 · D-28 (worker 2 GiB), D-29 (DocLayNet 40 pagine), D-30 (divisione di 01-07)
+**Modifica:** Claude (Anthropic) · 2026-10-19 · D-09 emendata: ruolo di PP-OCRv5 allineato a 01-13 v3

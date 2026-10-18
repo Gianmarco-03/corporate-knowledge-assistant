@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-17-PLAN.md
-  sha256: cfe178147e8f38d5d6ab7c3b8b0e4f4f17359d99371cac29cfef84c79207af94
+  sha256: 480b1053c716e932310aef7592867c0d324aa98b7ad8fbc5e112d498c3f5f4f6
 risks:
   - id: RISK-1
     severity: HIGH
@@ -99,3 +99,5 @@ I tre HIGH sono coperti da test automatici: RISK-1 da TEST-1, RISK-2 da TEST-2, 
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-17
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 6c79fd6ec599… a cfe178147e8f… per la revisione del piano: evidenza di T-14 su file concreti (results/jev/forms.csv e results/rerank/rerank.csv) invece del glob. Il design non è stato rigenerato: va riletto contro la revisione.
+
+**Modifica:** Claude (Anthropic) · 2026-10-19 · divisione di 01-07: misure ostili e budget aggregato spostati in 01-18 (decisione utente). reviewed_plan.sha256 aggiornato da cfe178147e8f… a 480b1053c716… (sha256 del piano con fine riga LF): test invariati, cambiano solo i rimandi (`hostile.csv` ora prodotto da 01-18, `depends_on` con 01-18; percorso del file invariato, quindi TEST-3 e TEST-10 restano validi).
