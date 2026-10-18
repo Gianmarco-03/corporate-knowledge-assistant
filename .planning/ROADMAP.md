@@ -9,7 +9,7 @@ Il percorso chiude prima le scelte tecniche con spike misurati (Fase 1), poi cos
 
 ## Strategia di consegna
 
-Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per fase.
+Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per fase. Gli insiemi chiusi riguardano solo i file di codice e configurazione: i documenti Markdown si possono modificare da qualsiasi fase (decisione utente 2026-10-18).
 
 **Ordine dei verbi del loop (diverso dall'ordine numerico di esecuzione):**
 

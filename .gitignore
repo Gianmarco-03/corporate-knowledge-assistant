@@ -42,3 +42,6 @@ target/
 # Playwright
 playwright-report/
 test-results/
+
+# cache locale del plugin claude-token-reducer (contiene frammenti di conversazione)
+session_memory.json

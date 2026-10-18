@@ -11,5 +11,6 @@
   { "glob": ".planning/**", "tipo": "shared-doc", "motivo": "artefatti GSD e del loop (STATE, ROADMAP, fasi): li scrivono i verbi e il notaio, mai gli esecutori; un piano non dovrebbe elencarli" },
   { "glob": "docs/architecture/data-model.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: una sezione per fase, in coda" },
   { "glob": "docs/architecture/api-contract.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: una sezione per fase, in coda" },
-  { "glob": "CLAUDE.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: una voce per fase nella sezione comandi" }
+  { "glob": "CLAUDE.md", "tipo": "append", "motivo": "ROADMAP «Strategia di consegna»: una voce per fase nella sezione comandi" },
+  { "glob": "**/*.md", "tipo": "shared-doc", "motivo": "Decisione utente 2026-10-18: gli insiemi chiusi valgono solo per i file di codice e configurazione; i documenti Markdown (ADR, DEPENDENCIES, threat model, docs, README) si possono modificare da qualsiasi fase" }
 ]
