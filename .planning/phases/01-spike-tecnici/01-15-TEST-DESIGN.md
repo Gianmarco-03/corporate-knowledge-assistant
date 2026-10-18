@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-15-PLAN.md
-  sha256: 5bd630b56e34942c91db9d69985435544d730f1048723bad9faa82dc82feb927
+  sha256: 6b8cd3ffbac84b2b107d131d139caf00b88215d239382bbf3e61336ca29431b2
 risks:
   - id: RISK-1
     severity: CRITICAL
@@ -108,3 +108,7 @@ Il CRITICAL è coperto per entrambi i destinatari (TEST-1, TEST-2) e nell'eviden
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-15
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 6eb2775af330… a 5bd630b56e34… per la revisione del piano: divergenza dello sha dei candidati accettata solo con --accept-sha <hex> esplicito e registrata in §Anomalie; il manifest del piano 01-10 non si tocca. Il design non è stato rigenerato: va riletto contro la revisione.
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 5bd630b56e34… a da87459b5c10… per l'allineamento a 01-02 v2 (vram.sh dentro session.sh with, avvio per nome di tei-embed tei-rerank docling (niente unione di profili), down/release della sessione al posto di compose stop; acceptance con grep su vram.sh; TEI CPU etichettato). I test del design non cambiano: cambiano solo i comandi di avvio dei servizi e la prenotazione della finestra di misura. Nuovo criterio di acceptance su `vram.sh` (grep di `session.sh up`, nessun `--profile`/`compose up|stop|down`): coperto dai controlli statici esistenti, nessun test nuovo richiesto.
+
+**Modifica:** Claude (Anthropic) · 2026-10-19 · reviewed_plan.sha256 aggiornato da da87459b5c10… a 6b8cd3ffbac8… per session.sh: cid/stop/down per etichetta (rifinitura): TEI CPU fermato con `session.sh stop`, pulizia garantita dal `down` per etichetta. Test invariati, solo comandi.

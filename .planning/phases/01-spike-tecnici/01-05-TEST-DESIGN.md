@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-05-PLAN.md
-  sha256: 1450420091b9da75370858f3091f61a939ce499086fbb8db93b012725617b656
+  sha256: 6344843d7e2769c4c20ba2e04a6c270601238603aca4f9fc40d014c6b8f8a004
 risks:
   - id: RISK-1
     severity: HIGH
@@ -107,3 +107,5 @@ I test Rust stanno nei moduli `#[cfg(test)]` dei file `spikes/s05-cancel/src/*.r
 `cd spikes && cargo test -p s05-cancel <nome_test>` per TEST-2, 4, 5, 6, 7, 8, 14 (sull'host bastano tokio e loopback; la parte di TEST-8 su `num_alive_tasks` richiede la feature `tokio_unstable` solo se l'API lo esige: in quel caso il test gira nel runner con `RUSTFLAGS="--cfg tokio_unstable"` e lo si annota). I controlli TEST-3, 9, 10, 11, 15 sono comandi `git`/`node -e` lanciati dalla radice dopo il Task 2 o il Task 3.
 
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-05
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 1450420091b9… a 6344843d7e27… per l'allineamento a 01-02 v2 (comando del runner via session.sh with/oneshot; finestra di misura con prenotazione session.sh). I test del design non cambiano: cambiano solo i comandi di avvio dei servizi e la prenotazione della finestra di misura.

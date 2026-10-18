@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-11-PLAN.md
-  sha256: f6d0118353964301f4f1dfb47f6902046f7499d0d0f34422a447755fd33777da
+  sha256: accd86c13aafd8ffd3f8ceddfe087b86e0ae9d0801519c4d8fa7c7a720df6ef3
 risks:
   - id: RISK-1
     severity: CRITICAL
@@ -121,3 +121,5 @@ Il crate `s04-jev` ha `lib.rs`, quindi i test unitari stanno nei moduli `#[cfg(t
 Il CRITICAL (RISK-1) è coperto in tre livelli: funzione (TEST-1), percorso di invio (TEST-2), dati costruiti (TEST-3) ed evidenza (TEST-4). Tutti i HIGH sono coperti. Nota per l'esecutore: il client JEV deve accettare chiave e URL base come parametri del costruttore (lettura da env solo in `main.rs` o in una funzione `from_env`), altrimenti TEST-2, 6, 7, 8, 10 e 12 non si possono scrivere senza toccare variabili d'ambiente globali.
 
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-11
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da f6d011835396… a accd86c13aaf… per l'allineamento a 01-02 v2 (finestra di misura con prenotazione session.sh al posto del solo docker ps). I test del design non cambiano: cambiano solo i comandi di avvio dei servizi e la prenotazione della finestra di misura.

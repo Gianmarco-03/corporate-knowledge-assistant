@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-03-PLAN.md
-  sha256: b36284cc0f8eb4605ee44c555b9a630c32d5dff41908329c953d684894ef1e9d
+  sha256: a8743b44a17ee5c70e9e577bc8110eb21832a2aafd2a8eb8b1639a1762d69dbb
 risks:
   - id: RISK-1
     severity: HIGH
@@ -107,3 +107,5 @@ Tutti i controlli si lanciano dalla radice del repo dopo `bash spikes/data/corpu
 I due HIGH sono coperti: RISK-1 da TEST-1, RISK-2 da TEST-2 e TEST-7. La selettività ≤ 5% (RISK-11, MEDIUM) è in `uncovered` perché il piano stesso la rinvia a S-03.
 
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-03
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da b36284cc0f8e… a a8743b44a17e… per l'allineamento a 01-02 v2 (fetch.sh produce i derivati con session.sh oneshot (o with 01-03) invece di `--profile runner run`). I test del design non cambiano: cambiano solo i comandi di avvio dei servizi e la prenotazione della finestra di misura.

@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-12-PLAN.md
-  sha256: 6a057b3aa9a305795346fef6d12add4e76b1f720378b101039217969a0018973
+  sha256: b5dbcb5c4600762f6f299065909fa61b9a6c41ce50e51f95928fd60264f4b3b3
 risks:
   - id: RISK-1
     severity: CRITICAL
@@ -129,3 +129,5 @@ I due CRITICAL sono coperti a livello di funzione, di percorso e di evidenza: RI
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-12
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 578ebb4592dc… a 6a057b3aa9a3… per la revisione del piano: key_link allineato agli id c01..c08 dell'action. Il design non è stato rigenerato: va riletto contro la revisione.
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 6a057b3aa9a3… a b5dbcb5c4600… per l'allineamento a 01-02 v2 (finestra di misura con prenotazione session.sh al posto del solo docker ps). I test del design non cambiano: cambiano solo i comandi di avvio dei servizi e la prenotazione della finestra di misura.

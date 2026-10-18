@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-14-PLAN.md
-  sha256: 3b1591dd547bc034188fb4bfa3468dd942fac2f98440934affa0a872350aa0f1
+  sha256: 0fcd1e798d5f27357de0cd3b925968c392d6a8533e42e2bb5a7af594698bc63b
 risks:
   - id: RISK-1
     severity: CRITICAL
@@ -122,3 +122,5 @@ I due CRITICAL hanno test di comportamento su un database reale (TEST-1, 2, 4) p
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-14
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 07a08d7f63e3… a 3b1591dd547b… per la revisione del piano: denied_in_topk contato contro la matrice attesa (acl.json + manifest, seme per i ruoli sintetici), doc_acl confrontata prima di misurare. Il design non è stato rigenerato: va riletto contro la revisione.
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 3b1591dd547b… a 0fcd1e798d5f… per l'allineamento a 01-02 v2 (postgres e tei-embed avviati con session.sh up, sottocomandi con session.sh oneshot; finestra di misura con prenotazione session.sh). I test del design non cambiano: cambiano solo i comandi di avvio dei servizi e la prenotazione della finestra di misura.

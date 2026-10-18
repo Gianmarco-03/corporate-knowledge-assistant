@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-10-PLAN.md
-  sha256: dea5b3be9b9591893da74b59045f79404aee4d6412769913bb9c421aed485bca
+  sha256: 2242ec0666487281be633fdebfcd9433df7f46d5bfcfc8c20e122f5173f88de3
 risks:
   - id: RISK-1
     severity: CRITICAL
@@ -123,3 +123,7 @@ Il CRITICAL (RISK-1) è coperto da TEST-1, TEST-2 e TEST-4; il contatore indipen
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-10
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da dc81bf0fa415… a dea5b3be9b95… per la revisione del piano: leaked_chunks contato contro la matrice attesa da acl.json + manifest (expected_visibility), doc_acl confrontata con quella matrice prima di misurare. Il design non è stato rigenerato: va riletto contro la revisione.
+
+**Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da dea5b3be9b95… a 0c039cb8ff15… per l'allineamento a 01-02 v2 (tei-embed avviato con session.sh up, riavvio fra modelli con down+up, TEI CPU etichettato e fermato esplicitamente; finestra di misura con prenotazione session.sh). I test del design non cambiano: cambiano solo i comandi di avvio dei servizi e la prenotazione della finestra di misura.
+
+**Modifica:** Claude (Anthropic) · 2026-10-19 · reviewed_plan.sha256 aggiornato da 0c039cb8ff15… a 2242ec066648… per session.sh: cid/stop/down per etichetta (rifinitura): TEI CPU fermato con `session.sh stop`, pulizia garantita dal `down` per etichetta. Test invariati, solo comandi.
