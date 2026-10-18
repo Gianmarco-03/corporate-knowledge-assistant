@@ -1,0 +1,31 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\product\\requirements.md",
+  "type": "PRD",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Requisiti — Corporate Knowledge Assistant",
+  "summary": "MVP functional requirements (FR-001..FR-011), non-functional requirements (NFR-001..NFR-009) and business rules (BR-001..BR-007) for the Corporate Knowledge Assistant, with acceptance criteria.",
+  "scope": [
+    "authentication (email/password login, Argon2id hashing, no 2FA in MVP)",
+    "role management (admin, manager, employee, guest)",
+    "document upload (PDF, DOCX, Markdown)",
+    "indexing and atomic version publishing",
+    "authorized retrieval and query",
+    "cited answers and citation mapping",
+    "in-app document viewer",
+    "refusal on insufficient or contradictory evidence",
+    "audit logging",
+    "online discovery connector and quarantine",
+    "document versioning",
+    "Document Service",
+    "JEV",
+    "Rust ports and adapters",
+    "evaluation corpus",
+    "concurrency, backpressure and idempotency",
+    "tracing (request_id, trace, document version)"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type taken from MANIFEST_TYPE (PRD); content agrees: requirement tables with acceptance criteria. Document also contains technical NFRs (Argon2id, Rust ports, Document Service boundary) that resemble SPEC-level constraints. Output filename uses a path-derived suffix instead of the SHA-256 hash because no shell/hash tool was available to this classifier."
+}

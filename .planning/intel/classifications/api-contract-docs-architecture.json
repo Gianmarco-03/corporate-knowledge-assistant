@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\architecture\\api-contract.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Contratto API — Corporate Knowledge Assistant",
+  "summary": "Placeholder API contract stub pointing to a shared template; lists initial resources: auth, users, documents, ingestion jobs, queries, and audit events.",
+  "scope": ["API contract", "auth", "users", "documents", "ingestion jobs", "queries", "audit events"],
+  "cross_refs": ["../../../00-shared-templates/04-api-contract.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Manifest declared DOC. Content is a 5-line unfilled stub (Italian) with no endpoint tables or schemas; filename/path would otherwise hint SPEC. Filename uses a path-derived disambiguator instead of the SHA-256 prefix because no hashing tool was available in this classifier's toolset."
+}

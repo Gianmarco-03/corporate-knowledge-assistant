@@ -1,0 +1,25 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\adr\\0001-system-boundaries-and-stack.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "ADR-0001 — Confini dei servizi e stack iniziale",
+  "summary": "Defines three service boundaries (Identity & Access, Document & Indexing, RAG & Answer), React/TypeScript frontend, Rust backend, per-service PostgreSQL, OpenAPI contracts, and pluggable provider traits.",
+  "scope": [
+    "Identity & Access service",
+    "Document & Indexing service",
+    "RAG & Answer service",
+    "React TypeScript frontend",
+    "Rust backend",
+    "PostgreSQL per-service ownership",
+    "HTTP/JSON OpenAPI contracts",
+    "asynchronous long-running jobs",
+    "provider traits (parser, storage, embedding, vector index, JEV, LLM, audit, cache)",
+    "ingestion worker",
+    "MFA (excluded from MVP)"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

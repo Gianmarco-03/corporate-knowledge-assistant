@@ -1,0 +1,39 @@
+{
+  "source_path": "C:/Users/Gianmarco/Documents/Portfolio projects/01-corporate-knowledge-assistant/docs/architecture/architecture.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Architettura — Corporate Knowledge Assistant",
+  "summary": "System architecture of the Corporate Knowledge Assistant: three domain services, ingestion and query pipelines, data ownership on PostgreSQL, ports/adapters extensibility, and open decisions.",
+  "scope": [
+    "Identity & Access Service",
+    "Document & Indexing Service",
+    "RAG & Answer Service",
+    "React TypeScript frontend",
+    "reverse proxy",
+    "PostgreSQL cluster",
+    "pgvector",
+    "object storage",
+    "embedding provider",
+    "JEV API",
+    "generative LLM",
+    "DecisionEngine",
+    "ingestion pipeline",
+    "query pipeline",
+    "RBAC deny-by-default",
+    "Argon2id password hashing",
+    "signed tokens",
+    "transactional outbox",
+    "citation validation",
+    "evidence gate",
+    "document versioning",
+    "ports and adapters",
+    "cache (NoOp/Redis)"
+  ],
+  "cross_refs": [
+    "interfaces-and-concurrency.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": "Manifest-declared SPEC. Document contains a 'Decisioni aperte' section listing unresolved choices (object storage S3 vs bytea, NoOp cache vs Redis, parser/OCR/embedding/LLM selection, Docker vs Podman, OpenAPI contract-first vs generated from Rust); these are open, not locked. Output filename uses a path-derived suffix instead of the SHA-256 source hash because no shell/hash tool was available to this classifier."
+}

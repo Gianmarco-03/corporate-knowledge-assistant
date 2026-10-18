@@ -1,0 +1,27 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\architecture\\interfaces-and-concurrency.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Interfacce elementari e concorrenza",
+  "summary": "Defines HTTP API contracts, internal Rust port traits, concurrency model, race conditions to test, backpressure/degradation rules, and required spikes for the knowledge assistant.",
+  "scope": [
+    "HTTP API /api/v1",
+    "Identity & Access endpoints",
+    "Document & Indexing endpoints",
+    "RAG & Answer endpoints",
+    "internal retrieval and authorization endpoints",
+    "Rust domain ports (DocumentSource, DocumentStore, DocumentParser, Chunker, Embedder, VectorIndex, DecisionEngine, AnswerGenerator, AccessPolicy, AuditSink, Cache)",
+    "JEV DecisionEngine adapter",
+    "ingestion workers and job leasing",
+    "query RAG pipeline concurrency",
+    "database pools, outbox and idempotent consumers",
+    "race condition test scenarios",
+    "backpressure, 429/Retry-After, circuit breakers",
+    "spikes: Axum multipart streaming, parser/OCR isolation, pgvector, JEV batching, HTTP cancellation, cache invalidation"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type taken from MANIFEST_TYPE (SPEC); content agrees (endpoint tables, trait signatures, concurrency contracts). Doc says Rust signatures are conceptual and pending spike validation, and JEV parameters (top-20, max 8 concurrent) are experimental baselines. Filename omits the SHA-256 path hash because no hashing tool was available in this classifier run; a path-derived suffix was used instead to avoid collisions."
+}

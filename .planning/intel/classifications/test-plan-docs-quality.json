@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\quality\\test-plan.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Piano di test — Corporate Knowledge Assistant",
+  "summary": "Stub test plan pointing to a shared template; states the suite must include a role x document-classification matrix and negative tests proving no data leakage.",
+  "scope": ["test suite", "role x document classification matrix", "negative tests", "access-control leakage", "Corporate Knowledge Assistant"],
+  "cross_refs": ["../../../00-shared-templates/07-test-plan.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type set by manifest (DOC). File is a short stub (5 lines) in Italian. Contains one implicit testing requirement worth surfacing: a role x document-classification matrix plus negative tests demonstrating absence of leakage. Output filename uses a path-derived suffix instead of a SHA-256 prefix because no hashing shell was available to this classifier."
+}

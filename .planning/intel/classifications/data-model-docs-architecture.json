@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\architecture\\data-model.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Modello dati — Corporate Knowledge Assistant",
+  "summary": "Placeholder data model stub listing the initial entities for the Corporate Knowledge Assistant, pending completion from a shared template.",
+  "scope": ["User", "Role", "Document", "DocumentPermission", "Chunk", "IngestionJob", "Conversation", "Query", "AuditEvent", "data model"],
+  "cross_refs": ["../../../00-shared-templates/05-data-model.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type set by manifest (DOC). Content is a stub: one line naming 9 initial entities, with no fields, relationships or schemas. Filename hash suffix replaced by a path-derived suffix (docs-architecture) because SHA-256 could not be computed without a shell tool."
+}

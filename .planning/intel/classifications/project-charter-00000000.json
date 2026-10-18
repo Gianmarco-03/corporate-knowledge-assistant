@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\product\\project-charter.md",
+  "type": "PRD",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Project charter — Corporate Knowledge Assistant",
+  "summary": "Initial hypothesis for an assistant that gives employees trustworthy answers from company documents, enforcing role-based access, citing sources, and refusing unsupported answers.",
+  "scope": ["Corporate Knowledge Assistant", "company documents", "role-based access control", "source citations", "unsupported-answer refusal"],
+  "cross_refs": ["../../../00-shared-templates/01-project-charter.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type set by manifest (PRD). Document is a thin, unfilled template stub (Italian) containing only an initial hypothesis paragraph; requirements are implicit: answers limited to user's role, sources shown, unsupported answers refused. Filename hash suffix is a placeholder (00000000) because no hashing tool was available to compute SHA-256 of the source path."
+}

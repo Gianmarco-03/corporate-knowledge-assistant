@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\deliverables\\checklist.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Checklist di consegna",
+  "summary": "Delivery checklist listing project milestones M0-M4: requirements/threat model/ADRs, vertical slice, RBAC/guardrails/audit, evaluation/observability/hardening, deployment/demo/case study.",
+  "scope": ["delivery checklist", "milestones M0-M4", "vertical slice upload-retrieval-cited answer", "RBAC", "guardrails", "audit", "evaluation suite", "observability", "hardening", "deployment", "demo", "case study"],
+  "cross_refs": ["../../00-shared-templates/14-delivery-checklist.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type set by manifest (DOC). Content is a milestone roadmap (M0-M4, all unchecked) useful for phase/roadmap synthesis, not requirements. Filename lacks the SHA-256 path hash because no shell/hash tool was available to this classifier."
+}

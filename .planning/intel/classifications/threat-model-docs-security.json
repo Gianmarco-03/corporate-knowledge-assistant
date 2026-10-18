@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\security\\threat-model.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Threat model — Corporate Knowledge Assistant",
+  "summary": "Placeholder threat model stub listing security priorities: broken access control, indirect prompt injection, malicious files, exfiltration via citations/logs, poisoning, and token theft.",
+  "scope": ["threat model", "access control", "prompt injection", "malicious file uploads", "citations", "logs", "data poisoning", "token theft"],
+  "cross_refs": ["../../../00-shared-templates/06-threat-model.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type set by manifest. Document is a stub (template not yet completed); content is in Italian. Output filename uses a path-derived suffix instead of the SHA-256 prefix because no hashing tool was available in this run."
+}

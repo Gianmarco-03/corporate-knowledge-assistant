@@ -1,0 +1,28 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\adr\\0002-incremental-corpus-and-jev.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "ADR-0002 — Corpus incrementale e ruolo di JEV",
+  "summary": "Separates a dynamic knowledge corpus from a versioned evaluation corpus, quarantines online-discovered documents, and limits JEV to validation/reranking roles via HTTP behind DecisionEngine.",
+  "scope": [
+    "knowledge corpus",
+    "evaluation corpus",
+    "document quarantine",
+    "JEV",
+    "query validation",
+    "reranking",
+    "evidence sufficiency",
+    "contradiction detection",
+    "citation validation",
+    "image triage",
+    "Rust backend",
+    "DecisionEngine",
+    "approval and atomic publication workflow",
+    "JEV threshold calibration"
+  ],
+  "cross_refs": [],
+  "locked": true,
+  "precedence": null,
+  "notes": ""
+}

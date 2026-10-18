@@ -1,0 +1,37 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\README.md",
+  "type": "PRD",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Corporate Knowledge Assistant",
+  "summary": "Project README defining the MVP goals, architecture, chosen stack, JEV role, and initial performance targets for a RAG assistant over financial/corporate documents with auth, RBAC, citations, and audit.",
+  "scope": [
+    "Identity & Access Service",
+    "Document & Indexing Service",
+    "RAG & Answer Service",
+    "authentication (email/password, Argon2id)",
+    "RBAC (admin, manager, employee, guest)",
+    "document upload (PDF, DOCX, Markdown)",
+    "asynchronous indexing",
+    "citations and in-app document viewer",
+    "audit events",
+    "knowledge corpus",
+    "evaluation corpus",
+    "online source connectors and quarantine",
+    "JEV decision engine",
+    "Time To Queryable performance targets",
+    "React/TypeScript frontend",
+    "Rust backend",
+    "PostgreSQL with pgvector",
+    "OpenAPI HTTP/JSON contracts"
+  ],
+  "cross_refs": [
+    "docs/data/corpus-strategy.md",
+    "docs/architecture/architecture.md",
+    "docs/architecture/interfaces-and-concurrency.md",
+    "DEPENDENCIES.md"
+  ],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type set by manifest (PRD). Content also contains decision-like material (\"Stack deciso\": React/TS, Rust, PostgreSQL+pgvector, Argon2id, OpenAPI) and SPEC-like p95 performance targets; synthesizer may want to treat those as constraints. Output filename uses '-root' instead of the SHA-256 source_hash because no hashing tool was available to this classifier. Document is in Italian."
+}

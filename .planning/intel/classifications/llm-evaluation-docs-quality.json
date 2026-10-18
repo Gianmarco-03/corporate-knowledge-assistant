@@ -1,0 +1,13 @@
+{
+  "source_path": "C:\\Users\\Gianmarco\\Documents\\Portfolio projects\\01-corporate-knowledge-assistant\\docs\\quality\\llm-evaluation.md",
+  "type": "DOC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Valutazione LLM/RAG — Corporate Knowledge Assistant",
+  "summary": "Placeholder stub for LLM/RAG evaluation listing minimum metrics: recall@k, faithfulness, citation correctness, answer relevance, refusal accuracy, leakage rate, latency, cost per query.",
+  "scope": ["LLM evaluation", "RAG pipeline", "recall@k", "faithfulness", "citation correctness", "answer relevance", "refusal accuracy", "leakage rate", "latency", "cost per query"],
+  "cross_refs": ["../../../00-shared-templates/08-llm-evaluation.md"],
+  "locked": false,
+  "precedence": null,
+  "notes": "Type set by manifest (DOC). Document is a stub (template still to be completed) but lists minimum evaluation metrics that may be useful as quality targets. Output filename uses a path-derived suffix (docs-quality) instead of a SHA-256 hash because no hashing tool was available in this classifier run."
+}
