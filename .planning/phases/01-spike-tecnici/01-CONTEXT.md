@@ -48,6 +48,15 @@ Ricerca a supporto: `01-RICERCA-DISCUSSIONE.md` (Area A upload/storage/threat, A
 - **D-21:** **Reranker baseline**: no-rerank + **bge-reranker-v2-m3** (Apache-2.0) su GPU in container TEI, entrambi misurati contro JEV `rank`. jina-reranker-v2 escluso (licenza NC). Fonte: Area D §5; JEV per il reranking resta LOCKED (ADR-0002).
 - **D-22:** Spike JEV e cancellazione come da Area D §7: forma della chiamata `rank` (una request per candidato con domande Noul vs state unico vs Choice), concorrenza 4/8/16 con conteggio dei 429, risoluzione degli alias, cancellazione con server mock h1/h2 e con JEV reale (lavoro addebitato dopo il drop?), deadline globale (`timeout_at` + `JoinSet`/`Semaphore`). Fonte: Area D §2–§3.
 
+### Decisioni dopo l'audit GPT v1 (utente, 2026-10-19)
+
+- **D-09 emendata:** lo sfidante OCR è **PP-OCRv6** (PaddleOCR 3.7.0, 2026-06-11; default `PP-OCRv6_medium`, 50 lingue), selezionato con flag esplicito e pesi identificati; PP-OCRv5 resta solo come riferimento secondario se v6 non è selezionabile. La regola «si cambia solo se vince nettamente» su Tesseract resta. Fonti: [PaddleOCR 3.x, uso della pipeline OCR](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html), [release v3.7.0](https://github.com/PaddlePaddle/PaddleOCR/releases), consultate 2026-10-19. *Storia:* la prima stesura vincolava PP-OCRv5 (Area B §2); deepsearch_1 documentava solo v5/v4/v3 per `ocr_version`.
+- **D-23:** nello spike S-01 il carico si genera con `curl` + `xargs -P` invece di `oha`, che non varia il corpo delle richieste (deviazione da RESEARCH §3, ratificata).
+- **D-24:** proposte ratificate per ADR-0005 (locator): offset in Unicode scalar su testo NFC, conversione UTF-16 nel viewer; `section_path` con ordinale fra sorelle omonime; testo di sezione = solo testo proprio, sottosezioni escluse; proiezione canonica versionata `cka-text-v1` (ogni modifica = nuova versione).
+- **D-25:** i PDF con stream LZW/RunLength o filtri ignoti, o con object stream oltre il limite, si rifiutano (`Unsupported`/`DecompressionLimit`). È un progetto dimostrativo: il limite **va dichiarato nella documentazione ufficiale** (ADR-0004 e documentazione utente/README del prodotto, sezione limiti noti).
+- **D-26:** tolleranze del controllo analitico delle bbox (0,5 px / 1 pt / 3 pt) e pin `pip==24.3.1` / `pip-tools==7.4.1` accettati per lo spike; da rifinire in produzione.
+- **D-27 (rinviata a dopo la misura):** se `docling_isolation.csv` mostra che `page_range` non riduce il costo, si sceglie fra le opzioni in «Deferred Ideas» (Docling e pagine-tabella).
+
 ### Claude's Discretion
 - **S-07 (firme Rust candidate di tutte le porte)**: le scrive lo spike, incluse le variazioni emerse qui — `Embedder` deve coprire anche l'embedding della query (oggi `embed_batch(&[ChunkDraft])` non basta); `DecisionEngine::validate_query` restituisce la complessità (D-18); il locator a due varianti (D-10) entra nei tipi di `crates/contracts`.
 - N ore del GC degli oggetti orfani (D-02), soglie di pass/fail di dettaglio degli spike, budget VRAM fra TEI embedding, TEI reranker e Docling (6 GB condivisi: lo spike misura la convivenza).
@@ -108,6 +117,13 @@ Ricerca a supporto: `01-RICERCA-DISCUSSIONE.md` (Area A upload/storage/threat, A
 <deferred>
 ## Deferred Ideas
 
+- **Docling e pagine-tabella (D-27), opzioni da valutare dopo la misura di 01-08:**
+  1. *Sotto-PDF nel figlio isolato:* nuova op `pdf_subset` nell'allowlist di 01-07: il figlio copia nel proprio `out_dir` le sole pagine-tabella (PDFium `FPDF_ImportPages` o lopdf), e Docling riceve solo quelle. Docling legge meno; resta il parsing PDF lato Docling, ma su un file ridotto e già passato dal prescan.
+  2. *Immagini di pagina:* il figlio rasterizza le pagine-tabella (stessa via di `ocr_render`) e a Docling si inviano PNG. Docling non apre mai il PDF non fidato (superficie d'attacco minima), ma perde lo strato di testo e lavora come OCR + TableFormer: va misurato l'effetto su IoU e celle.
+  3. *Un PDF per pagina:* una richiesta per pagina-tabella (sotto-PDF di una pagina), con timeout e riavvio per pagina e parallelismo naturale; costo di avvio moltiplicato per pagina.
+  4. *Lasciare com'è:* se il costo fuori `page_range` risulta trascurabile.
+  Le opzioni 1–3 cambiano il contratto del lanciatore (01-07) e quindi passano dalla fase che ne è proprietaria.
+
 - Antivirus (ClamAV) e CDR per PDF/DOCX (ASVS L2): ADR di rinvio in questa fase, valutazione in Fase 14 (hardening).
 - HNSW + `iterative_scan`: si attiva oltre la soglia misurata dallo spike (Fase 14 o quando il corpus la supera).
 - `pg_textsearch` BM25: solo se lo spike mostra un guadagno misurato.
@@ -120,3 +136,4 @@ Ricerca a supporto: `01-RICERCA-DISCUSSIONE.md` (Area A upload/storage/threat, A
 *Context gathered: 2026-10-18*
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · discuss 1 (decisioni utente)
+**Modifica:** Claude (Anthropic) · 2026-10-19 · D-09 emendata (PP-OCRv6), D-23..D-27 e opzioni Docling/pagine-tabella (decisioni utente dopo l'audit GPT v1)
