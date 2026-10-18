@@ -58,6 +58,7 @@ Metodologia portata da Gestionale Light il 2026-10-18 (decisione utente). Spec: 
   - `status-tracker`, una voce `APPEND-STATUS` a ogni tappa reale.
   Ogni `READ-RESPONSE` va seguito da `ACK-RESPONSE`.
 - **Codex**: operativo ma non usato in questo progetto (decisione utente). Implementano i `gsd-executor` in worktree isolati, tetto di 2 concorrenti. I test rossi (`test-write`) li scrive un agente Claude fresco, distinto dall'esecutore.
+- **Racconto didattico** (decisione utente 2026-10-18): al termine di ogni slice il bridge di `execute` scrive `0X-YY-RACCONTO.md` in prosa: cosa è stato fatto, come (percorso di lettura del codice con `percorso:riga`, costrutti non ovvi spiegati), perché (alternative scartate), test, deviazioni. Scopo: l'utente mantiene il controllo e impara.
 - **Stile**: gli intermedi fra agenti (brief, manifest, rapporti YAML) sono in caveman; i deliverable (CONTEXT, PLAN, CONTRATTO, SUMMARY, VERIFICATION), i commit e tutto ciò che legge l'utente sono in prosa. `.caveman.json` tiene la sessione principale in prosa.
 - **Firma**: ogni nuovo artefatto o voce di stato porta `**Modifica:** <Autore> · <data> · <cosa>`. Una regola superata resta scritta con un paragrafo *Storia*, mai cancellata in silenzio.
 - **Regola dei dubbi** (elenco vivo, lo aggiorna l'utente): su ciò che è qui elencato si procede senza chiedere. Elenco attualmente vuoto.

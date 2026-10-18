@@ -46,13 +46,20 @@ Terzo verbo del loop GSD+ECC (spec: `docs/superpowers/specs/loop-gsd-ecc-design.
 
 ## Il bridge (per piano)
 
-Rende il piano visibile a GSD. Cinque passi, o tutto o niente; idempotente (SUMMARY presente → no-op).
+Rende il piano visibile a GSD e all'utente. Cinque passi più il racconto (3-bis), o tutto o niente; idempotente (SUMMARY e RACCONTO presenti → no-op; SUMMARY presente senza RACCONTO → si scrive solo il racconto).
 
 1. **Raccolta prove** — commit del piano dal log (scope `(0X-YY)`); diff reale vs `files_modified` del PLAN; esiti test. **Rifiuta** (senza scrivere nulla, con `rifiutato: <motivi>`) se: zero commit, file dichiarati non toccati, test rossi.
 2. **Rapporto** — leggi `.planning/tmp/rapporto-0X-YY.yaml` e **incrocia ogni affermazione con le prove** del passo 1 — mai fidarsi del racconto. Rapporto assente → modalità `--da-prove`: ricostruisci da git + PLAN + esiti test; i deliverable non dimostrabili diventano `human_judgment: true`.
 3. **Compilazione SUMMARY** — `0X-YY-SUMMARY.md` dal template GSD (`~/.claude/gsd-core/templates/summary.md`): frontmatter completo (`requirements-completed` copiati dal PLAN), blocco `coverage` popolato dai must_haves con `verification[].ref` e `status` reali. Il `coverage` collega ogni `TEST-N` del design al proprio `ref` e al rischio `RISK-N` che cattura; un `TEST-N` senza prova è `human_judgment: true`, mai verde implicito. In dubbio → `human_judgment: true` con rationale (fail-safe GSD).
+3-bis. **Racconto didattico** (decisione utente 2026-10-18) — `0X-YY-RACCONTO.md` nella directory di fase, in **prosa italiana normale** (mai caveman: lo legge l'utente). Scopo: lasciare all'utente il pieno controllo e la comprensione di ogni slice. Si scrive leggendo il **diff reale** del piano, non solo il rapporto; ogni affermazione punta a un `percorso:riga` del codice. Sezioni fisse:
+   - **Cosa** — che cosa fa ora il sistema che prima non faceva, in due-tre frasi, e quali requisiti chiude.
+   - **Come** — percorso di lettura consigliato del codice (file nell'ordine in cui leggerli, con `percorso:riga`), flusso dei dati, ruolo di ogni file nuovo; i costrutti Rust/TypeScript non ovvi usati (trait, lifetime, `async`, `Arc`, extractor Axum, macro sqlx, hook React…) spiegati in una frase ciascuno, legati al punto in cui compaiono.
+   - **Perché** — ogni scelta progettuale con l'alternativa scartata e il motivo; il legame con ADR, decisioni del CONTEXT, rischi `RISK-N` e seam della WIRING-MAP.
+   - **Test** — quali test provano cosa, e come lanciarli singolarmente.
+   - **Deviazioni e punti aperti** — cosa è andato diversamente dal piano e perché; cosa resta da capire o da decidere.
+   Il racconto non sostituisce il SUMMARY (che resta il documento per GSD) e non introduce affermazioni che le prove del passo 1 non sostengono.
 4. **Autovalidazione** — `gsd-tools verify-summary <path>`; se boccia: correggi e ripeti.
-5. **Registrazione atomica** — `gsd-tools roadmap update-plan-progress 0X YY complete`; aggiornamento posizione via verbi `state`; commit docs: `docs(0X-YY): completato il piano YY — <one-liner sostanziale>`. A registrazione avvenuta, elimina i file tmp del piano.
+5. **Registrazione atomica** — `gsd-tools roadmap update-plan-progress 0X YY complete`; aggiornamento posizione via verbi `state`; commit docs (SUMMARY + RACCONTO + stato): `docs(0X-YY): completato il piano YY — <one-liner sostanziale>`. A registrazione avvenuta, elimina i file tmp del piano.
    **Decisioni = una riga**: `state add-decision` porta SOLO il sommario (≤ 200 caratteri) col puntatore `→ \`file#sezione\`` all'artefatto che porta il rationale; la stessa riga si accoda a `.planning/DECISIONS-INDEX.md` sotto la fase. Mai rationale in STATE.md. Prima del commit: `node scripts/lint-stato.cjs` deve essere verde.
 
 ### Schema del rapporto (`.planning/tmp/rapporto-0X-YY.yaml`)
@@ -65,6 +72,8 @@ accomplishments:             # cosa è stato costruito, righe sostanziali
   - "..."
 decisioni:                   # prese durante l'esecuzione, con motivo
   - "..."
+scelte:                      # per il racconto didattico: scelta, alternativa scartata, perché
+  - {scelta: "...", alternativa: "...", perche: "..."}
 deviazioni:                  # livello a (auto-fix) / b (MAI qui — va in rimbalzo) / c (interruzione)
   - {livello: a, cosa: "...", fix: "...", commit: abc123f}
 coverage:                    # deliverable → prova
