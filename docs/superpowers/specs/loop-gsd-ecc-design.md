@@ -28,8 +28,8 @@ Convivono due plugin: **GSD** (requisiti, roadmap, fasi, piani, stato) ed **ECC*
 Decisione utente 2026-10-18 (U-04 nel ROADMAP, sezione «Strategia di consegna», che resta la fonte di verità per numeri di fase e whitelist): **provider-first, insiemi di file chiusi per fase**.
 
 **Ordine di progetto dei verbi** (diverso dall'ordine numerico di esecuzione):
-1. `discuss` di **tutte** le fasi: le decisioni di prodotto che vincolano i provider si chiudono prima che i provider siano pianificati.
-2. `plan` + `execute` + `verify` della fase **Spike**: misure e ADR, codice usa-e-getta fuori dall'albero di prodotto.
+1. `discuss` + `plan` della fase **Spike**; poi `execute` + `verify` della Spike **in parallelo** al `discuss` di tutte le altre fasi (emendamento utente 2026-10-18: gli spike sono il percorso critico). Misure e ADR, codice usa-e-getta fuori dall'albero di prodotto; una misura che emerge da un discuss successivo diventa un piano aggiuntivo della Spike.
+2. Le decisioni di prodotto che vincolano i provider si chiudono nei `discuss` delle altre fasi prima che i provider siano pianificati.
 3. `plan` della **Fondazione** e delle fasi **Provider**: porte, DTO, innesti e perimetri fissati nei rispettivi `0X-CONTRATTO.md`.
 4. `plan` di **tutte le fasi consumatrici**, ciascuna contro i contratti e i trait-porta di Fondazione e Provider, mai contro codice provvisorio.
 5. **Riconciliazione dei piani provider** prima di qualsiasi codice: per ogni trait-porta, operazioni del provider ⊇ unione dei bisogni dei piani consumatori; ogni operazione provider ha almeno un piano consumatore che la usa. Un delta riapre il piano provider (`plan_version` +1, re-gate, nuovo test design).

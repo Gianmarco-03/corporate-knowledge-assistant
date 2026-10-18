@@ -13,8 +13,8 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 
 **Ordine dei verbi del loop (diverso dall'ordine numerico di esecuzione):**
 
-1. `discuss` di **tutte** le fasi, 1-15. Le decisioni di prodotto che vincolano i provider (es. Q-02 classificazione, Q-04 ownership dell'audit, Q-05 multi-turno, Q-07 versione JEV, prima fonte online) si chiudono così prima che i provider siano pianificati. Il discuss delle Fasi 2-4 si riapre solo se le misure dello spike ne cambiano le premesse.
-2. `plan` + `execute` + `verify` della **Fase 1 (Spike)**: misure e ADR, codice usa-e-getta fuori dall'albero di prodotto.
+1. `discuss` + `plan` della **Fase 1 (Spike)**, poi `execute` + `verify` della Fase 1 **in parallelo** al `discuss` di tutte le altre fasi, 2-15 (decisione utente 2026-10-18, emendamento di U-04: gli spike sono il percorso critico e il loro perimetro è già fissato dal CONTEXT della Fase 1). Misure e ADR, codice usa-e-getta fuori dall'albero di prodotto. Una misura richiesta da un discuss successivo e non coperta dagli spike diventa un piano aggiuntivo della Fase 1 o uno spike nella fase interessata.
+2. Le decisioni di prodotto che vincolano i provider (es. Q-02 classificazione, Q-04 ownership dell'audit, Q-05 multi-turno, Q-07 versione JEV, prima fonte online) si chiudono nei discuss 2-15 prima che i provider siano pianificati. Il discuss delle Fasi 2-4 si riapre solo se le misure dello spike ne cambiano le premesse.
 3. `plan` delle **Fasi 2, 3, 4** (Fondazione e Provider): fissano porte, DTO, hook e perimetri nei rispettivi `0X-CONTRATTO.md`.
 4. `plan` delle **fasi consumer 5-15**, ciascuna contro i contratti e le trait-porta delle Fasi 2-4, mai contro codice provvisorio.
 5. **Riconciliazione dei piani provider**: ogni operazione di porta usata da un piano consumer esiste nel piano provider, e ogni operazione provider ha almeno una fase consumer pianificata che la usa (nessuna operazione speculativa). Un delta riapre il piano provider (`plan_version` +1, re-gate) e aggiorna la tabella "Tracciabilità provider → consumer".
