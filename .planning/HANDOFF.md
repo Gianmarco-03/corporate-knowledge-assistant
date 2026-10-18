@@ -2,6 +2,12 @@
 
 > Per la sessione successiva di Claude. Leggere prima `CLAUDE.md` (regole del loop, strategia provider-first, insiemi chiusi), poi questo file, poi `.planning/ORCHESTRATOR-STATUS.md`. Comunicazione con l'utente in **italiano**.
 
+## 0. Aggiornamento 2026-10-19 (prevale sulle sezioni sotto)
+
+- §6 punti 1–4 **fatti**: audit 1–4 e deepsearch 1–5 salvati + ACK (`3a2f37f`); giro di correzioni sui 7 piani (plan_version 2) + allineamento a `session.sh` di 03, 05, 10, 11, 12, 14, 15; re-gate giro 4 = 17/17 conformi (`01-GATE.md`); commit `3ac5650`, branch `task/PLAN-010-{02,04,07,08,09,13,16}` = `3ac5650` pushati; **inviati `risk_audit_8..14`** (mappa: 8=02, 9=04, 10=07, 11=08, 12=09, 13=13, 14=16), giro 2 di 3; `status_2` sul tracker.
+- **Prossimo:** attendere le risposte (controllare `C:\Agent Bridge\CorporateKnowledgeAssistant\implementation-risk-audit\`), salvarle verbatim come `01-NN-RISK-AUDIT-v2.md` + ACK; poi §6 punto 5 (test-design GPT) o terzo giro.
+- **Decisioni utente pendenti** (non bloccano l'audit, sì l'execute): oha→curl in 04; piani 35–54 KB (spezzare?); memoria worker 2 GiB vs 16 OCR; PP-OCRv6 condizionale; DocLayNet 20→40 pagine; proposte ADR-0005 (offset Unicode scalar, ordinale sezioni omonime, testo di sezione senza sottosezioni, `cka-text-v1`); rifiuto PDF con filtri LZW/RunLength e limite ObjStm; riavvio Docling per documento e `page_range`; tolleranze del controllo analitico bbox (13); pin pip 24.3.1 / pip-tools 7.4.1 da verificare.
+
 ## 1. Dove siamo in una riga
 
 Fase 1 «Spike tecnici» (critica): discuss chiuso, 17 PLAN scritti e conformi ai 6 gate (tre giri, `01-GATE.md`), **audit GPT al primo giro: 7/7 REVISE** — tocca al giro di correzioni (passo 6-bis di `skills/plan/SKILL.md`).
@@ -69,3 +75,4 @@ Mappa content_id → piano: risk_audit_1 = 01-02, _2 = 01-04, _3 = 01-07, _4 = 0
 - Modello: per i subagenti usare gli ID Claude correnti (Opus 5.5 `claude-opus-5-5`, Sonnet 5.5, Haiku 5.5).
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · handoff di fine sessione (contesto in saturazione, richiesta utente)
+**Modifica:** Claude (Anthropic) · 2026-10-19 · §0: giro di correzioni e audit v2 inviati
