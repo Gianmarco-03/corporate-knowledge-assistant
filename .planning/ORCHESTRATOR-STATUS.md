@@ -5,7 +5,7 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 1 / slice 01-01, 01-02 / execute onda 1 completata · aggiornato: 2026-10-19T19:51:24Z
+fase 01 / onda 2 / slice 01-03, 01-04 / execute in corso (ripresa dopo interruzione) · aggiornato: 2026-10-20
 
 ## Prossima azione
 
@@ -38,6 +38,7 @@ fase 01 / onda 1 / slice 01-01, 01-02 / execute onda 1 completata · aggiornato:
 ## Limiti trovati
 
 - 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7
+- 2026-10-20 · API Claude irraggiungibile (ENOTFOUND, DNS) durante onda 2: esecutore 01-03 morto senza commit, test-write 01-04 morto con test non committati · impatto: ripresa con agenti nuovi da primo task non committato · rif. 01-ONDE.md onda 2
 
 ## Gate & verdetti
 
@@ -69,3 +70,4 @@ fase 01 / onda 1 / slice 01-01, 01-02 / execute onda 1 completata · aggiornato:
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --plan fase 01
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --evento: Docker Desktop e GPU pronti
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --exec fase 01 onda 1
+**Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: interruzione di rete in onda 2
