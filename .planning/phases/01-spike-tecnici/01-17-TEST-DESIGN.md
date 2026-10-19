@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-17-PLAN.md
-  sha256: 480b1053c716e932310aef7592867c0d324aa98b7ad8fbc5e112d498c3f5f4f6
+  sha256: e99ab09adf51a8efbd0b2ddf6acbbdc8872808c249fdf8b40a13118d7eaf2c07
 risks:
   - id: RISK-1
     severity: HIGH
@@ -52,7 +52,8 @@ tests:
   - {id: TEST-4, title: Stato «misurata nello spike» solo con evidenza, type: check-documento, priority: P0, catches: [RISK-3]}
   - {id: TEST-5, title: Tabella delle minacce completa e ben formata (T-01..T-28, T-29+), type: check-documento, priority: P1, catches: [RISK-4]}
   - {id: TEST-6, title: Storia per ogni regola cambiata e elenco «da evitare» invariato, type: check-git, priority: P1, catches: [RISK-5]}
-  - {id: TEST-7, title: Diff degli ADR 0003-0012 limitato a Stato e Modifica, type: check-git, priority: P1, catches: [RISK-6]}
+  - {id: TEST-7, title: Diff degli ADR 0003-0012 limitato a Stato e Modifica (salvo ADR-0004, eccezione D-25), type: check-git, priority: P1, catches: [RISK-6]}
+  - {id: TEST-12, title: Limiti noti D-25 in ADR-0004 e README, type: check-static, priority: P1, catches: [RISK-6]}
   - {id: TEST-8, title: Link degli ADR e contabilità dei numeri 0003-0013, type: check-documento, priority: P1, catches: [RISK-7]}
   - {id: TEST-9, title: Scanner di sicurezza verde sui documenti, type: check-statico, priority: P1, catches: [RISK-8]}
   - {id: TEST-10, title: ADR-0013 completo e rischio residuo AV/CDR nel threat model, type: check-documento, priority: P2, catches: [RISK-9]}
@@ -82,7 +83,7 @@ Tutti i test sono comandi lanciati dalla radice dopo il Task 3, con letture di `
 
 **TEST-6 — Storia e «da evitare».** `git diff <base> -- DEPENDENCIES.md`: per ogni riga rimossa che conteneva una regola (stato o scelta), esiste nello stesso diff un paragrafo *Storia* aggiunto che la nomina. La sezione «da evitare nell'MVP» non ha righe aggiunte (`git diff` limitato a quella sezione: zero righe `+` di contenuto). `DEPENDENCIES.md` contiene `jev-1.13.0` e la firma `**Modifica:**` in testa.
 
-**TEST-7 — Diff degli ADR limitato.** Per ogni file `docs/adr/00{03..12}-*.md`, `git diff --numstat <base>` dà ≤ 2 righe aggiunte e ≤ 1 rimossa, e le righe toccate sono solo `Stato:` e `**Modifica:**` (`git diff -U0` filtrato: ogni riga `+`/`-` di contenuto inizia con uno dei due marcatori).
+**TEST-7 — Diff degli ADR limitato.** Per ogni file `docs/adr/00{03..12}-*.md` tranne `0004` (eccezione D-25, coperta da TEST-12), `git diff --numstat <base>` dà ≤ 2 righe aggiunte e ≤ 1 rimossa, e le righe toccate sono solo `Stato:` e `**Modifica:**` (`git diff -U0` filtrato: ogni riga `+`/`-` di contenuto inizia con uno dei due marcatori).
 
 **TEST-8 — Link e numeri.** Il ciclo del verify del Task 3 sugli ADR 0003-0011 (ogni link `spikes/…\.(md|json)` esiste e ogni ADR ha un `hw.json`), esteso ai link a `.csv` (`grep -oE 'spikes/[A-Za-z0-9_./-]+\.(md|json|csv)'`). ADR-0012 collega RISULTATI e `lib.rs` di `s07-ports`, dichiara l'assenza di `hw.json` e contiene «Vincoli verso la Fondazione». Il SUMMARY elenca i numeri 0003-0013 con «emesso» o «non emesso» e motivo; ogni numero «emesso» corrisponde a un file esistente, ogni «non emesso» a nessun file.
 
@@ -101,3 +102,7 @@ I tre HIGH sono coperti da test automatici: RISK-1 da TEST-1, RISK-2 da TEST-2, 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 6c79fd6ec599… a cfe178147e8f… per la revisione del piano: evidenza di T-14 su file concreti (results/jev/forms.csv e results/rerank/rerank.csv) invece del glob. Il design non è stato rigenerato: va riletto contro la revisione.
 
 **Modifica:** Claude (Anthropic) · 2026-10-19 · divisione di 01-07: misure ostili e budget aggregato spostati in 01-18 (decisione utente). reviewed_plan.sha256 aggiornato da cfe178147e8f… a 480b1053c716… (sha256 del piano con fine riga LF): test invariati, cambiano solo i rimandi (`hostile.csv` ora prodotto da 01-18, `depends_on` con 01-18; percorso del file invariato, quindi TEST-3 e TEST-10 restano validi).
+
+**TEST-12 — Limiti noti (D-25).** `grep -q "^## Limiti noti" docs/adr/0004-parser-ocr-isolamento.md` e `grep -q "^## Limiti noti" README.md`; nella sezione di ADR-0004 compaiono `LZW` ed `estrapolat`; la sezione del README contiene il link `docs/adr/0004-parser-ocr-isolamento.md`. Sul diff di ADR-0004, oltre a `Stato` e `**Modifica:**`, le sole righe aggiunte stanno sotto `## Limiti noti`.
+
+**Modifica:** Claude (Anthropic) · 2026-10-19 · limiti noti D-25 in ADR-0004 e README (decisione utente): reviewed_plan.sha256 aggiornato da 480b1053c716… a e99ab09adf51…, TEST-7 con eccezione ADR-0004, nuovo TEST-12.
