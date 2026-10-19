@@ -253,6 +253,71 @@ Regole della prima stesura superate dal riallineamento ai PLAN (2026-10-18), con
 
 ## §6 — Esito della wave 0                (wiring-build)
 
+Verifica eseguita il 2026-10-19 su `main` = `ad19dc6`, in modalità di sola verifica: i seam di §5 li avevano già creati i piani 01-01 e 01-02, e questa passata non ha modificato codice né configurazione. Non ci sono seam inter-fase (nessuna riga `WM-NNN` con `created-in = 1`), quindi la WIRING-MAP resta invariata. Il diff della wave 0 (`ea09d68..ad19dc6`) tocca soltanto file sotto `spikes/`.
+
+### Commit dei seam
+
+| commit | piano | contenuto |
+|---|---|---|
+| `67fe423` | 01-01 | workspace `spikes/` con otto crate, dipendenze pinnate e lockfile (W1, W2, W3, W4) |
+| `d2ea32e` | 01-01 | test rossi del crate `common` (TEST-6..TEST-12), scritti da un agente distinto |
+| `fec041f` | 01-01 | crate `common` con l'API fissa (W8) |
+| `584e20b` | 01-02 | compose, `.env.example`, `.gitignore`, `.dockerignore`, `runner.Dockerfile`, cartelle dati (W5, W6, W7, W11, W12) |
+| `c3cce23` | 01-02 | `session.sh`, `runner-smoke.sh`, `hw-manifest.sh`, `gpu-check.ps1` (W9, W10) |
+| `41d98ef` | 01-02 | `session.sh up` risolve il set da `config --format json`; gate GPU robusto ai DNS transitori |
+| `ead4a87` | 01-02 | `gpu-check.txt` con `VERDETTO: VERDE` e inventario dei pesi Docling offline |
+| `00df603` | merge | fusione di 01-01 in `main` |
+| `ad19dc6` | merge | fusione di 01-02 in `main` |
+
+### Seam W1..W13 confrontati con `main`
+
+| seam | stato | forma rispetto a §5 |
+|---|---|---|
+| W1 workspace e `members` | creato | conforme: `spikes/Cargo.toml:5-6` ha `resolver = "3"` e gli otto membri nell'ordine di §5, senza glob; `[workspace.package]` con `edition = "2024"` e `publish = false` (righe 8-10) |
+| W2 `[workspace.dependencies]` | creato | conforme: 34 voci con pin `=x.y.z` e feature di §5 (`spikes/Cargo.toml:16-49`), commento di coda append-only (righe 13-15). `async-trait` è dichiarato ma non attivo in alcun crate, quindi assente dal lockfile finché 01-16 non lo attiva: è coerente con la mappa di §5 (s07 senza dipendenze in wave 0) ed è annotato fra le decisioni del rapporto 01-01 |
+| W3 `spikes/Cargo.lock` | creato | conforme: generato con `cargo generate-lockfile` sull'host Windows (nessun ripiego in container); `cargo check --workspace --locked` verde |
+| W4 crate e mappa delle dipendenze | creato | conforme: gli otto `Cargo.toml` hanno `version = "0.0.0"`, `edition.workspace`, `publish.workspace` e le dipendenze della mappa di §5 come `.workspace = true` (più `common` per path); s01 ha `dhat` e `reqwest` in `[dev-dependencies]`; s07 senza dipendenze. Sorgenti iniziali: `fn main() {}` in s01..s06, `s07-ports/src/lib.rs` con un solo commento |
+| W5 `spikes/compose.yaml` | creato | conforme nella forma: `name: cka-spikes`, dieci servizi con i profili di §5, porte pubblicate solo su `127.0.0.1` (righe 42, 65, 84, 105), etichetta `cka.run_id: "${CKA_RUN_ID:-none}"` su tutti e dieci, nessun `depends_on`, nessun `env_file:`, nessun `http://` fuori dai commenti, rete `parse` interna, otto volumi. Differenze motivate, già dichiarate nel rapporto 01-02: `docling` e `docling-cpu` girano con `user: "1001"` (l'utente dichiarato dalle immagini, come previsto dal piano) e hanno `mem_limit: 8g` invece di `deploy.resources.limits` (righe 133-135, 161), perché compose rifiuta `pids_limit` insieme a limiti `deploy` senza pids; `docling-models` gira con `user: "0:0"` più `cap_drop: [ALL]` e `no-new-privileges` (righe 170-177), perché il volume nuovo nasce di root e l'utente 1001 non potrebbe scriverci. Nota testuale: §3 W5 parla ancora di «9 servizi»; la tabella di §5 ne elenca già dieci con `docling-models`, e il file reale coincide con la tabella |
+| W6 `spikes/.env.example` | creato | conforme: sezioni `# common`, `# s01`…`# s06`, segreti e URL interni vuoti con la forma in commento, valori non segreti di §5 (`JEV_MODEL=jev-1.13.0`, modelli Haiku e Sonnet 5.5, tetti di spesa a 5). Chiavi in più rispetto all'elenco di §5, tutte dichiarate nel piano 01-02 (Task 1): `DOCLING_ARTIFACTS_PATH=/models` (riga 39), `EMBED_REVISION` (riga 44) e `RERANK_REVISION` (riga 59), queste ultime vuote perché la revisione la fissa lo spike con lo sha del commit Hugging Face. Nessun `spikes/.env` nel repo |
+| W7 `.gitignore` e `.dockerignore` | creato | conforme: `spikes/.gitignore:2-6` e `spikes/.dockerignore:3-6` hanno esattamente le voci di §5 |
+| W8 crate `common` | creato | conforme: `env::required`, `manifest::HwManifest` + `ensure_present`, `csv::Writer::create` + `write_row`, `hist::Recorder` (`new`, `record_us`, `summary`) e `Summary::csv_fields`, `timer::Stopwatch` (`start`, `elapsed_us`, `elapsed_ms_f64`); nessun simbolo pubblico in più. Differenza motivata: `HwManifest.timestamp_utc` è obbligatorio e non vuoto (`spikes/common/src/manifest.rs:9`, controllo alle righe 35-36), mentre gli altri campi sono `Option`; lo richiede il test design di 01-01 (TEST-8, manifest senza `timestamp_utc` rifiutato) ed è fra le decisioni del rapporto 01-01. Dodici test unitari, oltre il minimo di cinque |
+| W9/W10 `spikes/tools/` | creato | conforme: `session.sh` ha tutti i sottocomandi di §5 (`new-id`, `acquire`, `release`, `with`, `status`, `reclaim`, `up`, `run`, `oneshot`, `init-volumes`, `exec` per servizio o container, `cid`, `stop`, `down`, `ps`, `vram`; dispatcher alle righe 477-492), la regex del run_id `^[a-z0-9][a-z0-9-]{0,62}$` (riga 36) applicata da `valid_run_id` (righe 52-57) con `none` riservato, `down` solo per etichetta. Presenti `runner-smoke.sh`, `hw-manifest.sh` e `gpu-check.ps1`; `spikes/results/gpu-check.txt` termina con `VERDETTO: VERDE`. In più `spikes/results/docling-models.txt`, l'inventario dei pesi offline, che è nei `files_modified` di 01-02 |
+| W11 `spikes/data/` | creato | conforme: soltanto `.gitkeep` in `corpus/`, `s02/`, `s03/`, `s06/`, `hostile/` |
+| W12 `spikes/docker/` | creato | conforme: la cartella contiene solo `runner.Dockerfile` (rust 1.99.1 slim trixie, oha v1.16.0 verificato con sha256, qpdf, poppler-utils, imagemagick, `USER 10001`). Differenza minore dichiarata nel rapporto 01-02: `ENV TMPDIR=/work/tmp`, così i tempfile vanno sul volume `work-tmp` |
+| W13 prenotazione dei numeri ADR | non applicabile alla wave 0 | conforme: la wave 0 non crea file ADR; in `docs/adr/` ci sono solo `0000`, `0001`, `0002`. La tabella dei numeri resta quella di §5 |
+
+### Gate di wave 0
+
+| voce | comando | esito |
+|---|---|---|
+| workspace | `cd spikes && cargo check --workspace --locked` | verde, exit 0 |
+| test di `common` | `cd spikes && cargo test -p common --locked` | verde: 12 passati, 0 falliti |
+| compose, profilo `db` | `docker compose --env-file spikes/.env.example -f spikes/compose.yaml --profile db config -q` | verde, exit 0 |
+| compose, tutti i profili | stesso comando con `--profile db --profile s01 --profile s02 --profile s03 --profile s04 --profile gpu --profile cpu --profile runner --profile docling-models` | verde, exit 0; `config --services` elenca i dieci servizi attesi (Compose v5.6.0) |
+| pgvector ≥ 0.8.4 | `bash spikes/tools/session.sh with 01-wiring -- bash <script>`, con lo script che esegue `session.sh up "$CKA_RUN_ID" postgres` e poi `session.sh exec "$CKA_RUN_ID" postgres -- psql … -c "CREATE EXTENSION IF NOT EXISTS vector;" -c "SELECT extversion FROM pg_extension WHERE extname='vector'"` | verde: `extversion = 0.8.7`. Set risolto uguale al nominato (`postgres`), pulizia di `with` riuscita (rimosso 1 container, residui 0, prenotazione rilasciata; `session.sh status` = nessuna prenotazione) |
+| build del runner | `docker compose --env-file spikes/.env.example -f spikes/compose.yaml --profile runner build runner` | verde, immagine `cka-spikes-runner` costruita da cache in 11 s; evidenza del primo build e di `runner-smoke.sh` (`SMOKE: OK`) nel rapporto 01-02, TEST-4 |
+| gate GPU | ultima riga di `spikes/results/gpu-check.txt` | `VERDETTO: VERDE` (RTX 3050 6144 MiB, driver 610.88, CUDA UMD 13.3, compute_cap 8.6, TEI `/embed` a 1024 valori). Decisione dell'utente del 2026-10-19: GPU verde confermata |
+| file segreti esterno | `grep -cE '^TYPESAFE_API_KEY=.+'` e `grep -cE '^ANTHROPIC_API_KEY=.+'` su `$HOME/.cka-spikes/spikes.env` | verde: il file esiste, ciascun conteggio vale 1 (chiavi inserite dall'utente il 2026-10-19), nessun `COMPOSE_PROFILES`; i valori non sono mai stati stampati |
+| scanner di sicurezza | `sh scripts/py.sh skills/security-scanner/security_scan.py` su un elenco esplicito di percorsi: `spikes/Cargo.toml`, `spikes/Cargo.lock`, `spikes/common`, i sette crate `spikes/s0*`, `spikes/compose.yaml`, `spikes/.env.example`, `spikes/.gitignore`, `spikes/.dockerignore`, `spikes/docker`, `spikes/tools`, `spikes/results`, `spikes/data` (stesso script del pre-commit) | verde: «nessun problema di sicurezza rilevato su 29 file», rc 0 |
+| nessun manifest in radice | `test ! -f Cargo.toml` e `git ls-files \| grep -c '^Cargo.toml$'` | verde: nessun `Cargo.toml` in radice, conteggio 0; nessun `spikes/.env` |
+
+Tutte le voci del gate sono verdi.
+
+### Matrice ricalcolata
+
+Ricalcolata sui `files_modified` reali dei 18 PLAN (`node scripts/estrai.cjs piani .planning/phases/01-spike-tecnici`, 269 file distinti). I file condivisi da più di un piano sono 18, e ognuno ricade in un caso ammesso:
+
+- `spikes/Cargo.lock`: 01-01 (onda 1) e 01-16 (onda 10). È l'artefatto `regenerate` di W3, con un solo contributore per onda.
+- `spikes/s07-ports/Cargo.toml` e `spikes/s07-ports/src/lib.rs`: 01-01 (onda 1) e 01-16 (onda 10). È l'eccezione di W4: 01-16 attiva solo dipendenze già dichiarate in `[workspace.dependencies]` e riempie la propria lib.
+- `src/main.rs` di s01, s03, s04, s05, s06: 01-01 li crea vuoti, e li riempie un solo piano ciascuno in un'onda successiva (01-04 in onda 2, 01-10 in onda 6, 01-11 in onda 4, 01-05 in onda 3, 01-12 in onda 5). È l'innesto pre-registrato di W4 («il tuo `src/main.rs` iniziale è tuo da riempire»). `s02-parser/src/main.rs` resta solo di 01-01: i bin di S-02 stanno in `src/bin/`.
+- I dieci ADR da 0003 a 0012: ciascuno scritto dal proprio piano e poi ritoccato da 01-17 in onda 11. È l'eccezione di ratifica di W13 (solo la riga `Stato` e una riga `**Modifica:**`).
+
+Nessun piano oltre 01-01 e 01-02 tocca i file chiusi dell'harness (`spikes/Cargo.toml`, `spikes/common/**`, `spikes/compose.yaml`, `spikes/.env.example`, `spikes/.gitignore`, `spikes/.dockerignore`, `spikes/tools/**`, `spikes/docker/runner.Dockerfile`, `spikes/results/gpu-check.txt`), tranne il lockfile di 01-16 già descritto. Nessun piano tocca il `Cargo.toml` di un crate diverso da s07, e le `src/lib.rs` dei crate spezzati appartengono a un solo piano (s01: 01-04; s02: 01-07; s03: 01-10; s04: 01-11). Nessuna eccezione: i piani sono plug-in-only e non serve alcun rimbalzo a `plan`.
+
+### Slice plug-in-ready
+
+Le slice da 01-03 a 01-18 sono dichiarate plug-in-ready: ciascuna si innesta scrivendo solo i propri file (cartella crate o propri `src/bin/`, propria cartella dati, propri file `spikes/docker/*`, proprio ADR a numero riservato) sopra l'harness chiuso di 01-01 e 01-02. Restano valide le condizioni operative di §4: misure GPU solo con `VERDETTO: VERDE`, sessioni prenotate con `session.sh`, segreti solo da `$HOME/.cka-spikes/spikes.env`.
+
 ## Registro variazioni
 
 | data | autore | variazione |
@@ -265,6 +330,7 @@ Regole della prima stesura superate dal riallineamento ai PLAN (2026-10-18), con
 | 2026-10-19 | Claude (Anthropic) | W9/W10: `session.sh init-volumes <run_id>` (re-gate security di 01-02), run_id validato, lock atomico; vecchia forma in Storia; WIRING-MAP invariata |
 | 2026-10-19 | Claude (Anthropic) | W17: regola di `out_dir` di 01-07 (forma `/results/raw/<area>/<job_id>`, creazione esclusiva, quota con job_dir) dal re-gate; regola precedente in Storia; WIRING-MAP invariata |
 | 2026-10-19 | Claude (Anthropic) | divisione di 01-07 (D-30): nuova slice 01-18 (onda 5) con casi ostili, budget aggregato, overhead e `RISULTATI-isolamento.md`; W11 `hostile/`, W18 `hostile-gen/`, marker fixture e misure di `results/isolation/` a 01-18; W17 resta di 01-07 con 01-18 come utilizzatore; W20 e onde aggiornate; regola precedente in Storia; WIRING-MAP invariata |
+| 2026-10-19 | Claude (Anthropic) | §6 scritta da wiring-build in modalità verifica su `main` `ad19dc6`: seam W1..W13 creati da 01-01 e 01-02, forma conforme con differenze motivate (Docling `user 1001` e `mem_limit`, `docling-models` `user 0:0`, tre chiavi in più in `.env.example`, `timestamp_utc` obbligatorio, `TMPDIR` nel runner); gate di wave 0 tutto verde (pgvector 0.8.7); matrice senza eccezioni, slice 01-03..01-18 plug-in-ready; nessun codice modificato, WIRING-MAP invariata |
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · wiring-search §1-§2 e wiring-design §3-§5, fase 1
 **Modifica:** Claude (Anthropic) · 2026-10-18 · riallineamento §1-§5 ai 17 PLAN della fase 1 (PLAN = fonte), Storia delle regole superate
@@ -274,3 +340,4 @@ Regole della prima stesura superate dal riallineamento ai PLAN (2026-10-18), con
 **Modifica:** Claude (Anthropic) · 2026-10-19 · W17: regola di out_dir di 01-07 dal re-gate
 **Modifica:** Claude (Anthropic) · 2026-10-19 · W9/W10: init-volumes, lock atomico e run_id validato (re-gate security di 01-02)
 **Modifica:** Claude (Anthropic) · 2026-10-19 · divisione di 01-07: misure ostili e budget aggregato spostati in 01-18 (decisione utente)
+**Modifica:** Claude (Anthropic) · 2026-10-19 · §6 esito della wave 0 (wiring-build)
