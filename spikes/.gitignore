@@ -1,0 +1,6 @@
+# spikes/.gitignore (WIRING W7, proprietario 01-02, chiuso)
+target/
+.env
+**/results/raw/
+data/**/raw/
+data/hostile/generated/

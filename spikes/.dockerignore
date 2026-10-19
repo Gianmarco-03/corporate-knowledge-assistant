@@ -1,0 +1,6 @@
+# spikes/.dockerignore (WIRING W7, proprietario 01-02, chiuso): contesto di build di
+# runner, worker e paddle senza dati, risultati, artefatti di build né segreti.
+target/
+.env
+data/
+**/results/
