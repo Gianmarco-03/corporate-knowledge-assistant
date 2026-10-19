@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Phase 1 planned: 18 plans, gates conformi, test design pronti"
-last_updated: "2026-10-19T12:46:57.125Z"
-last_activity: 2026-10-19 -- Phase 1 planning complete
+stopped_at: 01-01 completato; 01-02 in correzione (separatore session.sh)
+last_updated: "2026-10-19T19:39:55.277Z"
+last_activity: 2026-10-19 -- 01-01 completato (workspace spike + common)
 progress:
   total_phases: 15
   completed_phases: 0
   total_plans: 18
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 0 of TBD in current phase
-Status: Ready to execute
-Last activity: 2026-10-19 -- Phase 1 planning complete
+Plan: 1 of 18 in current phase
+Status: Executing — onda 1 integrata
+Last activity: 2026-10-19 -- 01-01 completato (workspace spike + common)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -88,6 +88,6 @@ Recenti, rilevanti per il lavoro corrente:
 
 ## Session Continuity
 
-Last session: 2026-10-19T12:46:57.119Z
-Stopped at: Phase 1 planned: 18 plans, gates conformi, test design pronti
+Last session: 2026-10-19T19:39:45.302Z
+Stopped at: 01-01 completato; 01-02 in correzione (separatore session.sh)
 Resume file: None
