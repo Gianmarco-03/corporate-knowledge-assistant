@@ -1,0 +1,18 @@
+{
+  "_note": "Matrice di misura degli spike, non decisione di prodotto: i permessi per ruolo del prodotto restano aperti (Q-01/Q-02). Serve da oracolo deterministico di visibilità per i leak test (D-12, D-15, T-13): un documento è visibile a un ruolo o profilo se e solo se la sua classification (manifest.json) sta nell'elenco del ruolo o nel campo visible del profilo. Deny by default: classificazione assente dall'elenco = non visibile. Proprietario: piano 01-03.",
+  "classifications": ["public", "internal", "confidential", "restricted"],
+  "roles": {
+    "admin": ["public", "internal", "confidential", "restricted"],
+    "manager": ["public", "internal", "confidential"],
+    "employee": ["public", "internal"],
+    "guest": ["public"]
+  },
+  "profiles": {
+    "restricted-only": {
+      "visible": ["restricted"],
+      "max_chunk_selectivity": 0.05,
+      "purpose": "stress del filtro ACL nella stessa query (D-12): il profilo vede solo i documenti restricted (syn-03 e syn-09), cioè una frazione dei chunk che deve risultare <= 5%",
+      "verification": "la selettività numerica sui chunk si misura dopo il chunking in S-03 (piano 01-14, comando leak); qui si dichiara solo l'obiettivo"
+    }
+  }
+}

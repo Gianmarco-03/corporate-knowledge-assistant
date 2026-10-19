@@ -77,8 +77,10 @@ for (const d of m) {
   if (!["pdf", "docx", "md"].includes(d.format)) bad("format non valido");
   if (d.kind === "public" && !/^https:\/\/[^\s]+$/.test(d.source_url || "")) bad("source_url non https");
   if (d.kind === "derived" && !ids.has(d.derived_from)) bad("derived_from assente o successivo alla voce");
-  if (!Number.isInteger(d.pages) || d.pages < 1) bad("pages non valido");
-  console.log([d.doc_id, d.kind, d.format, d.source_url || "-", d.sha256, d.derived_from || "-", d.pages].join("\t"));
+  // Le pagine esistono solo per i PDF; per md e DOCX (impaginazione decisa dal lettore)
+  // il manifest porta null.
+  if (d.format === "pdf" ? !(Number.isInteger(d.pages) && d.pages >= 1) : d.pages !== null) bad("pages non valido");
+  console.log([d.doc_id, d.kind, d.format, d.source_url || "-", d.sha256, d.derived_from || "-", d.pages === null ? "-" : d.pages].join("\t"));
 }
 ' "$(native "$MANIFEST")" | tr -d '\r') || die 2 "manifest non valido"
 
