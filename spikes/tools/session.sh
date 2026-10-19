@@ -277,10 +277,14 @@ cmd_up() {
   local s
   for s in "$@"; do [[ $s =~ ^[a-z0-9][a-z0-9-]*$ ]] || die 2 "nome di servizio non valido: $s"; done
 
-  # (1) set risolto = set nominato
+  # (1) set risolto = set nominato. `config --services` ignora i nomi (verificato in
+  # 01-02 Task 3, compose v5.6.0): ripiego del piano, `config --format json <svc…>` senza
+  # flag di profilo, cioè la stessa risoluzione di `up <svc…>`, e chiavi di .services.
   local want got
   want=$(printf '%s\n' "$@" | sort -u | tr '\n' ' ')
-  got=$(dc "$rid" --profile '*' config --services "$@" | sort -u | tr '\n' ' ')
+  got=$(dc "$rid" config --format json "$@" \
+    | node -e 'const j=JSON.parse(require("fs").readFileSync(0));for(const k of Object.keys(j.services||{}))console.log(k)' \
+    | tr -d '\r' | sort -u | tr '\n' ' ')
   if [[ $want != "$got" ]]; then
     die 1 "set risolto diverso dal nominato: nominato {$want} risolto {$got}"
   fi

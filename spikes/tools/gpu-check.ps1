@@ -23,9 +23,17 @@ $outFile = Join-Path $root 'spikes/results/gpu-check.txt'
 $lines = New-Object System.Collections.Generic.List[string]
 $failed = $null
 
+# Righe ripulite: niente sequenze ANSI dei log TEI, righe lunghe troncate (gli URL
+# firmati del CDN Hugging Face non servono all'esito e non vanno versionati).
 function Log([string]$text) {
-    foreach ($l in ($text -split "`r?`n")) { $lines.Add($l); Write-Host $l }
+    foreach ($l in ($text -split "`r?`n")) {
+        $l = $l -replace '\x1b\[[0-9;]*m', ''
+        if ($l.Length -gt 240) { $l = $l.Substring(0, 240) + ' ...[troncato]' }
+        $lines.Add($l); Write-Host $l
+    }
 }
+# Testo di un output nativo: le righe di stderr (ErrorRecord) senza l'involucro di PowerShell.
+function Text($out) { (@($out) | ForEach-Object { $_.ToString() }) -join "`n" }
 function Section([string]$title) { Log ''; Log "== $title" }
 function Fail([string]$step) { if (-not $script:failed) { $script:failed = $step } }
 
@@ -45,36 +53,36 @@ Section '1. nvidia-smi --query-gpu=name,driver_version,memory.total,compute_cap'
 $gpuName = $null
 $smi = & nvidia-smi --query-gpu=name,driver_version,memory.total,compute_cap --format=csv 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Log ($smi | Out-String).TrimEnd()
+    Log (Text $smi)
     Log 'compute_cap non disponibile: ripiego senza il campo'
     $smi = & nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv 2>&1
 }
-Log ($smi | Out-String).TrimEnd()
+Log (Text $smi)
 if ($LASTEXITCODE -ne 0) { Fail 'nvidia-smi' } else {
     $gpuName = (& nvidia-smi --query-gpu=name --format=csv,noheader | Select-Object -First 1).Trim()
 }
 $vram0 = & nvidia-smi --query-gpu=memory.used,memory.total --format=csv 2>&1
 Log 'VRAM prima dei test:'
-Log ($vram0 | Out-String).TrimEnd()
+Log (Text $vram0)
 
 # 2. WSL
 Section '2. wsl --version'
 $env:WSL_UTF8 = '1'
 $wsl = & wsl --version 2>&1
-Log ($wsl | Out-String).TrimEnd()
+Log (Text $wsl)
 if ($LASTEXITCODE -ne 0) { Fail 'wsl --version' }
 
 # 3. Docker
 Section "3. docker version --format '{{.Server.Version}}'"
 $dv = & docker version --format '{{.Server.Version}}' 2>&1
-Log ($dv | Out-String).TrimEnd()
+Log (Text $dv)
 if ($LASTEXITCODE -ne 0) { Fail 'docker version' }
 
 # 4. nbody su GPU
 Section "4. docker run --rm --gpus=all $nbodyImage nbody -gpu -benchmark"
 if (-not $failed) {
     $nb = & docker run --rm --gpus=all --label "cka.run_id=$runId" $nbodyImage nbody -gpu -benchmark 2>&1
-    $nbText = ($nb | Out-String).TrimEnd()
+    $nbText = (Text $nb)
     Log $nbText
     $nbOk = ($LASTEXITCODE -eq 0) -and $gpuName -and ($nbText -match [regex]::Escape($gpuName.Replace('NVIDIA ', ''))) -and ($nbText -match 'interactions per second')
     if (-not $nbOk) { Fail 'nbody (nome GPU o interactions per second assenti)' }
@@ -91,44 +99,49 @@ if (-not $failed) {
             & docker volume create --label com.docker.compose.project=cka-spikes `
                 --label com.docker.compose.volume=hf-cache $hfVolume | Out-Null
         }
-        $cid = & docker run -d --rm --gpus=all --name $teiName --label "cka.run_id=$runId" `
-            -p "127.0.0.1:${teiPort}:80" -v "${hfVolume}:/data" $teiImage `
-            --model-id Qwen/Qwen3-Embedding-0.6B --dtype float16 2>&1
-        Log "container: $(($cid | Out-String).Trim())"
-        if ($LASTEXITCODE -ne 0) { throw 'avvio TEI fallito' }
-
         $health = (New-Object System.UriBuilder('http', '127.0.0.1', $teiPort, '/health')).Uri
         $embed = (New-Object System.UriBuilder('http', '127.0.0.1', $teiPort, '/embed')).Uri
+        # Senza --rm: se TEI esce durante il download dei pesi i log restano leggibili.
+        # Fino a 3 tentativi: un errore DNS transitorio di Docker Desktop durante il
+        # primo download non e' un guasto della GPU; i file gia' scaricati restano nella
+        # cache hf-cache e il tentativo successivo riparte da li'.
         $deadline = (Get-Date).AddMinutes(15)
         $ready = $false
         $t0 = Get-Date
-        while ((Get-Date) -lt $deadline) {
-            try {
-                $r = Invoke-WebRequest -Uri $health -UseBasicParsing -TimeoutSec 5
-                if ($r.StatusCode -eq 200) { $ready = $true; break }
-            } catch { }
-            $running = & docker ps -q --filter "name=^${teiName}$"
-            if (-not $running) { break }
-            Start-Sleep -Seconds 5
+        for ($attempt = 1; $attempt -le 3 -and -not $ready -and (Get-Date) -lt $deadline; $attempt++) {
+            & docker rm -f $teiName *> $null
+            $cid = & docker run -d --gpus=all --name $teiName --label "cka.run_id=$runId" `
+                -p "127.0.0.1:${teiPort}:80" -v "${hfVolume}:/data" $teiImage `
+                --model-id Qwen/Qwen3-Embedding-0.6B --dtype float16 2>&1
+            Log "tentativo ${attempt}, container: $((Text $cid).Trim())"
+            if ($LASTEXITCODE -ne 0) { throw 'avvio TEI fallito' }
+            while ((Get-Date) -lt $deadline) {
+                try {
+                    $r = Invoke-WebRequest -Uri $health -UseBasicParsing -TimeoutSec 5
+                    if ($r.StatusCode -eq 200) { $ready = $true; break }
+                } catch { }
+                $running = & docker ps -q --filter "name=^${teiName}$"
+                if (-not $running) {
+                    $logs = & docker logs --tail 12 $teiName 2>&1
+                    Log "TEI uscito al tentativo ${attempt}; coda del log:"
+                    Log (Text $logs)
+                    break
+                }
+                Start-Sleep -Seconds 5
+            }
         }
         Log ("health dopo {0:N0} s: {1}" -f ((Get-Date) - $t0).TotalSeconds, $ready)
-        if (-not $ready) {
-            $logs = & docker logs --tail 40 $teiName 2>&1
-            Log ($logs | Out-String).TrimEnd()
-            throw 'TEI /health non pronto entro 15 minuti'
-        }
+        if (-not $ready) { throw 'TEI /health non pronto (3 tentativi o 15 minuti)' }
         $body = '{"inputs":["Ricavi consolidati 2025"]}'
         $resp = Invoke-RestMethod -Uri $embed -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 60
         $dim = @($resp[0]).Count
         Log "POST /embed: $(@($resp).Count) vettore/i, dimensione $dim"
         $vram1 = & nvidia-smi --query-gpu=memory.used,memory.total --format=csv 2>&1
         Log 'VRAM con TEI caricato:'
-        Log ($vram1 | Out-String).TrimEnd()
-        $apps = & nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv 2>&1
-        Log ($apps | Out-String).TrimEnd()
+        Log (Text $vram1)
         $tl = & docker logs --tail 15 $teiName 2>&1
         Log 'log TEI (coda):'
-        Log ($tl | Out-String).TrimEnd()
+        Log (Text $tl)
         if ($dim -ne 1024) { throw "embedding di dimensione $dim invece di 1024" }
     } catch {
         Log "ERRORE: $($_.Exception.Message)"
