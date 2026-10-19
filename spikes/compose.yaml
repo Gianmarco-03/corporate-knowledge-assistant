@@ -1,0 +1,286 @@
+# spikes/compose.yaml — servizi condivisi degli spike della fase 1 (harness chiuso).
+#
+# Proprietario: piano 01-02 (WIRING W5). Dopo la wave 0 nessun piano modifica questo
+# file: le slice variano solo i parametri via env (`${VAR:-default}`).
+#
+# Regole d'uso:
+# - I profili sono SOLO raggruppamenti e si UNISCONO: un servizio parte se UNO
+#   qualsiasi dei suoi profili è attivo (deepsearch_4). Non si avvia mai per profili.
+# - Avvio solo per nome di servizio con `bash spikes/tools/session.sh up <run_id> <svc…>`,
+#   dentro una sessione prenotata. Job del runner con `session.sh run|oneshot`.
+# - `COMPOSE_PROFILES` non va mai impostata (né in shell né nei file env).
+# - Nessuna dipendenza dichiarata fra servizi: il set avviato è esattamente quello nominato.
+# - Segreti e URL interni solo da `--env-file "$CKA_SPIKES_ENV"` (file esterno al repo,
+#   default `$HOME/.cka-spikes/spikes.env`); qui solo `${VAR}` e `${VAR:-default}`.
+# - Ogni servizio porta l'etichetta `cka.run_id` (interpolata da CKA_RUN_ID, impostata da
+#   session.sh): la pulizia tocca solo i container della propria sessione.
+# - Porte pubblicate solo su 127.0.0.1.
+#
+# Deviazioni dichiarate rispetto a RESEARCH §2 (WIRING §5 W5, Storia):
+# (a) docling e docling-cpu senza `ports`: una rete `internal: true` non pubblica porte;
+#     li raggiunge il runner dalla rete `parse`.
+# (b) servizio `runner`: dhat, VmHWM, memory.peak, /proc/self/fd e ss richiedono Linux.
+# (c) tempfile degli upload su volume `work-tmp`, non tmpfs (un tmpfs si addebita al
+#     cgroup e falserebbe S-01; D-03).
+# (d) servizio e volume `docling-models`: pesi Docling scaricati prima, in un job con
+#     egress, e montati in sola lettura; RESEARCH §2 prevedeva un primo avvio di Docling
+#     con rete normale, scartato perché il YAML è chiuso e i download falserebbero i
+#     tempi (RISK-003).
+
+name: cka-spikes
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg18-trixie
+    profiles: [db, s01, s03]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: spikes
+    ports: ["127.0.0.1:55432:5432"]
+    # immagine PG18: i dati stanno sotto /var/lib/postgresql/<major>/docker
+    volumes: ["pgdata:/var/lib/postgresql"]
+    shm_size: 1g
+    command: ["postgres", "-c", "shared_buffers=2GB", "-c", "max_parallel_workers_per_gather=4", "-c", "track_io_timing=on"]
+
+  garage:
+    image: dxflrs/garage:v2.4.1
+    profiles: [s01]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    # docker/garage.toml è del piano 01-04 (WIRING W12)
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    # a sinistra i nomi letti nel container, a destra le chiavi di .env.example
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_ACCESS_KEY}
+      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_SECRET_KEY}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET}
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    ports: ["127.0.0.1:3900:3900"]
+
+  tei-embed:
+    image: ghcr.io/huggingface/text-embeddings-inference:86-1.9.4
+    profiles: [s03, gpu]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    command:
+      - "--model-id"
+      - "${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}"
+      - "--revision"
+      - "${EMBED_REVISION:-main}"
+      - "--dtype"
+      - "${TEI_EMBED_DTYPE:-float16}"
+      - "--max-batch-tokens"
+      - "${TEI_MAX_BATCH_TOKENS:-16384}"
+      - "--max-client-batch-size"
+      - "${TEI_MAX_CLIENT_BATCH:-64}"
+    volumes: ["hf-cache:/data"]
+    ports: ["127.0.0.1:8081:80"]
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
+  tei-rerank:
+    image: ghcr.io/huggingface/text-embeddings-inference:86-1.9.4
+    profiles: [s04, gpu]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    command:
+      - "--model-id"
+      - "${RERANK_MODEL:-BAAI/bge-reranker-v2-m3}"
+      - "--revision"
+      - "${RERANK_REVISION:-main}"
+      - "--dtype"
+      - "float16"
+      - "--max-batch-tokens"
+      - "${TEI_RERANK_MAX_BATCH_TOKENS:-8192}"
+    volumes: ["hf-cache:/data"]
+    ports: ["127.0.0.1:8082:80"]
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
+  # Deviazione (a): nessuna porta pubblicata, sola rete interna `parse` (niente egress).
+  # Pesi offline dal volume `docling-models`, in sola lettura (deviazione (d)).
+  docling:
+    image: quay.io/docling-project/docling-serve-cu128:v1.37.0
+    profiles: [s02, gpu]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    # utente non root dichiarato dall'immagine (docker image inspect .Config.User = 1001)
+    user: "1001"
+    environment:
+      DOCLING_DEVICE: cuda
+      DOCLING_NUM_THREADS: "${DOCLING_NUM_THREADS:-8}"
+      DOCLING_SERVE_ENG_LOC_NUM_WORKERS: "1"
+      DOCLING_SERVE_MAX_NUM_PAGES: "400"
+      DOCLING_SERVE_MAX_FILE_SIZE: "26214400"
+      DOCLING_SERVE_ARTIFACTS_PATH: "${DOCLING_ARTIFACTS_PATH:-/models}"
+      HF_HUB_OFFLINE: "1"
+    volumes: ["docling-models:/models:ro"]
+    networks: [parse]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 1024
+    # mem_limit e non deploy.resources.limits: compose rifiuta pids_limit insieme a
+    # deploy.resources.limits senza pids
+    mem_limit: 8g
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
+  docling-cpu:
+    image: quay.io/docling-project/docling-serve-cpu:v1.37.0
+    profiles: [s02, cpu]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    # utente non root dichiarato dall'immagine (docker image inspect .Config.User = 1001)
+    user: "1001"
+    environment:
+      DOCLING_DEVICE: cpu
+      DOCLING_NUM_THREADS: "${DOCLING_NUM_THREADS:-8}"
+      DOCLING_SERVE_ENG_LOC_NUM_WORKERS: "1"
+      DOCLING_SERVE_MAX_NUM_PAGES: "400"
+      DOCLING_SERVE_MAX_FILE_SIZE: "26214400"
+      DOCLING_SERVE_ARTIFACTS_PATH: "${DOCLING_ARTIFACTS_PATH:-/models}"
+      HF_HUB_OFFLINE: "1"
+    volumes: ["docling-models:/models:ro"]
+    networks: [parse]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 1024
+    mem_limit: 8g
+
+  # Deviazione (d): job di preparazione dei pesi Docling, unico con egress e volume in
+  # scrittura; si lancia con `compose run --rm --no-deps docling-models`, mai nelle misure.
+  docling-models:
+    image: quay.io/docling-project/docling-serve-cpu:v1.37.0
+    profiles: [docling-models]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    # root senza capability: il volume nuovo nasce di root (/models non esiste
+    # nell'immagine) e l'utente 1001 dell'immagine non potrebbe scriverci
+    user: "0:0"
+    command: ["docling-tools", "models", "download", "--output-dir", "/models", "--all"]
+    volumes: ["docling-models:/models"]
+    networks: [default]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  # Worker di parsing isolato (D-08); docker/worker.Dockerfile è del piano 01-07.
+  worker:
+    build: {context: ., dockerfile: docker/worker.Dockerfile}
+    profiles: [s02]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    network_mode: none
+    read_only: true
+    tmpfs: ["/work:size=2g"]
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 8
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    user: "10001:10001"
+    volumes: ["./data:/data:ro", "./s02-parser/results:/results"]
+
+  # OCR sfidante PaddleOCR (D-09); docker/paddle.Dockerfile è del piano 01-13 (pesi
+  # precaricati in build, quindi nessuna rete).
+  paddle:
+    build: {context: ., dockerfile: docker/paddle.Dockerfile}
+    profiles: [s02]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    network_mode: none
+    mem_limit: 2g
+    memswap_limit: 2g
+    cpus: 8
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    user: "10001:10001"
+    volumes: ["./data:/data:ro", "./s02-parser/results:/results"]
+
+  # Deviazione (b): ambiente Linux per i bin degli spike, oha, qpdf, pdftotext,
+  # imagemagick. Nessun socket Docker: l'orchestrazione resta sull'host (session.sh).
+  runner:
+    build: {context: ., dockerfile: docker/runner.Dockerfile}
+    profiles: [runner]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    user: "10001:10001"
+    working_dir: /src
+    environment:
+      CKA_RUN_ID: "${CKA_RUN_ID:-none}"
+      CARGO_TARGET_DIR: /target
+      # common
+      HW_LABEL: ${HW_LABEL}
+      # s01
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: ${DATABASE_URL}
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_ACCESS_KEY: ${GARAGE_ACCESS_KEY}
+      GARAGE_SECRET_KEY: ${GARAGE_SECRET_KEY}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S01_TARGET_URL: ${S01_TARGET_URL}
+      # s02
+      PDFIUM_DIR: ${PDFIUM_DIR}
+      DOCLING_URL: ${DOCLING_URL}
+      DOCLING_CPU_URL: ${DOCLING_CPU_URL}
+      DOCLING_NUM_THREADS: ${DOCLING_NUM_THREADS}
+      DOCLING_ARTIFACTS_PATH: ${DOCLING_ARTIFACTS_PATH}
+      # s03
+      EMBED_MODEL: ${EMBED_MODEL}
+      EMBED_REVISION: ${EMBED_REVISION}
+      TEI_EMBED_URL: ${TEI_EMBED_URL}
+      TEI_EMBED_DTYPE: ${TEI_EMBED_DTYPE}
+      TEI_MAX_BATCH_TOKENS: ${TEI_MAX_BATCH_TOKENS}
+      TEI_MAX_CLIENT_BATCH: ${TEI_MAX_CLIENT_BATCH}
+      # s04
+      JEV_API_URL: ${JEV_API_URL}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY}
+      JEV_MODEL: ${JEV_MODEL}
+      TEI_RERANK_URL: ${TEI_RERANK_URL}
+      RERANK_MODEL: ${RERANK_MODEL}
+      RERANK_REVISION: ${RERANK_REVISION}
+      TEI_RERANK_MAX_BATCH_TOKENS: ${TEI_RERANK_MAX_BATCH_TOKENS}
+      S04_MAX_COST_USD: ${S04_MAX_COST_USD}
+      # s05
+      S05_JEV_CANCEL_REQUESTS: ${S05_JEV_CANCEL_REQUESTS}
+      # s06
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LLM_MODEL_SIMPLE: ${LLM_MODEL_SIMPLE}
+      LLM_MODEL_COMPLEX: ${LLM_MODEL_COMPLEX}
+      S06_MAX_COST_USD: ${S06_MAX_COST_USD}
+    # deviazione (c): tempfile su volume work-tmp, non tmpfs
+    volumes:
+      - ./:/src
+      - cargo-target:/target
+      - cargo-registry:/usr/local/cargo/registry
+      - work-tmp:/work/tmp
+    networks: [default, parse]
+
+networks:
+  default: {}
+  parse: {internal: true}
+
+volumes:
+  pgdata: {}
+  garage-meta: {}
+  garage-data: {}
+  hf-cache: {}
+  docling-models: {}
+  cargo-target: {}
+  cargo-registry: {}
+  work-tmp: {}
