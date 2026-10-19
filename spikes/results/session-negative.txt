@@ -1,0 +1,93 @@
+# session-negative — prove negative di spikes/tools/session.sh (fix separatore | in project_running)
+# data UTC: 2026-10-19T19:40:07Z  git_rev base: ad19dc6 (+ fix nell'albero)
+
+run_id A = 01-02-20261019t194007z-ad2d
+
+$ bash spikes/tools/session.sh acquire 01-02 01-02-20261019t194007z-ad2d
+PRENOTATO run_id=01-02-20261019t194007z-ad2d piano=01-02
+[exit 0]
+
+## Prova a: assert-only
+$ bash spikes/tools/session.sh up 01-02-20261019t194007z-ad2d postgres
+SET RISOLTO = NOMINATO: {postgres }
+ Container cka-spikes-postgres-1 Creating 
+ Container cka-spikes-postgres-1 Created 
+ Container cka-spikes-postgres-1 Starting 
+ Container cka-spikes-postgres-1 Started 
+ Container cka-spikes-postgres-1 Waiting 
+ Container cka-spikes-postgres-1 Healthy 
+CONTAINER della sessione 01-02-20261019t194007z-ad2d (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-02-20261019t194007z-ad2d  running
+ASSERT-ONLY ok: in esecuzione solo {postgres}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps 01-02-20261019t194007z-ad2d --assert-only garage
+CONTAINER della sessione 01-02-20261019t194007z-ad2d (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-02-20261019t194007z-ad2d  running
+session.sh: in esecuzione un servizio fuori elenco: postgres (cka-spikes-postgres-1, run_id=01-02-20261019t194007z-ad2d)
+[exit 1]
+
+$ bash spikes/tools/session.sh ps 01-02-20261019t194007z-ad2d --assert-only postgres
+CONTAINER della sessione 01-02-20261019t194007z-ad2d (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-02-20261019t194007z-ad2d  running
+ASSERT-ONLY ok: in esecuzione solo {postgres}
+[exit 0]
+
+esito a: assert-only garage exit 1 (atteso 1), assert-only postgres exit 0 (atteso 0)
+
+## Prova b: rifiuto di un servizio già in esecuzione con un'altra sessione
+container di A prima:
+d002d9df9da3 cka-spikes-postgres-1 running 01-02-20261019t194007z-ad2d
+
+$ bash spikes/tools/session.sh release 01-02-20261019t194007z-ad2d
+RILASCIATO run_id=01-02-20261019t194007z-ad2d
+[exit 0]
+
+run_id B = 01-02-20261019t194011z-7093
+
+$ bash spikes/tools/session.sh acquire 01-02 01-02-20261019t194011z-7093
+PRENOTATO run_id=01-02-20261019t194011z-7093 piano=01-02
+[exit 0]
+
+$ bash spikes/tools/session.sh up 01-02-20261019t194011z-7093 postgres
+SET RISOLTO = NOMINATO: {postgres }
+session.sh: servizio postgres già in esecuzione con un'altra sessione (cka-spikes-postgres-1, run_id=01-02-20261019t194007z-ad2d): non lo tocco
+[exit 1]
+
+container di A dopo:
+d002d9df9da3 cka-spikes-postgres-1 running 01-02-20261019t194007z-ad2d
+
+container di A intatto: stesso ID e stato prima/dopo
+container di B:
+(nessuno atteso)
+
+esito b: up B postgres exit 1 (atteso 1)
+
+## Pulizia
+$ bash spikes/tools/session.sh down 01-02-20261019t194011z-7093
+DOWN run_id=01-02-20261019t194011z-7093: rimossi 0, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-02-20261019t194011z-7093
+RILASCIATO run_id=01-02-20261019t194011z-7093
+[exit 0]
+
+$ bash spikes/tools/session.sh acquire 01-02 01-02-20261019t194007z-ad2d
+PRENOTATO run_id=01-02-20261019t194007z-ad2d piano=01-02
+[exit 0]
+
+$ bash spikes/tools/session.sh down 01-02-20261019t194007z-ad2d
+DOWN run_id=01-02-20261019t194007z-ad2d: rimossi 1, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-02-20261019t194007z-ad2d
+RILASCIATO run_id=01-02-20261019t194007z-ad2d
+[exit 0]
+
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+[exit 0]
+
+container cka-spikes rimasti:
+(fine elenco)
+volumi docker: elenco identico prima/dopo (nessun volume creato o rimosso; nessun down -v)

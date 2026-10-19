@@ -184,10 +184,11 @@ down_impl() {
   [[ $left -eq 0 ]]
 }
 
-# Servizi del progetto in esecuzione, uno per riga: "<servizio> <run_id> <nome>"
+# Servizi del progetto in esecuzione, uno per riga: "<servizio>|<run_id>|<nome>"
+# (separatore | come l'IFS dei lettori: ps_impl --assert-only e cmd_up passo (2))
 project_running() {
   docker ps --filter "label=com.docker.compose.project=$PROJECT" \
-    --format '{{.Label "com.docker.compose.service"}} {{.Label "cka.run_id"}} {{.Names}}'
+    --format '{{.Label "com.docker.compose.service"}}|{{.Label "cka.run_id"}}|{{.Names}}'
 }
 
 ps_impl() {
