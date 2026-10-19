@@ -10,6 +10,8 @@
 
 - **Aggiornamento 2 (2026-10-19):** decisioni utente in 01-CONTEXT (D-09 emendata → PP-OCRv6, D-23..D-30). 01-07 diviso in 01-07 v3 + 01-18 v1; 01-13 v3. Re-gate giro 5: 18/18 conformi (`743ff2c`). Inviati `risk_audit_15` (07 v3), `_16` (13 v3) — **terzo e ultimo giro** per 07 e 13: un REVISE va portato all'utente — e `_17` (18 v1). In volo anche `test_design_1..7`: _3 (07 v2) e _6 (13 v2) saranno STALE, salvarli agli atti e richiederli di nuovo sulle v3; validi _1=02, _2=04, _4=08, _5=09, _7=16. Onda 5 = {08, 12, 18} oltre il tetto di 2: da risolvere in `onde-slice`.
 
+- **Aggiornamento 3 (2026-10-19): plan della fase 1 CHIUSO.** 18 piani, 18/18 conformi ai gate (6 giri, `01-GATE.md`); audit GPT su 8 piani critici tutti APPROVED_WITH_WARNINGS, test design 18/18 (8 GPT con plan-gate TEST_SPEC_READY, 10 Claude); `01-CONTRATTO.md`, `01-ONDE.md` (11 onde); STATE/ROADMAP via gsd-tools, ORCHESTRATOR-STATUS via `update-orchestrator-state --plan`. **Prossimo:** Docker Desktop (§7) → `/execute 1`; in parallelo `/discuss 2`. Le sezioni sotto sono storiche.
+
 ## 1. Dove siamo in una riga
 
 Fase 1 «Spike tecnici» (critica): discuss chiuso, 17 PLAN scritti e conformi ai 6 gate (tre giri, `01-GATE.md`), **audit GPT al primo giro: 7/7 REVISE** — tocca al giro di correzioni (passo 6-bis di `skills/plan/SKILL.md`).
@@ -79,3 +81,4 @@ Mappa content_id → piano: risk_audit_1 = 01-02, _2 = 01-04, _3 = 01-07, _4 = 0
 **Modifica:** Claude (Anthropic) · 2026-10-18 · handoff di fine sessione (contesto in saturazione, richiesta utente)
 **Modifica:** Claude (Anthropic) · 2026-10-19 · §0: giro di correzioni e audit v2 inviati
 **Modifica:** Claude (Anthropic) · 2026-10-19 · §0 aggiornamento 2: divisione 07/18, 13 v3, audit 15..17
+**Modifica:** Claude (Anthropic) · 2026-10-19 · §0 aggiornamento 3: plan della fase 1 chiuso

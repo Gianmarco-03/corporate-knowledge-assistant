@@ -5,23 +5,29 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda — / slice — / discuss completato · aggiornato: 2026-10-18T16:20:00Z
+fase 01 / onda — / slice — / plan completato · aggiornato: 2026-10-19T12:45:33Z
 
 ## Prossima azione
 
-/discuss 2 (Fondazione) — strategia U-04: discuss di tutte le fasi prima di eseguire gli spike.
+Installa Docker Desktop + verifica GPU (HANDOFF §7), poi /execute 1 da onda 0 (wiring-build) secondo 01-ONDE.md; in parallelo /discuss 2.
 
 ## Findings
 
 - fase 01 criticità critica, ratificata → 01-CONTEXT.md
 - storage S3 Garage, chiave sha256 + GC orfani, dedup invisibile (D-01/02) · fonte Area A
 - tempfile + validazione pre-persistenza; limite 25 MB; L1 + regole economiche (D-03..05)
-- PDFium + Docling solo tabelle; processo figlio isolato; Tesseract CLI + PP-OCRv5 sfidante (D-07..09) · fonte Area B
+- PDFium + Docling solo tabelle; processo figlio isolato; Tesseract CLI + PP-OCRv6 sfidante (D-07..09, D-09 emendata) · fonte Area B
 - locator 2 varianti: PDF pagina+rect / testo sezione+offset (D-10)
 - ricerca esatta MVP, HNSW a soglia; tsvector + RRF (D-12, D-15) · fonte Area C
 - embedding locale GPU, TEI, Qwen3-0.6B + sfidanti bge-m3/e5 (D-13/14)
 - corpus pubblico/sintetico; JEV pin jev-1.13.0; LLM API Haiku/Sonnet con routing JEV, fallback Sonnet (D-16..19) · fonte Area D
 - risposta JSON structured output, citazioni per claim con chunk_id (D-20); reranker baseline no-rerank + bge-reranker GPU (D-21)
+- decisioni utente post-audit D-23..D-30 (curl+xargs, ADR-0005, limiti PDF in doc ufficiale, tolleranze spike, Docling pagine-tabella rinviata, worker 2 GiB, DocLayNet 40 pp, split 01-07/01-18) → 01-CONTEXT.md
+- plan: 18 piani, gate 6 giri, 18/18 conformi → 01-GATE.md
+- wiring: nessun seam inter-fase, WIRING-MAP invariata; W17 = contratto job JSON di 01-07 → 01-WIRING.md
+- audit GPT critici 02,04,07,08,09,13,16,18 tutti APPROVED_WITH_WARNINGS (07, 13 al 3° giro; 18 al 2°) → 01-NN-RISK-AUDIT*.md
+- test design GPT su 8 critici (plan-gate TEST_SPEC_READY), Claude su 10 → 01-NN-TEST-DESIGN.md
+- contratto emesso, MEDIUM residui per brief execute → 01-CONTRATTO.md; 11 onde, 01-12 in onda 7 (tetto 2) → 01-ONDE.md
 
 ## Limiti trovati
 
@@ -39,10 +45,13 @@ fase 01 / onda — / slice — / discuss completato · aggiornato: 2026-10-18T16
 ## TODO
 
 - hardware spike: i7-13700K 16C/24T, 32 GB RAM, RTX 3050 6 GB VRAM, Windows 11.
-- Docker Desktop non installato: prerequisito spike (passthrough GPU WSL2 per TEI).
-- remote GitHub non creato: attende `gh auth login` utente.
+- Docker Desktop non installato: prerequisito execute 1 (passthrough GPU WSL2, .wslconfig) → HANDOFF §7.
 - S-07 porte: Embedder copre embedding query; validate_query restituisce complessità; locator in contracts.
-- DEPENDENCIES.md da aggiornare a esito spike (JEV pin, A-02..A-10).
+- DEPENDENCIES.md da aggiornare a esito spike (JEV pin, A-02..A-10) → 01-17.
+- da confermare utente: soglie M10/M11 (01-18); lessico motivi quarantena + exit 3 driver (01-07); pin pip 24.3.1 / pip-tools 7.4.1 non verificati.
+- test_design_3, _6 (07 v2, 13 v2) senza risposta su AgentBridge: obsoleti, sostituiti da _8, _9.
+- D-27 Docling pagine-tabella: scelta dopo misura 01-08 → 01-CONTEXT Deferred Ideas.
+- interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012).
 
 ## Decisioni ratificate in corsa
 
@@ -51,3 +60,4 @@ fase 01 / onda — / slice — / discuss completato · aggiornato: 2026-10-18T16
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · creazione (preflight discuss 1)
 **Modifica:** Claude (Anthropic) · 2026-10-18 · --discuss fase 01
+**Modifica:** Claude (Anthropic) · 2026-10-19 · --plan fase 01
