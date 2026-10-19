@@ -1,0 +1,23 @@
+[package]
+name = "s02-parser"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+common = { path = "../common" }
+pdfium-render.workspace = true
+tokio.workspace = true
+rlimit.workspace = true
+nix.workspace = true
+lopdf.workspace = true
+flate2.workspace = true
+zip.workspace = true
+quick-xml.workspace = true
+unicode-normalization.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+image.workspace = true
+anyhow.workspace = true

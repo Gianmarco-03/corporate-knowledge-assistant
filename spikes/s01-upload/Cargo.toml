@@ -1,0 +1,29 @@
+[package]
+name = "s01-upload"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+common = { path = "../common" }
+axum.workspace = true
+tower-http.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+object_store.workspace = true
+sqlx.workspace = true
+tempfile.workspace = true
+sha2.workspace = true
+hex.workspace = true
+bytes.workspace = true
+futures.workspace = true
+zip.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+dhat.workspace = true
+reqwest.workspace = true
