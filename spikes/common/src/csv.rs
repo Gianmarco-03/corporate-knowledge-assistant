@@ -1,17 +1,69 @@
 //! Writer CSV a header fisso: rifiuta di creare il file senza `hw.json` gemello.
-use std::path::Path;
+//!
+//! Il controllo del manifest avviene prima di toccare il filesystem: se
+//! `hw.json` manca o non è valido non resta alcun CSV parziale. Ogni riga ha
+//! esattamente i campi dell'header; una riga di arità diversa viene rifiutata
+//! senza scrivere nulla.
+use anyhow::{Context, bail};
+use std::fs::File;
+use std::path::{Path, PathBuf};
 
 pub struct Writer {
-    _private: (),
+    inner: ::csv::Writer<File>,
+    columns: usize,
+    path: PathBuf,
 }
 
 impl Writer {
-    pub fn create(_path: &Path, _header: &[&str]) -> anyhow::Result<Writer> {
-        todo!()
+    /// Crea (o tronca) `path` e scrive l'header, dopo aver verificato il
+    /// manifest `hw.json` nella stessa cartella.
+    pub fn create(path: &Path, header: &[&str]) -> anyhow::Result<Writer> {
+        if header.is_empty() {
+            bail!("header vuoto per il CSV {}", path.display());
+        }
+        let dir = match path.parent() {
+            Some(p) if !p.as_os_str().is_empty() => p,
+            _ => Path::new("."),
+        };
+        crate::manifest::ensure_present(dir).with_context(|| {
+            format!(
+                "CSV {} rifiutato: manca un manifest hardware valido accanto",
+                path.display()
+            )
+        })?;
+        let inner = ::csv::Writer::from_path(path)
+            .with_context(|| format!("impossibile creare il CSV {}", path.display()))?;
+        let mut writer = Writer {
+            inner,
+            columns: header.len(),
+            path: path.to_path_buf(),
+        };
+        writer.write_record(header)?;
+        Ok(writer)
     }
 
-    pub fn write_row(&mut self, _fields: &[&str]) -> anyhow::Result<()> {
-        todo!()
+    /// Scrive una riga; errore se il numero di campi differisce dall'header.
+    pub fn write_row(&mut self, fields: &[&str]) -> anyhow::Result<()> {
+        if fields.len() != self.columns {
+            bail!(
+                "CSV {}: riga con {} campi, l'header ne ha {}",
+                self.path.display(),
+                fields.len(),
+                self.columns
+            );
+        }
+        self.write_record(fields)
+    }
+
+    /// Scrive e svuota il buffer: una misura interrotta lascia su disco le
+    /// righe già completate.
+    fn write_record(&mut self, fields: &[&str]) -> anyhow::Result<()> {
+        self.inner
+            .write_record(fields)
+            .with_context(|| format!("scrittura nel CSV {} fallita", self.path.display()))?;
+        self.inner
+            .flush()
+            .with_context(|| format!("flush del CSV {} fallito", self.path.display()))
     }
 }
 
@@ -24,13 +76,18 @@ mod tests {
 
     fn unique_dir(test: &str) -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
-        let dir = std::env::temp_dir().join(format!("cka_spike_{}_{}_{}", std::process::id(), test, n));
+        let dir =
+            std::env::temp_dir().join(format!("cka_spike_{}_{}_{}", std::process::id(), test, n));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
 
     fn write_valid_hw(dir: &Path) {
-        std::fs::write(dir.join("hw.json"), r#"{"timestamp_utc":"2026-10-19T00:00:00Z"}"#).unwrap();
+        std::fs::write(
+            dir.join("hw.json"),
+            r#"{"timestamp_utc":"2026-10-19T00:00:00Z"}"#,
+        )
+        .unwrap();
     }
 
     #[test]

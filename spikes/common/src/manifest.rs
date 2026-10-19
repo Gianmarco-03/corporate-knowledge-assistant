@@ -1,4 +1,5 @@
 //! Manifest hardware (`hw.json`) che accompagna ogni misura.
+use anyhow::Context;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -20,8 +21,21 @@ pub struct HwManifest {
     pub power_plan: Option<String>,
 }
 
-pub fn ensure_present(_dir: &Path) -> anyhow::Result<HwManifest> {
-    todo!()
+/// Nome fisso del manifest hardware gemello di ogni CSV di misura.
+const MANIFEST_NAME: &str = "hw.json";
+
+/// Legge e valida `dir/hw.json`: errore se manca, non è JSON valido, non ha
+/// `timestamp_utc` o lo ha vuoto. Gli errori nominano il percorso del file.
+pub fn ensure_present(dir: &Path) -> anyhow::Result<HwManifest> {
+    let path = dir.join(MANIFEST_NAME);
+    let text = std::fs::read_to_string(&path)
+        .with_context(|| format!("manifest hardware {} assente o illeggibile", path.display()))?;
+    let manifest: HwManifest = serde_json::from_str(&text)
+        .with_context(|| format!("manifest hardware {} non valido", path.display()))?;
+    if manifest.timestamp_utc.trim().is_empty() {
+        anyhow::bail!("manifest hardware {}: timestamp_utc vuoto", path.display());
+    }
+    Ok(manifest)
 }
 
 #[cfg(test)]
@@ -33,7 +47,8 @@ mod tests {
 
     fn unique_dir(test: &str) -> std::path::PathBuf {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
-        let dir = std::env::temp_dir().join(format!("cka_spike_{}_{}_{}", std::process::id(), test, n));
+        let dir =
+            std::env::temp_dir().join(format!("cka_spike_{}_{}_{}", std::process::id(), test, n));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -45,11 +60,17 @@ mod tests {
         std::fs::write(&file, "{not json").unwrap();
         let err = ensure_present(&dir).unwrap_err();
         let msg = format!("{err:#}");
-        assert!(msg.contains("hw.json"), "il messaggio deve nominare il percorso: {msg}");
+        assert!(
+            msg.contains("hw.json"),
+            "il messaggio deve nominare il percorso: {msg}"
+        );
 
         // JSON valido ma privo del campo obbligatorio timestamp_utc.
         std::fs::write(&file, r#"{"git_rev":"abc"}"#).unwrap();
-        assert!(ensure_present(&dir).is_err(), "timestamp_utc e' obbligatorio");
+        assert!(
+            ensure_present(&dir).is_err(),
+            "timestamp_utc e' obbligatorio"
+        );
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
