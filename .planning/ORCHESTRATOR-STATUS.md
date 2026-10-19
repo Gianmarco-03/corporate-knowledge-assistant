@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda — / slice — / plan completato · aggiornato: 2026-10-19T13:10:00Z
+fase 01 / onda 1 / slice 01-01, 01-02 / execute onda 1 completata · aggiornato: 2026-10-19T19:51:24Z
 
 ## Prossima azione
 
-/execute 1 da onda 0 (wiring-build) secondo 01-ONDE.md (Docker + GPU pronti); in parallelo /discuss 2.
+/execute 1 onda 2: READ-GATE PLAN-010-04, worktree 01-03 (exec/01-03) + 01-04 (task/PLAN-010-04) da main, test-write, esecutori.
 
 ## Findings
 
@@ -28,6 +28,12 @@ fase 01 / onda — / slice — / plan completato · aggiornato: 2026-10-19T13:10
 - audit GPT critici 02,04,07,08,09,13,16,18 tutti APPROVED_WITH_WARNINGS (07, 13 al 3° giro; 18 al 2°) → 01-NN-RISK-AUDIT*.md
 - test design GPT su 8 critici (plan-gate TEST_SPEC_READY), Claude su 10 → 01-NN-TEST-DESIGN.md
 - contratto emesso, MEDIUM residui per brief execute → 01-CONTRATTO.md; 11 onde, 01-12 in onda 7 (tetto 2) → 01-ONDE.md
+- onda 1 chiusa: 01-01 (merge 00df603) + 01-02 (merge ad19dc6, a43a0fa), gate onda verde, wave 0 §6 verde, pgvector 0.8.7 → 01-WIRING.md §6, 01-01/01-02-SUMMARY.md
+- 01-02 bridge rifiutato 1×: separatore session.sh (spazio vs IFS='|'), assert-only + rifiuto run_id altrui mai attivi; fix 37c68ee, prove negative verdi → 01-02-SUMMARY.md
+- deviazioni livello a: 01-01 fmt + rinomina MANIFEST_NAME; 01-02 14 (+1 fix) es. docling-models user 0:0, mem_limit, PDF stdlib → SUMMARY
+- checkpoint 01-02 Task 4: chiavi inserite, GPU VERDE, pesi Docling --all 28,6 GB tenuti · utente 2026-10-19 → DECISIONS-INDEX.md
+- 01-12 spesa Anthropic dimezzata: ripasso plan prima onda 7 · utente 2026-10-19 → DECISIONS-INDEX.md
+- rimbalzi livello b: nessuno
 
 ## Limiti trovati
 
@@ -62,3 +68,4 @@ fase 01 / onda — / slice — / plan completato · aggiornato: 2026-10-19T13:10
 **Modifica:** Claude (Anthropic) · 2026-10-18 · --discuss fase 01
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --plan fase 01
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --evento: Docker Desktop e GPU pronti
+**Modifica:** Claude (Anthropic) · 2026-10-19 · --exec fase 01 onda 1
