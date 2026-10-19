@@ -11,6 +11,9 @@
 # il container TEI si arresta anche su errore.
 
 $ErrorActionPreference = 'Continue'
+# output dei comandi nativi (docker logs, nvidia-smi) decodificato come UTF-8: con la
+# code page OEM di default i caratteri non ASCII dei log TEI arrivano corrotti
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
 $runId = $env:CKA_RUN_ID
 if (-not $runId -or $runId -notmatch '^[a-z0-9][a-z0-9-]{0,62}$' -or $runId -eq 'none') {
@@ -46,7 +49,10 @@ $hfVolume = 'cka-spikes_hf-cache'
 Log '# Gate GPU di wave 0 (D-13), spikes/tools/gpu-check.ps1'
 Log ("timestamp_utc: " + (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))
 Log "run_id: $runId"
-Log ("git_rev: " + (git rev-parse --short HEAD).Trim())
+$rev = (git rev-parse --short HEAD).Trim()
+$dirty = git -C $root status --porcelain -- spikes/tools
+if ($dirty) { $rev = "$rev (con modifiche locali in spikes/tools)" }
+Log "git_rev: $rev"
 
 # 1. nvidia-smi (ripiego senza compute_cap se il campo non esiste, RESEARCH §11.11)
 Section '1. nvidia-smi --query-gpu=name,driver_version,memory.total,compute_cap'

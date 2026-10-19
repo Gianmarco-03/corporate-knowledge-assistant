@@ -1,0 +1,76 @@
+# Gate GPU di wave 0 (D-13), spikes/tools/gpu-check.ps1
+timestamp_utc: 2026-10-19T15:58:05Z
+run_id: 01-02-20261019t155805z-0709
+git_rev: 41d98ef (con modifiche locali in spikes/tools)
+
+== 1. nvidia-smi --query-gpu=name,driver_version,memory.total,compute_cap
+name, driver_version, memory.total [MiB], compute_cap
+NVIDIA GeForce RTX 3050, 610.88, 6144 MiB, 8.6
+VRAM prima dei test:
+memory.used [MiB], memory.total [MiB]
+1840 MiB, 6144 MiB
+
+== 2. wsl --version
+Versione WSL: 2.6.3.0
+Versione kernel: 6.6.87.2-1
+Versione WSLg: 1.0.71
+Versione MSRDC: 1.2.6353
+Versione Direct3D: 1.611.1-81528511
+Versione DXCore: 10.0.26100.1-240331-1435.ge-release
+Versione di Windows: 10.0.26300.9711
+
+== 3. docker version --format '{{.Server.Version}}'
+29.8.2
+
+== 4. docker run --rm --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark
+Run "nbody -benchmark [-numbodies=<numBodies>]" to measure performance.
+	-fullscreen       (run n-body simulation in fullscreen mode)
+	-fp64             (use double precision floating point values for simulation)
+	-hostmem          (stores simulation data in host memory)
+	-benchmark        (run benchmark to measure performance) 
+	-numbodies=<N>    (number of bodies (>= 1) to run in simulation) 
+	-device=<d>       (where d=0,1,2.... for the CUDA device to use)
+	-numdevices=<i>   (where i=(number of CUDA devices > 0) to use for simulation)
+	-compare          (compares simulation results running once on the default GPU and once on the CPU)
+	-cpu              (run n-body simulation on the CPU)
+	-tipsy=<file.bin> (load a tipsy model file for simulation)
+
+NOTE: The CUDA Samples are not meant for performance measurements. Results may vary when GPU Boost is enabled.
+
+> Windowed mode
+> Simulation data stored in video memory
+> Single precision floating point simulation
+> 1 Devices used for simulation
+GPU Device 0: "Ampere" with compute capability 8.6
+
+> Compute 8.6 CUDA device: [NVIDIA GeForce RTX 3050]
+18432 bodies, total time for 10 iterations: 18.556 ms
+= 183.090 billion interactions per second
+= 3661.804 single-precision GFLOP/s at 20 flops per interaction
+
+== 5. TEI ghcr.io/huggingface/text-embeddings-inference:86-1.9.4 --model-id Qwen/Qwen3-Embedding-0.6B --dtype float16
+tentativo 1, container: 35c4daed461d85a13fdcb227356b02db863dea3929796f09f24abfac64a20d58
+health dopo 26 s: True
+POST /embed: 1 vettore/i, dimensione 1024
+VRAM con TEI caricato:
+memory.used [MiB], memory.total [MiB]
+3158 MiB, 6144 MiB
+log TEI (coda):
+2026-10-19T15:58:20.699918Z  WARN text_embeddings_router: router/src/lib.rs:216: Could not find a Sentence Transformers config
+2026-10-19T15:58:20.699949Z  WARN text_embeddings_router: router/src/lib.rs:227: The maximum input length is `32768` which exceeds `--max-batch-tokens=16384`. Input sequences will be truncated to `16384` tokens, as `--auto-truncate` is eith ...[troncato]
+2026-10-19T15:58:20.699952Z  INFO text_embeddings_router: router/src/lib.rs:234: Maximum number of tokens per request: 16384
+2026-10-19T15:58:20.700955Z  INFO text_embeddings_core::tokenization: core/src/tokenization.rs:38: Starting 15 tokenization workers
+2026-10-19T15:58:20.701084Z  INFO text_embeddings_router: router/src/lib.rs:284: Starting model backend
+2026-10-19T15:58:20.701097Z  INFO text_embeddings_backend: backends/src/lib.rs:672: Downloading `model.safetensors`
+2026-10-19T15:58:20.701411Z  INFO text_embeddings_backend: backends/src/lib.rs:507: Model weights downloaded in 314.022µs
+2026-10-19T15:58:20.701435Z  INFO download_dense_modules: text_embeddings_backend: backends/src/lib.rs:843: Downloading `modules.json`
+2026-10-19T15:58:20.701857Z  INFO text_embeddings_backend: backends/src/lib.rs:519: Dense modules downloaded in 425.31µs
+2026-10-19T15:58:21.002811Z  INFO text_embeddings_backend_candle: backends/candle/src/lib.rs:527: Starting FlashQwen3 model on Cuda(CudaDevice(DeviceId(1)))
+2026-10-19T15:58:28.363293Z  INFO text_embeddings_router: router/src/lib.rs:302: Warming up model
+2026-10-19T15:58:32.288877Z  WARN text_embeddings_router: router/src/lib.rs:367: Invalid hostname, defaulting to 0.0.0.0
+2026-10-19T15:58:32.302749Z  INFO text_embeddings_router::http::server: router/src/http/server.rs:1878: Starting HTTP server: 0.0.0.0:80
+2026-10-19T15:58:32.302766Z  INFO text_embeddings_router::http::server: router/src/http/server.rs:1879: Ready
+2026-10-19T15:58:32.625805Z  INFO embed{total_time="18.820847ms" tokenization_time="2.574605ms" queue_time="344.928µs" inference_time="15.825918ms"}: text_embeddings_router::http::server: router/src/http/server.rs:735: Success
+container cka-gpu-check arrestato
+
+VERDETTO: VERDE
