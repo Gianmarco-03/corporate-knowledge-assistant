@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda — / slice — / plan completato · aggiornato: 2026-10-19T12:45:33Z
+fase 01 / onda — / slice — / plan completato · aggiornato: 2026-10-19T13:10:00Z
 
 ## Prossima azione
 
-Installa Docker Desktop + verifica GPU (HANDOFF §7), poi /execute 1 da onda 0 (wiring-build) secondo 01-ONDE.md; in parallelo /discuss 2.
+/execute 1 da onda 0 (wiring-build) secondo 01-ONDE.md (Docker + GPU pronti); in parallelo /discuss 2.
 
 ## Findings
 
@@ -31,7 +31,7 @@ Installa Docker Desktop + verifica GPU (HANDOFF §7), poi /execute 1 da onda 0 (
 
 ## Limiti trovati
 
-*(vuoto)*
+- 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7
 
 ## Gate & verdetti
 
@@ -61,3 +61,4 @@ Installa Docker Desktop + verifica GPU (HANDOFF §7), poi /execute 1 da onda 0 (
 **Modifica:** Claude (Anthropic) · 2026-10-18 · creazione (preflight discuss 1)
 **Modifica:** Claude (Anthropic) · 2026-10-18 · --discuss fase 01
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --plan fase 01
+**Modifica:** Claude (Anthropic) · 2026-10-19 · --evento: Docker Desktop e GPU pronti

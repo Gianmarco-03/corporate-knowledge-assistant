@@ -65,7 +65,10 @@ Mappa content_id → piano: risk_audit_1 = 01-02, _2 = 01-04, _3 = 01-07, _4 = 0
 6. Passo 7: `01-CONTRATTO.md`, `onde-slice` → `01-ONDE.md`, `update-orchestrator-state --plan`, commit `docs(01): fase pianificata, conforme ai gate`.
 7. In parallelo l'utente può avviare `/discuss 2`.
 
-## 7. Prerequisiti utente ancora aperti
+## 7. Prerequisiti utente
+
+- **2026-10-19: CHIUSO.** Docker Desktop 29.8.2 (Compose v5.6.0) su WSL2; `.wslconfig` memory=20GB processors=16 swap=0 attivo; `nvidia-smi` nel container verde (RTX 3050, ~1,8 GiB di VRAM già usati dal desktop Windows). Testo originale sotto.
+
 
 - **Docker Desktop** da installare (istruzioni date: `winget install -e --id Docker.DockerDesktop`, `.wslconfig` con `memory=20GB processors=16 swap=0`, verifica GPU `docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi`). WSL2 Ubuntu presente, driver NVIDIA 610.88 ok. Serve prima di `execute 1`.
 
@@ -82,3 +85,4 @@ Mappa content_id → piano: risk_audit_1 = 01-02, _2 = 01-04, _3 = 01-07, _4 = 0
 **Modifica:** Claude (Anthropic) · 2026-10-19 · §0: giro di correzioni e audit v2 inviati
 **Modifica:** Claude (Anthropic) · 2026-10-19 · §0 aggiornamento 2: divisione 07/18, 13 v3, audit 15..17
 **Modifica:** Claude (Anthropic) · 2026-10-19 · §0 aggiornamento 3: plan della fase 1 chiuso
+**Modifica:** Claude (Anthropic) · 2026-10-19 · §7 chiuso: Docker e GPU pronti
