@@ -1,0 +1,19 @@
+# spikes/docker/garage.toml — Garage v2.4.1 per lo spike S-01 (piano 01-04, WIRING W12).
+#
+# Chiavi dal quick-start ufficiale (RESEARCH §2). Nessun segreto letterale: il segreto
+# RPC arriva da env GARAGE_RPC_SECRET (compose, file segreti esterno al repo); chiave
+# di accesso e bucket di default da GARAGE_DEFAULT_* con `server --single-node
+# --default-bucket`. Sezione [admin] omessa: l'API admin non serve allo spike.
+# Client in path-style (default di object_store), quindi niente root_domain.
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
