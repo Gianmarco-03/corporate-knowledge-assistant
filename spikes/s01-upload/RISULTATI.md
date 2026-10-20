@@ -51,17 +51,140 @@ Fissato qui, prima di raccogliere qualsiasi tempo; la decisione si prende solo c
 
 ## Setup
 
-(da compilare con le misure)
+**Modifica:** Claude (gsd-executor 01-04, ripresa 3) · 2026-10-20 · setup e risultati della matrice, della correttezza e del canale laterale
+
+- **Hardware:** [`results/hw.json`](results/hw.json), sha256 `1f650e01c11e87534b8db2580a7c8e5da843bac8d76113e3900c3512be841edd` (manifest della sessione `01-04-20261020t160904z-c0f9`, `git_rev` `34e73f6`). Intel Core i7-13700K (16 core, 24 thread), 32 GiB di RAM, Docker 29.8.2 su WSL 2.6.3 con 16 CPU e 19,5 GiB assegnati a Docker Desktop. Ogni sessione ha il proprio manifest grezzo in `results/raw/hw-<run_id>.raw.json` (cartella ignorata da git).
+- **Immagini:** `pgvector/pgvector:0.8.7-pg18-trixie` (`sha256:9d9c9302…cad2e0`), `dxflrs/garage:v2.4.1` (`sha256:9c96caa2…d020`), immagine del runner `sha256:86a924ad…d298` (colonna `runner_image_digest` di `runs.csv`, identica sulle 288 righe). Client di carico `curl` 8.14.1 nel runner, `rustc` 1.95.0.
+- **Codice misurato:** commit `34e73f6` per la matrice (288 righe di `runs.csv`, colonna `git_rev`) e per la correttezza; le misure ereditate (canale laterale, storage, GC, test Linux) vengono da `15ea345`, con l'albero del codice identico (`git diff --stat 15ea345 34e73f6` tocca solo `RISULTATI.md`, `gc.csv` e `storage.csv`).
+- **Sessioni** (`session.sh`, una prenotazione per sessione, servizi avviati per nome, `down` + `release` a fine sessione con «residui 0»):
+
+| Misura | run_id | Comando dall'host |
+|--------|--------|-------------------|
+| Test Linux (dhat, pdfgen, admission, gc_race) | `01-04-20261020t113319z-9379` | `bash spikes/s01-upload/bench.sh host tests` |
+| Matrice, run 1 (warm-up, ordine crescente) | `01-04-20261020t144205z-c26d` | `bash spikes/s01-upload/bench.sh host matrix 1` |
+| Matrice, run 2 (ordine decrescente) | `01-04-20261020t151201z-9164` | `bash spikes/s01-upload/bench.sh host matrix 2` |
+| Matrice, run 3 (ordine crescente) | `01-04-20261020t153938z-68e1` | `bash spikes/s01-upload/bench.sh host matrix 3` |
+| Correttezza (normale e `--fault after_put`) | `01-04-20261020t160904z-c0f9` | `bash spikes/s01-upload/bench.sh host correctness` |
+| Canale laterale, sessioni 1, 2, 3 | `…t114049z-d302`, `…t114328z-ab51`, `…t114531z-b1d8` | `bash spikes/s01-upload/bench.sh host dedup <1\|2\|3>` |
+| Storage e GC | `01-04-20261020t114001z-8b12` | `bash spikes/s01-upload/bench.sh host extras` |
+| CSV a header fisso e intervalli del canale laterale | nessuna (solo host) | `bash spikes/s01-upload/bench.sh host finalize` |
+
+- **Fixture:** `fixtures.sh` nel runner, in `/work/tmp/fixtures` (mai versionate): pool di 200 PDF validi distinti per 1, 10, 24 e 25 MiB generati da `probe gen-pdf` (spazio libero 876 GiB, quindi pool pieno), tre PDF di confine da 26_214_399/400/401 byte, corpo artificiale da 100 MiB, casi di formato sintetici (nessun PDF o DOCX reale in `spikes/data/corpus/raw` al momento della misura).
+- **Reset e stato cold/warm:** prima di ogni riga della matrice `probe reset` svuota `upload`, `outbox`, `blob`, `blob_chunk` e il prefisso `sha256/` di Garage, e parte un processo server nuovo (`server_container_id` distinto per ognuna delle 288 righe). Postgres, Garage e la page cache dell'host non si riavviano fra le righe di una stessa run: lo stato è «warm» per i servizi, «cold» per i dati.
+- **Carico:** 200 richieste per riga, `curl -F file=@…` lanciato da `xargs -P <c>`; `new` = 200 corpi distinti, `dedup` = un upload di innesco escluso e poi 200 volte lo stesso corpo. Le statistiche di latenza usano le sole risposte 2xx; i non-2xx sono contati a parte.
 
 ## Risultati
 
-(da compilare con le misure)
+### Memoria (criterio 1)
+
+Puro streaming, heap dhat ([`dhat_1m.json`](results/dhat_1m.json), [`dhat_10m.json`](results/dhat_10m.json), [`dhat_25m.json`](results/dhat_25m.json)):
+
+| Dimensione | `max_bytes` | Esito |
+|------------|-------------|-------|
+| 1 MiB | 1_486_181 | |
+| 10 MiB | 2_334_796 | |
+| 25 MiB | 2_564_162 | delta 25 − 1 = 1_077_981 byte (1,03 MiB) < 2 MiB: **supera** |
+
+Percorso completo con PDF validi, `VmHWM` del server dopo 200 upload `new` a concorrenza 1, processo nuovo per riga ([`mem_by_size.csv`](results/mem_by_size.csv); run 2 / run 3, la run 1 è il warm-up):
+
+| Adapter | 1 MiB (KiB) | 10 MiB (KiB) | 24 MiB (KiB) | 25 MiB (KiB) | Delta 25 − 1 (MiB) | Esito vs < 8 MiB |
+|---------|-------------|--------------|--------------|--------------|--------------------|------------------|
+| Garage | 24_952 / 20_392 | 54_224 / 43_096 | 65_368 / 69_952 | 68_544 / 69_656 | 42,6 / 48,1 | **non supera** |
+| PG `bytea` | 20_760 / 19_232 | 21_016 / 19_924 | 28_960 / 20_644 | 20_316 / 20_840 | −0,4 / 1,6 | supera |
+| nullo | 16_020 / 16_004 | 15_524 / 16_352 | 16_652 / 18_524 | 16_816 / 16_424 | 0,8 / 0,4 | supera |
+
+`memory.peak` del cgroup (registrato senza soglia) a 25 MiB: Garage circa 104 MB, PG `bytea` circa 49 MB, nullo circa 39 MB; la differenza col nullo comprende la page cache del tempfile.
+
+### Latenza di acknowledgment
+
+Soglia TTQ, file da 10 MiB, Garage, carico `new` ([`adapters.csv`](results/adapters.csv), run 2 / run 3):
+
+| Concorrenza | p50 (ms) | p95 (ms) | p99 (ms) | Esito vs p95 ≤ 500 ms |
+|-------------|----------|----------|----------|-----------------------|
+| 1 | 56,5 / 46,7 | 318,6 / 49,5 | 328,3 / 50,2 | supera |
+| 4 | 82,4 / 68,2 | 101,6 / 78,9 | 118,6 / 82,2 | supera |
+
+Confronto fra adapter a parità di carico, file da 10 MiB, p95 in ms (run 2 / run 3; senza soglia oltre la riga sopra):
+
+| Adapter, carico | c = 1 | c = 4 | c = 8 | c = 16 |
+|-----------------|-------|-------|-------|--------|
+| Garage `new` | 318,6 / 49,5 | 101,6 / 78,9 | 133,3 / 125,0 | 281,6 / 278,0 |
+| PG `bytea` `new` | 322,9 / 448,1 | 1_170,8 / 1_169,3 | 2_772,8 / 3_569,7 | 4_734,3 / 6_043,7 |
+| nullo `new` | 15,0 / 17,1 | 17,7 / 17,4 | 26,5 / 27,0 | 60,0 / 57,8 |
+| Garage `dedup` | 53,4 / 64,5 | 82,0 / 77,9 | 169,2 / 129,0 | 293,7 / 278,5 |
+| PG `bytea` `dedup` | 22,6 / 35,5 | 57,4 / 27,5 | 58,8 / 59,8 | 521,5 / 119,2 |
+| nullo `dedup` | 15,5 / 15,1 | 17,4 / 17,2 | 28,0 / 25,7 | 57,9 / 56,7 |
+
+File da 25 MiB, carico `new`, p95 in ms (run 2 / run 3): Garage 96,7 / 379,7 (c = 1), 176,9 / 424,2 (c = 4), 805,9 / 972,6 (c = 16); PG `bytea` 1_009,9 / 865,1 (c = 1), 4_955,5 / 4_094,3 (c = 4), 12_175,0 / 14_444,0 (c = 16).
+
+### Scritture effettive
+
+- Carico `new`: in tutte le 96 righe `new` di Garage e PG `bytea` `distinct_sha` = `objects_after` = `req` = 200; l'adapter nullo ha 200 sha distinti e 0 oggetti, come atteso. **Supera.**
+- Carico `dedup`: in tutte le 96 righe `dedup` di Garage e PG `bytea` `objects_after` = 1. **Supera.**
+- **Errori 500 di Garage sotto deduplica concorrente:** con lo stesso corpo caricato in parallelo, Garage restituisce 500 su una parte delle richieste, in tutte e tre le run: a 10 MiB 2-4 su 200 a c = 4, 6-14 a c = 8 e c = 16; a 24-25 MiB 5-10 a c = 4, 11-19 a c = 8, 54-78 a c = 16. A 1 MiB, a concorrenza 1, nel carico `new` e con PG `bytea` o con l'adapter nullo gli errori sono zero. Vedi «Anomalie e deviazioni».
+
+### Correttezza e confini (D-02..D-05)
+
+[`correctness.csv`](results/correctness.csv), sessione `01-04-20261020t160904z-c0f9`: **20 casi su 20 con `pass` = `true`.**
+
+| Caso | Atteso | Ottenuto | Byte letti prima del rifiuto |
+|------|--------|----------|------------------------------|
+| 25MiB-1 (26_214_399 byte) | 200 `accepted` | 200 `accepted` | — |
+| 25MiB (26_214_400 byte) | 200 `accepted` | 200 `accepted` | — |
+| 25MiB+1 (26_214_401 byte) | 413 | 413 | 26_214_401 (soglia 26_345_472) |
+| 100MiB | 413 | 413 | 0 (corpo rifiutato dal limite di corpo prima di leggere il campo) |
+| polyglot, magic mismatch | 415 | 415 | — |
+| zip bomb, DTD, cifrato, troncato | 422 | 422 | — |
+| `/JavaScript`, `/J#61vaScript`, `/Launch`, `/EmbeddedFile` | 200 `quarantined` | 200 `quarantined` | — |
+| PDF, DOCX e Markdown sintetici | 200 `accepted` | 200 `accepted` | — |
+| duplicato | 2 righe, 1 oggetto, stessi campi | 2 righe, 1 oggetto, campi `sha256,size_bytes,status,upload_id`, `upload_id` diversi | — |
+| interrotto | nessuna riga, oggetto, tempfile | 0 / 0 / 0 | — |
+| crash fra PUT e transazione | nessuna riga; orfano raccolto da `probe gc` con N = 0 | 0 righe, 1 orfano prima del GC, 0 dopo | — |
+
+Nel caso del crash l'`abort` lascia 1 tempfile in `/work/tmp/srv` (colonna `tmpfiles_after`): è il comportamento atteso di un processo terminato senza distruttori, registrato e poi rimosso; nel prodotto la pulizia dei tempfile all'avvio del servizio resta un requisito (vedi Esito).
+
+### Admission control (T-05)
+
+[`admission.csv`](results/admission.csv): con `max_inflight` = 4 e `max_validations` = 2, 12 client lenti e 6 DOCX costosi, metà chiusi a metà: upload attivi massimi 4, validazioni attive massime 1, 14 risposte 503 (tutte con `Retry-After`), 3 risposte 408; FD 13 → 14 (entro ±4), 0 byte in `/work/tmp` dopo 15 s. **Supera.**
+
+### Canale laterale della deduplica (T-11, TEST-7)
+
+[`dedup_timing.csv`](results/dedup_timing.csv), 3.600 righe (3 adapter × 3 sessioni × 400 richieste), 0 esclusioni (nessun non-2xx). Intervallo al 95 % di d = p50(dedup) − p50(new) da `probe dedup-ci` (bootstrap 2.000 ricampionamenti, seme = sessione), regola pre-registrata:
+
+| Adapter | Sessione | p50 new (ms) | p50 dedup (ms) | d (ms) | IC 95 % (ms) | T (ms) | Dentro [−T, +T] |
+|---------|----------|--------------|----------------|--------|--------------|--------|-----------------|
+| Garage | 1 | 44,638 | 44,808 | 0,170 | [−0,172; 0,582] | 20,000 | sì |
+| Garage | 2 | 43,847 | 43,772 | −0,075 | [−0,766; 0,550] | 20,000 | sì |
+| Garage | 3 | 45,969 | 45,996 | 0,027 | [−0,340; 0,369] | 20,000 | sì |
+| PG `bytea` | 1 | 221,332 | 27,053 | −194,279 | [−253,990; −95,445] | 22,133 | no |
+| PG `bytea` | 2 | 66,053 | 21,003 | −45,050 | [−58,071; −35,235] | 20,000 | no |
+| PG `bytea` | 3 | 52,250 | 20,380 | −31,870 | [−35,605; −29,790] | 20,000 | no |
+| nullo (controllo) | 1 | 13,540 | 13,488 | −0,053 | [−0,181; 0,064] | 20,000 | sì |
+| nullo (controllo) | 2 | 13,747 | 13,528 | −0,219 | [−0,340; −0,093] | 20,000 | sì |
+| nullo (controllo) | 3 | 13,717 | 13,707 | −0,010 | [−0,141; 0,107] | 20,000 | sì |
+
+Decisione con la regola pre-registrata: **Garage supera** (3 sessioni su 3); **PG `bytea` non supera** (3 sessioni su 3 fuori, la deduplica è più veloce di 30-190 ms perché `ON CONFLICT DO NOTHING` salta la scrittura dei chunk). L'adapter nullo è il controllo e non decide.
+
+### Storage e GC
+
+[`storage.csv`](results/storage.csv) (30 documenti da 10 MiB): lettura per range da 64 KiB p95 Garage 3,267 ms, PG `bytea` 0,742 ms (soglia ≤ 50 ms: **supera** per entrambi); PUT totale Garage 1.017 ms, PG 2.505 ms; WAL di PG 1_123_080 byte per MiB scritto, `pg_total_relation_size` 326_967_296 byte.
+[`gc.csv`](results/gc.csv): list del prefisso `sha256/` + head su 1.000 oggetti in 11,5-12,1 ms (head p95 0,30-0,31 ms); 100 orfani di 48 h raccolti con N = 24 h, 100 orfani di 1 h protetti (0 cancellati).
+[`gc_race.csv`](results/gc_race.csv): 8 interleaving enumerate (a, b, c, d × Garage, PG) con `unreadable` = 0 e `pass` = `true`. È la prova delle sole interleaving enumerate, non dell'assenza di ogni race.
 
 ## Anomalie e deviazioni
 
 **Modifica:** Claude (gsd-executor 01-04, ripresa 2) · 2026-10-20 · provenienza delle misure ereditate da un esecutore interrotto
 
 - **Misure ereditate da un esecutore interrotto (errore di rete verso l'API).** Correttezza (sessione `01-04-20261020t113514z-ecb4`), storage e GC (`01-04-20261020t114001z-8b12`) e le tre sessioni del canale laterale (`01-04-20261020t114049z-d302`, `01-04-20261020t114328z-ab51`, `01-04-20261020t114531z-b1d8`) sono state prodotte da `bench.sh host correctness|extras|dedup <n>` con il codice del commit `15ea345` (campo `git_rev` del manifest hardware grezzo di ogni sessione, in `results/raw/`), con l'albero del codice invariato da quel commit. Sono tracciabili e si tengono: ripetere le tre sessioni del canale laterale dopo che i tempi erano già su disco sarebbe una seconda estrazione, vietata dal protocollo pre-registrato (RISK-001).
+
+**Modifica:** Claude (gsd-executor 01-04, ripresa 3) · 2026-10-20 · anomalie della matrice e della correttezza
+
+- **Correttezza ripetuta al commit `34e73f6`.** La sessione ereditata `…t113514z-ecb4` (codice `15ea345`) aveva già dato 20 casi su 20 verdi; la correttezza non è soggetta al protocollo del canale laterale, quindi è stata ripetuta nella sessione `01-04-20261020t160904z-c0f9` per avere tutta la matrice e la correttezza dallo stesso commit. Il CSV committato è quello della ripetizione, con lo stesso esito (copia della prima in `results/raw/correctness-ecb4.tsv`).
+- **Il canale laterale resta quello delle sessioni ereditate** (`15ea345`, albero del codice identico a `34e73f6`): 3 sessioni indipendenti come chiede il protocollo, 0 esclusioni, nessuna ripetizione.
+- **Matrice eseguita in tre sessioni separate** (una per run) invece che in una sola: ogni run ha la propria prenotazione, il proprio build e i propri servizi ricreati. L'ordine delle dimensioni è crescente, decrescente, crescente come da piano; la run 1 è il warm-up e non entra nelle tabelle.
+- **Errori 500 di Garage nel carico `dedup` concorrente** (righe con `status_5xx` > 0 in `adapters.csv`, solo `garage`, solo `dedup`, solo c ≥ 4 e file ≥ 10 MiB). Il server mappa a 500 un errore di `sink.put`, di `gc::adopt_begin` o della transazione dei metadati; PG `bytea` percorre la stessa adozione e la stessa transazione senza errori, quindi l'indiziato è il PUT concorrente della stessa chiave su Garage (sopra 10 MiB `object_store` passa al multipart). Il CSV non distingue il punto di errore: la diagnosi è nella misura aggiuntiva sotto. Le statistiche di latenza di quelle righe usano solo le risposte 2xx.
+- **`VmHWM` di Garage cresce con la dimensione** (42,6 e 48,1 MiB di delta fra 25 e 1 MiB, soglia 8 MiB). Causa probabile: `object_store::buffered::BufWriter::new` usa una capacità di 10 MiB e fino a 8 parti in volo, quindi tiene in memoria fino a un intero file da 25 MiB. Il puro streaming (dhat) e gli altri due adapter sono costanti: il limite è nella configurazione dell'adapter Garage, non nella ricezione. Mitigazione proposta e misurata sotto.
+- **Istogrammi per fase di `GET /bench/phases`** (file `*.phases.json` in `results/raw/`, non richiesti dal piano): i percentili per fase escono saturati a valori non plausibili (p50 di 2 µs per `receive_hash`), quindi non si usano. Le latenze riportate vengono tutte da `time_total` di `curl`.
 
 ## Esito
 

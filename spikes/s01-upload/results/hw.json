@@ -1,13 +1,13 @@
 {
-  "timestamp_utc": "2026-10-20T11:33:22Z",
-  "git_rev": "9341b439378135ed2bbc72d3265180710d65b054",
+  "timestamp_utc": "2026-10-20T16:09:08Z",
+  "git_rev": "34e73f6ec261130c67783b8b9bd0339ed16b994b",
   "cpu": "13th Gen Intel(R) Core(TM) i7-13700K (16 core, 24 thread)",
   "ram_total": "34112217088",
   "gpu": "NVIDIA GeForce RTX 3050, 610.88, 6144 MiB",
   "cuda_driver": "13.3",
   "wsl_version": "Versione WSL: 2.6.3.0\nVersione kernel: 6.6.87.2-1\nVersione WSLg: 1.0.71\nVersione MSRDC: 1.2.6353\nVersione Direct3D: 1.611.1-81528511\nVersione DXCore: 10.0.26100.1-240331-1435.ge-release\nVersione di Windows: 10.0.26300.9711",
   "docker_version": "29.8.2",
-  "docker_desktop_resources": "{\"ncpu\":16,\"mem_total_bytes\":20971708416}",
+  "docker_desktop_resources": "{\"ncpu\":16,\"mem_total_bytes\":20971696128}",
   "images": {
     "pgvector/pgvector:0.8.7-pg18-trixie": "pgvector/pgvector@sha256:9d9c930220cb9bf2f956d10a8f909cf9973d9672ca0278aef2c1e6facccad2e0",
     "dxflrs/garage:v2.4.1": "dxflrs/garage@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020"
@@ -17,7 +17,7 @@
     "curl": "8.14.1"
   },
   "power_plan": "GUID combinazione risparmio energia: 381b4222-f694-41f0-9685-ff5bb260df2e  (Bilanciato)",
-  "run_id": "01-04-20261020t113319z-9379",
+  "run_id": "01-04-20261020t160904z-c0f9",
   "compose_project": "cka-spikes",
   "containers": [
     {
@@ -41,7 +41,7 @@
   "ram_total_bytes": 34112217088,
   "docker_desktop_resources_detail": {
     "ncpu": 16,
-    "mem_total_bytes": 20971708416
+    "mem_total_bytes": 20971696128
   },
   "images_detail": [
     {
