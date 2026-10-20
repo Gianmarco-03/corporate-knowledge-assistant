@@ -9,7 +9,7 @@ fase 01 / onda 2 / slice 01-03, 01-04 / execute in corso (ripresa dopo interruzi
 
 ## Prossima azione
 
-/execute 1 onda 2: READ-GATE PLAN-010-04, worktree 01-03 (exec/01-03) + 01-04 (task/PLAN-010-04) da main, test-write, esecutori.
+/execute 1 onda 2: attendi esecutore 01-04 (Task 3-4), poi integratore-onda (01-03 poi 01-04) e bridge; poi gap-closure fase 1.1 (session.sh: segreti prevalgono su env host) PRIMA di onda 3.
 
 ## Findings
 
@@ -39,6 +39,8 @@ fase 01 / onda 2 / slice 01-03, 01-04 / execute in corso (ripresa dopo interruzi
 
 - 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7
 - 2026-10-20 · API Claude irraggiungibile (ENOTFOUND, DNS) durante onda 2: esecutore 01-03 morto senza commit, test-write 01-04 morto con test non committati · impatto: ripresa con agenti nuovi da primo task non committato · rif. 01-ONDE.md onda 2
+- 2026-10-20 · DATABASE_URL di sistema Windows (DB cloud Neon altro progetto) vince su --env-file nell'interpolazione compose di session.sh: gc_race (TRUNCATE) tentò 2× quel DB, nessuna connessione riuscita (DNS, poi TLS assente) · impatto: workaround in bench.sh 9341b43; difetto file chiuso 01-02 → gap-closure fase 1.1 prima onda 3 (decisione utente; utente toglie la variabile) · rif. .planning/tmp/rapporto-01-04.yaml → 01-04-SUMMARY
+- 2026-10-20 · DNS intermittente: 2 schede attive (Fritz!Box 192.168.178.1 + hotspot 172.20.10.1); cargo fetch runner 35/35 falliti, 2° esecutore 01-04 morto ENOTFOUND · impatto: build runner offline con vendor host; riprese agenti; utente lascia rete com'è
 
 ## Gate & verdetti
 
@@ -71,3 +73,4 @@ fase 01 / onda 2 / slice 01-03, 01-04 / execute in corso (ripresa dopo interruzi
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --evento: Docker Desktop e GPU pronti
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --exec fase 01 onda 1
 **Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: interruzione di rete in onda 2
+**Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: DATABASE_URL host nel runner, DNS su due schede
