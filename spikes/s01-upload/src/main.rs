@@ -31,6 +31,7 @@ enum OnOff {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum Fault {
     None,
+    #[value(name = "after_put")]
     AfterPut,
 }
 
@@ -147,6 +148,29 @@ async fn serve(args: Args) -> anyhow::Result<()> {
         "s01-upload in ascolto su {} (adapter {:?}, validate {:?}, bench {}, fault {:?})",
         args.listen, args.adapter, args.validate, args.bench, args.fault
     );
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
+}
+
+/// SIGTERM (`session.sh stop`) o Ctrl-C: arresto ordinato. Il server gira come PID 1
+/// del container, che senza un gestore ignorerebbe SIGTERM fino al SIGKILL.
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut term = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(_) => return std::future::pending().await,
+        };
+        tokio::select! {
+            _ = term.recv() => {}
+            _ = tokio::signal::ctrl_c() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
 }
