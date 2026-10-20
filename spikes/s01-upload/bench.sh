@@ -56,8 +56,18 @@ resolve() {
 
 # Sostituisce gli host di DATABASE_URL e S3_ENDPOINT con l'IP risolto (valori mai stampati).
 # Un nome non risolto ferma il processo: niente ripiego silenzioso sul resolver.
+# Guardia: DATABASE_URL e S3_ENDPOINT devono puntare ai servizi del compose (postgres,
+# garage). Il 2026-10-20 una DATABASE_URL dell'ambiente host di un altro progetto ha
+# scavalcato il file segreti nell'interpolazione di compose: i test con TRUNCATE non
+# devono mai partire contro un database esterno.
 pin_env() {
   local ip
+  if [[ -n ${DATABASE_URL-} && ! $DATABASE_URL =~ @postgres[:/] ]]; then
+    die "DATABASE_URL non punta al servizio postgres del compose: mi fermo"
+  fi
+  if [[ -n ${S3_ENDPOINT-} && ! $S3_ENDPOINT =~ ^http://garage: ]]; then
+    die "S3_ENDPOINT non punta al servizio garage del compose: mi fermo"
+  fi
   if [[ -n ${DATABASE_URL-} ]]; then
     ip=$(resolve postgres) || die "risoluzione di postgres fallita dopo 60 s"
     export DATABASE_URL=${DATABASE_URL/@postgres:/@$ip:}
@@ -361,6 +371,14 @@ RESULTS=spikes/s01-upload/results
 host_session() { # <etichetta> : prenota, trap, servizi
   [[ -n ${CKA_SPIKES_ENV-} ]] || CKA_SPIKES_ENV=$HOME/.cka-spikes/spikes.env
   [[ -f $CKA_SPIKES_ENV ]] || die "file segreti assente: $CKA_SPIKES_ENV"
+  # Nell'interpolazione di compose l'ambiente della shell vince su --env-file: una
+  # variabile omonima dell'host (es. DATABASE_URL di un altro progetto) arriverebbe al
+  # runner al posto del valore degli spike. Si tolgono dall'ambiente le chiavi del file
+  # segreti; si stampano solo i nomi.
+  local k
+  for k in $(grep -oE '^[A-Za-z_][A-Za-z0-9_]*' "$CKA_SPIKES_ENV" | sort -u); do
+    if [[ -n ${!k+x} ]]; then echo "bench.sh: tolta dall'ambiente host la variabile $k (vale il file segreti)"; unset "$k"; fi
+  done
   RID=$(bash "$S" new-id 01-04)
   local rc=0
   CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-04 "$RID" --wait 3600 || rc=$?
