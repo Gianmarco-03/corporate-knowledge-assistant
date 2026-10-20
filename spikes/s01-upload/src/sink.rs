@@ -98,6 +98,10 @@ pub struct GarageSink {
     store: Arc<dyn ObjectStore>,
     /// PUT completati (scritture tentate, anche sovrascritture idempotenti).
     pub puts: AtomicU64,
+    /// Capacità del `BufWriter` (= dimensione di una parte del multipart) e parti in
+    /// volo. `None` = default di `object_store` (10 MiB, 8 parti): configurazione della
+    /// matrice. Valori espliciti = mitigazione della memoria misurata dopo la matrice.
+    parts: Option<(usize, usize)>,
 }
 
 impl GarageSink {
@@ -117,7 +121,16 @@ impl GarageSink {
         Ok(GarageSink {
             store: Arc::new(store),
             puts: AtomicU64::new(0),
+            parts: None,
         })
+    }
+
+    /// Parti del multipart da `part_bytes` con al più `concurrency` parti in volo: la
+    /// memoria per upload resta circa `part_bytes × (concurrency + 1)` qualunque sia la
+    /// dimensione del file. S3 chiede parti da almeno 5 MiB (tranne l'ultima).
+    pub fn with_parts(mut self, part_bytes: usize, concurrency: usize) -> Self {
+        self.parts = Some((part_bytes.max(1), concurrency.max(1)));
+        self
     }
 
     fn path(key: &str) -> ObjPath {
@@ -153,7 +166,13 @@ impl BlobSink for GarageSink {
         Box::pin(async move {
             check_key(key)?;
             let mut f = tokio::fs::File::open(path).await?;
-            let mut w = BufWriter::new(self.store.clone(), Self::path(key));
+            let mut w = match self.parts {
+                None => BufWriter::new(self.store.clone(), Self::path(key)),
+                Some((cap, k)) => {
+                    BufWriter::with_capacity(self.store.clone(), Self::path(key), cap)
+                        .with_max_concurrency(k)
+                }
+            };
             let mut buf = Vec::with_capacity(CHUNK);
             loop {
                 let n = read_chunk(&mut f, &mut buf).await?;
@@ -207,13 +226,30 @@ impl BlobSink for GarageSink {
 /// transazione per oggetto, `ON CONFLICT DO NOTHING` (idempotente per chiave).
 pub struct PgByteaSink {
     db: sqlx::PgPool,
+    /// `true` = `ON CONFLICT DO UPDATE`: un duplicato riscrive i chunk come un upload
+    /// nuovo (mitigazione del canale laterale misurata dopo la matrice). Default `false`.
+    rewrite_on_conflict: bool,
 }
 
 impl PgByteaSink {
     pub fn new(db: sqlx::PgPool) -> Self {
-        PgByteaSink { db }
+        PgByteaSink {
+            db,
+            rewrite_on_conflict: false,
+        }
+    }
+
+    /// Mitigazione di T-11: stesso lavoro di scrittura con o senza deduplica.
+    pub fn with_rewrite_on_conflict(mut self, on: bool) -> Self {
+        self.rewrite_on_conflict = on;
+        self
     }
 }
+
+const PG_INSERT_NOTHING: &str = "INSERT INTO blob_chunk (object_key, seq, data) \
+     VALUES ($1, $2, $3) ON CONFLICT (object_key, seq) DO NOTHING";
+const PG_INSERT_REWRITE: &str = "INSERT INTO blob_chunk (object_key, seq, data) \
+     VALUES ($1, $2, $3) ON CONFLICT (object_key, seq) DO UPDATE SET data = EXCLUDED.data";
 
 impl BlobSink for PgByteaSink {
     fn put<'a>(&'a self, key: &'a str, path: &'a Path) -> BoxFuture<'a, anyhow::Result<()>> {
@@ -230,15 +266,17 @@ impl BlobSink for PgByteaSink {
                 if n == 0 && seq > 0 {
                     break;
                 }
-                sqlx::query(
-                    "INSERT INTO blob_chunk (object_key, seq, data) VALUES ($1, $2, $3) \
-                     ON CONFLICT (object_key, seq) DO NOTHING",
-                )
-                .bind(key)
-                .bind(seq)
-                .bind(buf.as_slice())
-                .execute(&mut *tx)
-                .await?;
+                let sql = if self.rewrite_on_conflict {
+                    PG_INSERT_REWRITE
+                } else {
+                    PG_INSERT_NOTHING
+                };
+                sqlx::query(sql)
+                    .bind(key)
+                    .bind(seq)
+                    .bind(buf.as_slice())
+                    .execute(&mut *tx)
+                    .await?;
                 seq += 1;
                 if n < CHUNK {
                     break;

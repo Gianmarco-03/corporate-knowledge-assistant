@@ -7,6 +7,8 @@
 #   bash spikes/s01-upload/bench.sh host matrix <run>      run 1..3 della matrice adapter × dimensione ×
 #                                                          carico × concorrenza (server nuovo per riga)
 #   bash spikes/s01-upload/bench.sh host dedup <sessione>  sessione 1..3 del canale laterale (TEST-7)
+#   bash spikes/s01-upload/bench.sh host mitig             mitigazioni di Garage (parti del multipart) dopo la matrice
+#   bash spikes/s01-upload/bench.sh host dedup-mitig <n>   canale laterale delle configurazioni mitigate (stesso protocollo)
 #   bash spikes/s01-upload/bench.sh host correctness       casi di correttezza (correctness.csv)
 #   bash spikes/s01-upload/bench.sh host extras            storage.csv e gc.csv
 #   bash spikes/s01-upload/bench.sh host finalize          CSV a header fisso dai TSV grezzi
@@ -155,21 +157,25 @@ upload_one() { # <file> → "<http_code> <time_total> <size_upload>"
 }
 export -f upload_one
 
-# client --adapter A --size L --workload W --c C --run R --rid RID
+# client --adapter A --size L --workload W --c C --run R --rid RID [--label E]
+# --label: nome della configurazione nei CSV (default = adapter); serve alle mitigazioni
+# misurate dopo la matrice, che usano lo stesso adapter con un'altra configurazione.
 runner_client() {
-  local adapter size workload c run rid
+  local adapter size workload c run rid label=
   while (( $# )); do
     case $1 in
       --adapter) adapter=$2; shift 2 ;; --size) size=$2; shift 2 ;;
       --workload) workload=$2; shift 2 ;; --c) c=$2; shift 2 ;;
-      --run) run=$2; shift 2 ;; --rid) rid=$2; shift 2 ;; *) die "client: $1" ;;
+      --run) run=$2; shift 2 ;; --rid) rid=$2; shift 2 ;; --label) label=$2; shift 2 ;;
+      *) die "client: $1" ;;
     esac
   done
+  label=${label:-$adapter}
   cd /src
   pin_env
   wait_garage
   target_setup
-  local probe=/target/release/probe raw=/src/s01-upload/results/raw tag="$adapter-$size-$workload-c$c-r$run"
+  local probe=/target/release/probe raw=/src/s01-upload/results/raw tag="$label-$size-$workload-c$c-r$run"
   mkdir -p "$raw/$rid"
   "$probe" reset --adapter "$adapter" > /dev/null
   local before; before=$(curl -sf "${RESOLVE[@]}" "$BASE/bench/stats")
@@ -193,24 +199,25 @@ runner_client() {
   read -r req p50 p95 p99 s2 s4 s5 <<< "$agg"
   read -r rows distinct objects <<< "$cnt"
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$rid" "$adapter" "$workload" "${SIZE_BYTES[$size]}" "$c" "$run" "$req" "$p50" "$p95" "$p99" \
+    "$rid" "$label" "$workload" "${SIZE_BYTES[$size]}" "$c" "$run" "$req" "$p50" "$p95" "$p99" \
     "$s2" "$s4" "$s5" "$distinct" "$objects" >> "$raw/adapters.tsv"
   if [[ $workload == new && $c == 1 ]]; then
-    printf '%s\t%s\tfull\t%s\t%s\t\t%s\t%s\n' "$rid" "$adapter" "${SIZE_BYTES[$size]}" "$run" \
+    printf '%s\t%s\tfull\t%s\t%s\t\t%s\t%s\n' "$rid" "$label" "${SIZE_BYTES[$size]}" "$run" \
       "$(json_field "$after" vm_hwm_kb)" "$(json_field "$after" cgroup_peak_bytes)" >> "$raw/mem_full.tsv"
   fi
   echo "CLIENT $tag: req=$req p50=$p50 p95=$p95 p99=$p99 2xx=$s2 4xx=$s4 5xx=$s5 distinct=$distinct objects=$objects rows=$rows"
 }
 
-# dedup-client --adapter A --session N --rid RID
+# dedup-client --adapter A --session N --rid RID [--label E]
 runner_dedup_client() {
-  local adapter session rid
+  local adapter session rid label=
   while (( $# )); do
     case $1 in
       --adapter) adapter=$2; shift 2 ;; --session) session=$2; shift 2 ;;
-      --rid) rid=$2; shift 2 ;; *) die "dedup-client: $1" ;;
+      --rid) rid=$2; shift 2 ;; --label) label=$2; shift 2 ;; *) die "dedup-client: $1" ;;
     esac
   done
+  label=${label:-$adapter}
   cd /src
   pin_env
   wait_garage
@@ -223,14 +230,14 @@ runner_dedup_client() {
   local i
   for (( i = 202; i <= 211; i++ )); do upload_one "$(printf '%s/10m-%03d.pdf' "$fx" "$i")" > /dev/null; done
   for (( i = 0; i < 10; i++ )); do upload_one "$body" > /dev/null; done
-  local out="$raw/dedup/$adapter-s$session.tsv" pair blk n=0 first
+  local out="$raw/dedup/$label-s$session.tsv" pair blk n=0 first
   : > "$out"
   run_block() { # <gruppo> <blocco>
     local group=$1 b=$2 k f line code t
     for (( k = 0; k < 10; k++ )); do
       if [[ $group == new ]]; then n=$((n + 1)); f=$(printf '%s/10m-%03d.pdf' "$fx" "$n"); else f=$body; fi
       line=$(upload_one "$f"); read -r code t _ <<< "$line"
-      printf '%s\t%s\ts%s-b%02d-%d\t%s\t%s\n' "$adapter" "$([[ $group == dedup ]] && echo true || echo false)" \
+      printf '%s\t%s\ts%s-b%02d-%d\t%s\t%s\n' "$label" "$([[ $group == dedup ]] && echo true || echo false)" \
         "$session" "$b" "$k" "$(awk -v t="$t" 'BEGIN {printf "%.3f", t * 1000}')" "$code" >> "$out"
     done
   }
@@ -244,7 +251,7 @@ runner_dedup_client() {
     fi
     blk=$((blk + 2))
   done
-  echo "DEDUP-CLIENT $adapter sessione $session: $(wc -l < "$out") richieste, non 2xx: $(awk -F'\t' '$5 !~ /^2/' "$out" | wc -l)"
+  echo "DEDUP-CLIENT $label sessione $session: $(wc -l < "$out") richieste, non 2xx: $(awk -F'\t' '$5 !~ /^2/' "$out" | wc -l)"
 }
 
 # correctness-client --phase normal|fault --rid RID
@@ -500,6 +507,71 @@ host_dedup() {
   done
 }
 
+# Mitigazioni misurate DOPO la matrice (soglie e protocollo invariati, RISK-001): stesso
+# adapter con un'altra configurazione, etichetta propria nei CSV. Dopo ogni riga il log
+# del proprio server va in results/raw/<run_id>/<tag>.log (diagnosi dei 500 di Garage).
+# Configurazioni: etichetta|argomenti del server.
+MITIG_CONFIGS=(
+  "garage-p5k1|--adapter garage --bench --garage-part-mib 5 --garage-part-concurrency 1"
+  "garage-p2k1|--adapter garage --bench --garage-part-mib 2 --garage-part-concurrency 1"
+)
+
+mitig_row() { # <etichetta> <argomenti server> <size> <workload> <c> <run>
+  local label=$1 sargs=$2 size=$3 workload=$4 c=$5 run=$6
+  bash "$S" ps "$RID" --assert-only postgres garage runner > /dev/null
+  # shellcheck disable=SC2086  # argomenti del server: parole fisse di MITIG_CONFIGS
+  start_server $sargs
+  record_run "$label" "${SIZE_BYTES[$size]}" "$workload" "$c" "$run"
+  bash "$S" oneshot "$RID" -- bash s01-upload/bench.sh client --adapter garage --label "$label" \
+    --size "$size" --workload "$workload" --c "$c" --run "$run" --rid "$RID" \
+    || echo "bench.sh: client fallito ($label $size $workload c$c)"
+  docker logs "$SERVER" > "$RESULTS/raw/$RID/$label-$size-$workload-c$c-r$run.log" 2>&1 || true
+  stop_server
+}
+
+host_mitig() {
+  host_session "mitigazioni Garage"
+  host_services
+  host_hw
+  host_build
+  bash "$S" oneshot "$RID" -- bash s01-upload/fixtures.sh
+  mkdir -p "$RESULTS/raw/$RID"
+  # Diagnosi: configurazione della matrice, riga con più 500 (25 MiB, dedup, c = 16).
+  mitig_row garage-diag "--adapter garage --bench" 25m dedup 16 1
+  local run cfg label sargs size order
+  for run in 1 2 3; do
+    order=("${SIZES_LABELS[@]}")
+    if (( run == 2 )); then order=(25m 24m 10m 1m); fi
+    for cfg in "${MITIG_CONFIGS[@]}"; do
+      label=${cfg%%|*}; sargs=${cfg#*|}
+      for size in "${order[@]}"; do mitig_row "$label" "$sargs" "$size" new 1 "$run"; done
+      mitig_row "$label" "$sargs" 10m new 4 "$run"
+      mitig_row "$label" "$sargs" 10m dedup 16 "$run"
+      mitig_row "$label" "$sargs" 25m dedup 16 "$run"
+    done
+  done
+}
+
+# Canale laterale delle configurazioni mitigate, con il protocollo pre-registrato
+# (sessione pulita per ogni <sessione>, stesse regole di host_dedup).
+host_dedup_mitig() {
+  local session=$1
+  [[ $session =~ ^[123]$ ]] || die "sessione 1..3"
+  host_session "dedup mitigato sessione $session"
+  host_services
+  host_hw
+  host_build
+  bash "$S" oneshot "$RID" -- bash s01-upload/fixtures.sh
+  start_server --adapter pgbytea --bench --pg-conflict update
+  bash "$S" oneshot "$RID" -- bash s01-upload/bench.sh dedup-client --adapter pgbytea \
+    --label pgbytea-update --session "$session" --rid "$RID"
+  stop_server
+  start_server --adapter garage --bench --garage-part-mib 5 --garage-part-concurrency 1
+  bash "$S" oneshot "$RID" -- bash s01-upload/bench.sh dedup-client --adapter garage \
+    --label garage-p5k1 --session "$session" --rid "$RID"
+  stop_server
+}
+
 host_correctness() {
   host_session correctness
   host_services
@@ -547,7 +619,7 @@ host_finalize() {
   $p tsv2csv --input "$raw/correctness.tsv" --out "$r/correctness.csv" \
     --header case,size_bytes,expected_status,actual_status,bytes_read_before_reject,db_rows_after,objects_after,tmpfiles_after,pass
   local a s
-  for a in garage pgbytea null; do
+  for a in garage pgbytea null pgbytea-update garage-p5k1; do
     for s in 1 2 3; do $p dedup-ci --csv "$r/dedup_timing.csv" --adapter "$a" --session "$s" || true; done
   done
 }
@@ -572,10 +644,12 @@ case $mode in
       tests) host_tests ;;
       matrix) host_matrix "$@" ;;
       dedup) host_dedup "$@" ;;
+      mitig) host_mitig ;;
+      dedup-mitig) host_dedup_mitig "$@" ;;
       correctness) host_correctness ;;
       extras) host_extras ;;
       finalize) host_finalize ;;
-      *) die "host: vendor|tests|matrix <run>|dedup <sessione>|correctness|extras|finalize" ;;
+      *) die "host: vendor|tests|matrix <run>|dedup <sessione>|mitig|dedup-mitig <sessione>|correctness|extras|finalize" ;;
     esac
     ;;
   *) die "uso: bench.sh host <...> | build | tests | serve | client | dedup-client | correctness-client" ;;

@@ -68,6 +68,23 @@ struct Args {
     /// Thread del pool blocking (validazioni, tempfile).
     #[arg(long, default_value_t = 16)]
     max_blocking_threads: usize,
+    /// Garage: dimensione di una parte del multipart in MiB; 0 = default di
+    /// `object_store` (10 MiB, 8 parti in volo), la configurazione della matrice.
+    #[arg(long, default_value_t = 0)]
+    garage_part_mib: usize,
+    /// Garage: parti in volo per upload (solo con `--garage-part-mib` > 0).
+    #[arg(long, default_value_t = 1)]
+    garage_part_concurrency: usize,
+    /// PG `bytea`: `nothing` (default, matrice) o `update` (un duplicato riscrive i
+    /// chunk: mitigazione del canale laterale).
+    #[arg(long, value_enum, default_value = "nothing")]
+    pg_conflict: PgConflict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum PgConflict {
+    Nothing,
+    Update,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -129,8 +146,21 @@ async fn serve(args: Args) -> anyhow::Result<()> {
         None
     };
     let sink: Arc<dyn BlobSink> = match args.adapter {
-        Adapter::Garage => Arc::new(GarageSink::from_env()?),
-        Adapter::Pgbytea => Arc::new(PgByteaSink::new(db.clone().expect("db on"))),
+        Adapter::Garage => {
+            let g = GarageSink::from_env()?;
+            if args.garage_part_mib > 0 {
+                Arc::new(g.with_parts(
+                    args.garage_part_mib * 1024 * 1024,
+                    args.garage_part_concurrency,
+                ))
+            } else {
+                Arc::new(g)
+            }
+        }
+        Adapter::Pgbytea => Arc::new(
+            PgByteaSink::new(db.clone().expect("db on"))
+                .with_rewrite_on_conflict(args.pg_conflict == PgConflict::Update),
+        ),
         Adapter::Null => Arc::new(NullSink),
     };
     let cfg = UploadConfig {
@@ -145,8 +175,16 @@ async fn serve(args: Args) -> anyhow::Result<()> {
     let app = upload::router_with(cfg, sink, db, opts)?;
     let listener = tokio::net::TcpListener::bind(&args.listen).await?;
     eprintln!(
-        "s01-upload in ascolto su {} (adapter {:?}, validate {:?}, bench {}, fault {:?})",
-        args.listen, args.adapter, args.validate, args.bench, args.fault
+        "s01-upload in ascolto su {} (adapter {:?}, validate {:?}, bench {}, fault {:?}, \
+         garage_part_mib {}, garage_part_concurrency {}, pg_conflict {:?})",
+        args.listen,
+        args.adapter,
+        args.validate,
+        args.bench,
+        args.fault,
+        args.garage_part_mib,
+        args.garage_part_concurrency,
+        args.pg_conflict
     );
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

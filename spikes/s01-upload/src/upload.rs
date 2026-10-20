@@ -477,6 +477,7 @@ async fn handle(st: &Arc<AppState>, mp: &mut Multipart) -> Result<UploadResponse
     if let Some(db) = &st.db
         && let Err(e) = gc::adopt_begin(db, &rec.sha256).await
     {
+        eprintln!("upload: adozione fallita: {e:#}");
         discard(tmp).await;
         return Err(if e.is::<gc::AdoptBusy>() {
             ApiError::busy("oggetto in cancellazione")
@@ -484,7 +485,10 @@ async fn handle(st: &Arc<AppState>, mp: &mut Multipart) -> Result<UploadResponse
             ApiError::internal("adozione")
         });
     }
-    if st.sink.put(&rec.sha256, tmp.path()).await.is_err() {
+    // Errori su stderr del server (diagnosi dei 500 di Garage nella deduplica
+    // concorrente): i messaggi di object_store e sqlx non contengono credenziali.
+    if let Err(e) = st.sink.put(&rec.sha256, tmp.path()).await {
+        eprintln!("upload: put fallito: {e:#}");
         discard(tmp).await;
         return Err(ApiError::internal("storage"));
     }
@@ -501,7 +505,10 @@ async fn handle(st: &Arc<AppState>, mp: &mut Multipart) -> Result<UploadResponse
     if let Some(db) = &st.db {
         commit_metadata(db, upload_id, &rec.sha256, rec.size, &status)
             .await
-            .map_err(|_| ApiError::internal("metadati"))?;
+            .map_err(|e| {
+                eprintln!("upload: transazione dei metadati fallita: {e:#}");
+                ApiError::internal("metadati")
+            })?;
     }
     let t_tx = sw.elapsed_us();
 
