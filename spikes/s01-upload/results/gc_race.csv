@@ -1,0 +1,9 @@
+adapter,interleaving,upload_rows,objects,unreadable,pass
+garage,a_mark_then_adopt,2,2,0,true
+garage,b_adopt_then_gc,2,4,0,true
+garage,c_gc_interrupted,1,5,0,true
+garage,d_abandoned_adoption,1,6,0,true
+pgbytea,a_mark_then_adopt,2,2,0,true
+pgbytea,b_adopt_then_gc,2,2,0,true
+pgbytea,c_gc_interrupted,1,1,0,true
+pgbytea,d_abandoned_adoption,1,1,0,true
