@@ -42,10 +42,11 @@ die() { echo "bench.sh: $*" >&2; exit 1; }
 
 # ============================================================== modalità RUNNER
 
-# Risolve un nome con tentativi limitati (20 × 0,5 s) e stampa l'IPv4.
+# Risolve un nome con tentativi limitati (120 × 0,5 s) e stampa l'IPv4. Con 20 tentativi
+# il resolver di Docker ha lasciato il nome `postgres` irrisolto (gc_race, 2026-10-20).
 resolve() {
   local name=$1 ip i
-  for (( i = 0; i < 20; i++ )); do
+  for (( i = 0; i < 120; i++ )); do
     ip=$(getent ahostsv4 "$name" 2>/dev/null | awk 'NR==1 {print $1}') || true
     if [[ -n ${ip-} ]]; then printf '%s\n' "$ip"; return 0; fi
     sleep 0.5
@@ -54,13 +55,16 @@ resolve() {
 }
 
 # Sostituisce gli host di DATABASE_URL e S3_ENDPOINT con l'IP risolto (valori mai stampati).
+# Un nome non risolto ferma il processo: niente ripiego silenzioso sul resolver.
 pin_env() {
   local ip
-  if [[ -n ${DATABASE_URL-} ]] && ip=$(resolve postgres); then
+  if [[ -n ${DATABASE_URL-} ]]; then
+    ip=$(resolve postgres) || die "risoluzione di postgres fallita dopo 60 s"
     export DATABASE_URL=${DATABASE_URL/@postgres:/@$ip:}
     export DATABASE_URL=${DATABASE_URL/@postgres\//@$ip/}
   fi
-  if [[ -n ${S3_ENDPOINT-} ]] && ip=$(resolve garage); then
+  if [[ -n ${S3_ENDPOINT-} ]]; then
+    ip=$(resolve garage) || die "risoluzione di garage fallita dopo 60 s"
     export S3_ENDPOINT=${S3_ENDPOINT/\/\/garage:/\/\/$ip:}
   fi
 }
