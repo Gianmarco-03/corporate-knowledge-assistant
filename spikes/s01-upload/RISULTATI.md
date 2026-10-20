@@ -59,7 +59,9 @@ Fissato qui, prima di raccogliere qualsiasi tempo; la decisione si prende solo c
 
 ## Anomalie e deviazioni
 
-(da compilare con le misure)
+**Modifica:** Claude (gsd-executor 01-04, ripresa 2) · 2026-10-20 · provenienza delle misure ereditate da un esecutore interrotto
+
+- **Misure ereditate da un esecutore interrotto (errore di rete verso l'API).** Correttezza (sessione `01-04-20261020t113514z-ecb4`), storage e GC (`01-04-20261020t114001z-8b12`) e le tre sessioni del canale laterale (`01-04-20261020t114049z-d302`, `01-04-20261020t114328z-ab51`, `01-04-20261020t114531z-b1d8`) sono state prodotte da `bench.sh host correctness|extras|dedup <n>` con il codice del commit `15ea345` (campo `git_rev` del manifest hardware grezzo di ogni sessione, in `results/raw/`), con l'albero del codice invariato da quel commit. Sono tracciabili e si tengono: ripetere le tre sessioni del canale laterale dopo che i tempi erano già su disco sarebbe una seconda estrazione, vietata dal protocollo pre-registrato (RISK-001).
 
 ## Esito
 
