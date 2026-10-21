@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 2 / slice 01-03, 01-04 / execute in corso (ripresa dopo interruzione) · aggiornato: 2026-10-20
+fase 01 / onda 2 / slice 01-03, 01-04 / execute onda 2 completata · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-/execute 1 onda 2: attendi esecutore 01-04 (Task 3-4), poi integratore-onda (01-03 poi 01-04) e bridge; poi gap-closure fase 1.1 (session.sh: segreti prevalgono su env host) PRIMA di onda 3.
+Inserisci gap-closure fase 1.1 con gsd-phase (session.sh: segreti di spikes.env prevalgono su env host, `riapre_perimetro: [1]`), plan+execute 1.1, POI /execute 1 onda 3 (01-05, 01-06).
 
 ## Findings
 
@@ -33,7 +33,10 @@ fase 01 / onda 2 / slice 01-03, 01-04 / execute in corso (ripresa dopo interruzi
 - deviazioni livello a: 01-01 fmt + rinomina MANIFEST_NAME; 01-02 14 (+1 fix) es. docling-models user 0:0, mem_limit, PDF stdlib → SUMMARY
 - checkpoint 01-02 Task 4: chiavi inserite, GPU VERDE, pesi Docling --all 28,6 GB tenuti · utente 2026-10-19 → DECISIONS-INDEX.md
 - 01-12 spesa Anthropic dimezzata: ripasso plan prima onda 7 · utente 2026-10-19 → DECISIONS-INDEX.md
-- rimbalzi livello b: nessuno
+- onda 2 chiusa: 01-03 (merge 0d0d630) + 01-04 (merge cc202a5), gate onda verde (fmt/clippy/test spikes, compose config, proprieta-file conforme, segreti 0) → 01-03/01-04-SUMMARY.md
+- 01-04 esito: Garage proposto solo parti 2 MiB/1 in volo (default supera VmHWM); 500 dedup concorrente ridotti non eliminati; PG bytea scartato (canale laterale 0/3); PUT idempotente non misurato → ADR-0003 Proposed, s01-upload/RISULTATI.md
+- deviazioni livello a onda 2: 01-03 container esplorativo fuori sessione; 01-04 SIGTERM/after_put, pin_env, bench.sh toglie env host, p5k1→p2k1 dopo misura memoria (83720bb) → SUMMARY
+- rimbalzi livello b: nessuno; segnalazione b su file chiuso 01-02 (session.sh env host) → gap-closure 1.1
 
 ## Limiti trovati
 
@@ -74,3 +77,4 @@ fase 01 / onda 2 / slice 01-03, 01-04 / execute in corso (ripresa dopo interruzi
 **Modifica:** Claude (Anthropic) · 2026-10-19 · --exec fase 01 onda 1
 **Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: interruzione di rete in onda 2
 **Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: DATABASE_URL host nel runner, DNS su due schede
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 2
