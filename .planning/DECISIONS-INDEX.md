@@ -53,4 +53,17 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · crates/contracts: tipi trasversali subito, tipi di dominio file vuoti per le fasi 3 e 7 → `phases/02-fondazione/02-CONTEXT.md#tipi-condivisi-area-e2`
 - 2026-10-21 · React Router 8 data mode, TS 7 se il lint regge, Tailwind 4 + shadcn, registro route esplicito → `phases/02-fondazione/02-CONTEXT.md#shell-frontend-criterio-1-e-5`
 
+## Fase 3 — Provider di ingestion e indice (discuss)
+
+- 2026-10-21 · Firme S-07 confermate con variazioni: search(SearchQuery{text, embedding}) per l'ibrida, DocumentStore::delete per il GC della fase 6, parse su file locale; nel brief di execute di 01-16 → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#firme-delle-porte-conferma-s-07-area-a`
+- 2026-10-21 · Predicato = insieme di etichette, indice agnostico da Q-02; deny by default nel tipo → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#autorizzazione-nellindice-area-b`
+- 2026-10-21 · ACL in proiezione document_acl posseduta dalla fase 3, VectorIndex::set_acl (consumatori 6, 7, 12), versione ACL per documento → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#autorizzazione-nellindice-area-b`
+- 2026-10-21 · publish_version in una sola transazione con puntatore alla versione corrente → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#pubblicazione-delle-versioni-area-c`
+- 2026-10-21 · Locator multi-span con al massimo un confine (PDF e testo), contro raccomandazione; emenda D-10 di fase 1 → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
+- 2026-10-21 · Chunk in caratteri, TEI rifiuta invece di troncare; Docling in fase 3 condizionato ad ADR-0004/D-27 → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
+- 2026-10-21 · SSRF: resolver che scarta IP non globali, redirect controllati, https, tetti, rete Compose dedicata; niente proxy egress → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#connettore-online-area-h`
+- 2026-10-21 · Contract suite unica su reale e fake; reali in CI (PG, Garage, PDFium+Tesseract, TEI CPU) + gate locale GPU in verify → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
+- 2026-10-21 · Fake deterministici con copione di guasti dietro feature testkit, mai in release; fixture ostili copiate con manifest → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
+
 **Modifica:** Claude (Anthropic) · 2026-10-19 · creazione dell'indice con le decisioni dell'onda 1 della fase 1
+**Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 3

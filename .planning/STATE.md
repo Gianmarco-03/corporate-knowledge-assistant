@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11). Traccia discuss: fase 2 contesto discusso, prossimo /discuss 3"
-last_updated: "2026-10-21T15:10:40.528Z"
+stopped_at: "Traccia discuss: fase 3 contesto discusso (criticità critica), prossimo /discuss 4; traccia Spike: onda 4 di fase 1"
+last_updated: "2026-10-21T15:59:34.264Z"
 last_activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
 progress:
   total_phases: 17
@@ -108,6 +108,11 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 2]: Errori problem+json RFC 9457 con code/message/request_id; 503+Retry-After per saturazione, 429 solo rate limit (D-05, D-06) → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
 - [Phase 2]: Proposte runtime Decise (Rust 1.99.1, axum 0.8.9, sqlx 0.9, otel 0.33, reqwest 0.13 senza reqwest-tracing, config); Caddy unico origin; Garage su rete interna senza TLS fino a fase 15 (D-11..D-18) → `phases/02-fondazione/02-CONTEXT.md#ambiente-build-e-ci-plat-06-criteri-1-e-2`
 - [Phase 2]: Frontend React Router 8 data mode, TS 7 se il lint regge, Tailwind 4 + shadcn; registro route esplicito (D-23..D-25) → `phases/02-fondazione/02-CONTEXT.md#shell-frontend-criterio-1-e-5`
+- [Phase 3]: Firme S-07 con variazioni: search con testo+vettore, DocumentStore::delete per GC fase 6, parse su file locale; nel brief execute 01-16 (D-01..D-05) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#firme-delle-porte-conferma-s-07-area-a`
+- [Phase 3]: Predicato = insieme di etichette (indice agnostico da Q-02); ACL in proiezione document_acl della fase 3 con set_acl e versione per documento (D-06..D-08) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#autorizzazione-nellindice-area-b`
+- [Phase 3]: Locator multi-span con al massimo un confine (PDF e testo), contro raccomandazione; emenda D-10 di fase 1; brief di 01-09 e 01-16 (D-10) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
+- [Phase 3]: Chunk in caratteri con TEI che rifiuta invece di troncare; Docling in fase 3 condizionato ad ADR-0004/D-27; SSRF nel processo + rete Compose dedicata (D-11..D-13) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
+- [Phase 3]: Contract suite unica su reale e fake; reali in CI (PG, Garage, PDFium+Tesseract, TEI CPU) + gate locale GPU; fake deterministici con guasti dietro feature testkit (D-14..D-18) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
 
 ### Pending Todos
 
@@ -128,6 +133,6 @@ Recenti, rilevanti per il lavoro corrente:
 
 ## Session Continuity
 
-Last session: 2026-10-21T15:10:40.520Z
-Stopped at: Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11). Traccia discuss: fase 2 contesto discusso, prossimo /discuss 3
-Resume file: .planning/phases/02-fondazione/02-CONTEXT.md
+Last session: 2026-10-21T15:59:34.256Z
+Stopped at: Traccia discuss: fase 3 contesto discusso (criticità critica), prossimo /discuss 4; traccia Spike: onda 4 di fase 1
+Resume file: .planning/phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md

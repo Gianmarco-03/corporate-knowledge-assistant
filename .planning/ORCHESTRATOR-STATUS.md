@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 02 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01.2 verify completato, fase chiusa) · aggiornato: 2026-10-21T15:10Z
+fase 03 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01.2 verify completato, fase chiusa, prossima onda 4 di fase 1) · aggiornato: 2026-10-21T15:58Z
 
 ## Prossima azione
 
-Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati), UAT 01.1 e 01.2 in approfondimento; traccia discuss: /discuss 3 (plan 2 solo dopo discuss 3-15 e fine Spike, ROADMAP «Strategia di consegna»).
+Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati), UAT 01.1 e 01.2 in approfondimento; traccia discuss: /discuss 4 (plan 2/3 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
 
 ## Findings
 
@@ -56,6 +56,14 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 - 02 stack runtime Deciso 2026-10-21, reqwest-tracing escluso, crate config, distroless debian13, Caddy unico origin, /internal bloccate, Garage HTTP rete interna (D-11..D-18) · fonte Area B/D/E
 - 02 OTLP opzionale + Jaeger v2 override (→ fase 14), redazione default, /livez /readyz; contracts: trasversali ora, dominio vuoti (D-19..D-22)
 - 02 frontend React Router 8 data mode, TS 7 se lint regge, Tailwind 4 + shadcn, registro route esplicito (D-23..D-25) · fonte Area D
+- fase 03 criticità critica, ratificata utente 2026-10-21 → 03-CONTEXT.md
+- 03 firme S-07 base + search(SearchQuery{text, embedding}), DocumentStore::delete (consumer GC fase 6), parse su file locale; variazioni → brief execute 01-16 (D-01..D-05) · fonte Area A
+- 03 predicato = insieme etichette (agnostico Q-02, vuoto = zero); proiezione document_acl fase 3 + set_acl (6,7,12) + versione ACL per documento (D-06..D-08) · fonte Area B (Azure security filter, pgvector)
+- 03 publish_version una tx + puntatore versione corrente (D-09) · fonte Area C (PG Read Committed)
+- 03 locator multi-span max un confine, PDF e testo, contro raccomandazione; emenda D-10 fase 1 (Storia scritta) (D-10) · decisione utente
+- 03 chunk in caratteri + TEI rifiuta (no troncamento); Docling in fase 3 condizionato ADR-0004/D-27 (D-11, D-12) · fonte Area D/E
+- 03 SSRF in-process (resolver IP globali, redirect controllati, https, tetti) + rete Compose dedicata; no Smokescreen (D-13) · fonte Area H (OWASP)
+- 03 contract suite unica reale/fake; CI PG+Garage+PDFium/Tesseract+TEI CPU, gate locale GPU (TEI Qwen3, Docling) in verify; testkit mai in release; fake con copione guasti; fixture ostili copiate con manifest (D-14..D-18) · fonte Area I
 
 ## Limiti trovati
 
@@ -93,6 +101,12 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 - 02: rischio pipeline: D-18/D-22 provvisorie fino a ADR-0003 ratificato e ADR-0012 emesso (01-16/01-17).
 - 02: tag Jaeger v2 / Garage / cargo-chef e TS 7 + typescript-eslint da verificare in plan.
 - gate/verify su spikes/: target cache condivisa fra worktree può lasciare un binario di test stale (falsi rossi in verify 01.2) → partire da `cargo clean -p <crate toccato>` nei gate d'onda e in verify
+- 03: brief execute 01-16 ← D-02, D-03, D-04, D-06, D-07, D-08, D-10; brief execute 01-09 ← D-10 (ADR-0005 multi-span) → 03-CONTEXT.md §TODO
+- 03: ROADMAP tabella tracciabilità: delete→6, set_acl→6,7,12, embed_batch→embed_documents/embed_query (gsd-tools, riconciliazione o plan 3)
+- 03: tombstone DELETE /api/v1/documents/{id} senza fase proprietaria → assegnare in discuss 6 o 12; poi VectorIndex::withdraw in riconciliazione
+- 03: discuss 6 Q-02 deve produrre insiemi di etichette (D-06); discuss 12 prima fonte entro D-13
+- 03: threat model SSRF connettore + DNS rebinding (01-17 o plan 3)
+- 03: rischio pipeline: ADR 0004-0007, 0012 non emessi → D-01..D-04, D-10..D-12 provvisorie fino a fine Spike
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 
 ## Decisioni ratificate in corsa
@@ -118,3 +132,4 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: decisione utente sull'hook pre-commit
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 02
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 03
