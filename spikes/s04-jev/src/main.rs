@@ -6,12 +6,13 @@
 //! - `aliases --names jev-latest,jev-1.13.0,jev-preview`;
 //! - `concurrency --levels 4,8,16 --runs 3`;
 //! - `forms --form a|b|c --reps 3 --concurrency <n>`;
-//! - `collect`: dai grezzi di `results/jev/raw/` scrive `forms.csv`,
+//! - `collect`: dai grezzi di `results/raw/jev/` scrive `forms.csv`,
 //!   `concurrency.csv`, `aliases.csv` (serve `hw.json` accanto) e stampa le tabelle.
+//!   I grezzi stanno in `results/raw/jev/` (ignorata da git).
 //!
 //! Ogni invio passa dalla guardia di visibilità del client; il budget
 //! `S04_MAX_COST_USD` vale per l'intera sessione grazie al registro di spesa
-//! `raw/spend.json`, che ogni sottocomando legge prima di partire e aggiorna
+//! `results/raw/jev/spend.json`, che ogni sottocomando legge prima di partire e aggiorna
 //! dopo ogni unità di lavoro.
 //!
 //! Modifica: Claude (gsd-executor 01-11) · 2026-10-21 · CLI dello spike S-04
@@ -167,7 +168,7 @@ enum Cmd {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let raw = cli.results.join("raw");
+    let raw = raw_dir(&cli.results);
     match cli.cmd {
         Cmd::Sets { queries } => cmd_sets(&cli.corpus, queries),
         Cmd::Estimate {
@@ -226,6 +227,16 @@ async fn main() -> anyhow::Result<()> {
 
 // ---------------------------------------------------------------- registro di spesa
 
+/// Grezzi della parte: `results/raw/<parte>/`, coperta da `**/results/raw/` di
+/// `spikes/.gitignore` (una cartella `results/jev/raw/` non lo sarebbe).
+fn raw_dir(results: &Path) -> PathBuf {
+    let part = results.file_name().unwrap_or_default();
+    results
+        .parent()
+        .map_or_else(|| PathBuf::from("raw"), |p| p.join("raw"))
+        .join(part)
+}
+
 fn ledger_path(raw: &Path) -> PathBuf {
     raw.join("spend.json")
 }
@@ -257,7 +268,7 @@ fn client_for(corpus: &Path, raw: &Path, model: Option<&str>) -> anyhow::Result<
     let before = ledger_read(raw)?;
     let remaining = cfg.max_cost_usd - before;
     if remaining <= 0.0 {
-        bail!("budget S04_MAX_COST_USD esaurito dalla sessione (registro raw/spend.json)");
+        bail!("budget S04_MAX_COST_USD esaurito dalla sessione (registro spend.json dei grezzi)");
     }
     cfg.max_cost_usd = remaining;
     if let Some(m) = model {
@@ -715,7 +726,7 @@ fn s(v: &Value) -> String {
 }
 
 fn cmd_collect(corpus: &Path, results: &Path) -> anyhow::Result<()> {
-    let raw = results.join("raw");
+    let raw = raw_dir(results);
     let injection = candidates::injection_passage_ids(corpus)?;
 
     // ---- forms.csv
