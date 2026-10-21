@@ -1,9 +1,18 @@
 //! Client reqwest verso i provider e fan-out con deadline globale (spike S-05).
 
+use futures::StreamExt;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 use tokio::time::Instant;
 
+/// Connessioni inattive tenute nel pool per host: è il tetto delle connessioni stabilite
+/// verso il mock nella soglia di leak (RISULTATI §Soglie).
+pub const POOL_MAX_IDLE_PER_HOST: usize = 8;
+
 /// Protocollo verso il mock.
-// stub del test-write: da implementare in 01-05
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Proto {
     H1,
@@ -11,7 +20,6 @@ pub enum Proto {
 }
 
 /// Esito di un fan-out con deadline.
-// stub del test-write: da implementare in 01-05
 #[derive(Debug, Clone)]
 pub struct FanoutOutcome {
     /// Microsecondi fra la deadline e il ritorno del chiamante (negativo se prima).
@@ -22,33 +30,155 @@ pub struct FanoutOutcome {
 
 /// `reqwest::Client` con `connect_timeout(2 s)`, `pool_idle_timeout(90 s)`;
 /// `Proto::H2` usa `http2_prior_knowledge()`.
-// stub del test-write: da implementare in 01-05
-pub fn build_client(_proto: Proto) -> anyhow::Result<reqwest::Client> {
-    todo!("stub del test-write: build_client")
+///
+/// Client per il solo mock su loopback: nessun proxy di sistema (un `HTTP_PROXY`
+/// dell'ambiente deviarebbe le richieste fuori dal processo). TLS di default di
+/// reqwest 0.13 (Rustls), qui non usato perché il mock è in chiaro su 127.0.0.1.
+pub fn build_client(proto: Proto) -> anyhow::Result<reqwest::Client> {
+    let builder = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(2))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST)
+        .no_proxy();
+    let builder = match proto {
+        Proto::H1 => builder.http1_only(),
+        Proto::H2 => builder.http2_prior_knowledge(),
+    };
+    Ok(builder.build()?)
+}
+
+/// Tetto del corpo letto dal mock (risponde `ok`).
+const MAX_BODY: usize = 64 * 1024;
+
+/// Una richiesta GET completa: `true` se la risposta è 2xx e il corpo, letto a pezzi
+/// entro [`MAX_BODY`], arriva per intero.
+pub async fn call(client: &reqwest::Client, endpoint: &str) -> bool {
+    let Ok(mut resp) = client.get(endpoint).send().await else {
+        return false;
+    };
+    if !resp.status().is_success() {
+        return false;
+    }
+    let mut total = 0usize;
+    while let Ok(next) = resp.chunk().await {
+        match next {
+            Some(piece) => {
+                total += piece.len();
+                if total > MAX_BODY {
+                    return false;
+                }
+            }
+            None => return true,
+        }
+    }
+    false
+}
+
+/// Microsecondi con segno fra `deadline` e `now` (positivo = dopo la deadline).
+pub fn signed_us_after(now: Instant, deadline: Instant) -> i64 {
+    match now.checked_duration_since(deadline) {
+        Some(after) => i64::try_from(after.as_micros()).unwrap_or(i64::MAX),
+        None => -i64::try_from((deadline - now).as_micros()).unwrap_or(i64::MAX),
+    }
 }
 
 /// Variante A: `timeout_at(deadline, iter.map(call).buffer_unordered(concurrency).collect())`.
-// stub del test-write: da implementare in 01-05
+///
+/// Allo scadere `timeout_at` restituisce `Elapsed` e distrugge lo stream: i future
+/// reqwest in volo vengono droppati (h2: `RST_STREAM`; h1: chiusura della connessione)
+/// e quelli non ancora avviati non partono mai.
 pub async fn fanout_variant_a(
-    _client: &reqwest::Client,
-    _url: &str,
-    _fanout: usize,
-    _concurrency: usize,
-    _deadline: Instant,
+    client: &reqwest::Client,
+    url: &str,
+    fanout: usize,
+    concurrency: usize,
+    deadline: Instant,
 ) -> FanoutOutcome {
-    todo!("stub del test-write: fanout_variant_a")
+    let completed = AtomicUsize::new(0);
+    let work = futures::stream::iter(0..fanout)
+        .map(|_| {
+            let completed = &completed;
+            async move {
+                if call(client, url).await {
+                    completed.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        })
+        .buffer_unordered(concurrency.max(1))
+        .collect::<Vec<()>>();
+    let _ = tokio::time::timeout_at(deadline, work).await;
+    let now = Instant::now();
+    outcome(now, deadline, fanout, completed.load(Ordering::SeqCst))
 }
 
 /// Variante B: `JoinSet` + `Arc<Semaphore>(concurrency)`, abort allo scadere della deadline.
-// stub del test-write: da implementare in 01-05
+///
+/// Tutti i task partono subito e attendono un permesso; allo scadere il `JoinSet` viene
+/// distrutto, il che fa `abort` di ogni task (in volo o in attesa del permesso).
 pub async fn fanout_variant_b(
-    _client: &reqwest::Client,
-    _url: &str,
-    _fanout: usize,
-    _concurrency: usize,
-    _deadline: Instant,
+    client: &reqwest::Client,
+    url: &str,
+    fanout: usize,
+    concurrency: usize,
+    deadline: Instant,
 ) -> FanoutOutcome {
-    todo!("stub del test-write: fanout_variant_b")
+    let sem = Arc::new(Semaphore::new(concurrency.max(1)));
+    let completed = Arc::new(AtomicUsize::new(0));
+    let mut set = JoinSet::new();
+    for _ in 0..fanout {
+        let client = client.clone();
+        let endpoint = url.to_owned();
+        let sem = Arc::clone(&sem);
+        let completed = Arc::clone(&completed);
+        set.spawn(async move {
+            let Ok(_permit) = sem.acquire_owned().await else {
+                return;
+            };
+            if call(&client, &endpoint).await {
+                completed.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+    }
+    while let Ok(Some(_)) = tokio::time::timeout_at(deadline, set.join_next()).await {}
+    drop(set);
+    let now = Instant::now();
+    outcome(now, deadline, fanout, completed.load(Ordering::SeqCst))
+}
+
+fn outcome(now: Instant, deadline: Instant, fanout: usize, completed: usize) -> FanoutOutcome {
+    FanoutOutcome {
+        exit_after_deadline_us: signed_us_after(now, deadline),
+        completed,
+        cancelled: fanout.saturating_sub(completed),
+    }
+}
+
+/// Esito di un ciclo di cancellazione verso il mock.
+#[derive(Debug, Clone, Copy)]
+pub struct CycleOutcome {
+    /// Istante (std) in cui scade la cancellazione: riferimento per `server_saw_cancel_ms`.
+    pub cancel_at: std::time::Instant,
+    /// Microsecondi fra la cancellazione programmata e il ritorno del chiamante.
+    pub exit_after_cancel_us: i64,
+    /// La richiesta è terminata prima della cancellazione (non dovrebbe accadere).
+    pub finished_before_cancel: bool,
+}
+
+/// Un ciclo: GET verso `endpoint`, cancellato (drop del future) a `cancel_after`.
+pub async fn cancel_cycle(
+    client: &reqwest::Client,
+    endpoint: &str,
+    cancel_after: Duration,
+) -> CycleOutcome {
+    let start = Instant::now();
+    let cancel_at = start + cancel_after;
+    let res = tokio::time::timeout_at(cancel_at, call(client, endpoint)).await;
+    let now = Instant::now();
+    CycleOutcome {
+        cancel_at: cancel_at.into_std(),
+        exit_after_cancel_us: signed_us_after(now, cancel_at),
+        finished_before_cancel: res.is_ok(),
+    }
 }
 
 #[cfg(test)]
