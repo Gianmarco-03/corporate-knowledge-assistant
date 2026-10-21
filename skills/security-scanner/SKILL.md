@@ -36,8 +36,16 @@ e blocco degli IP privati per le fonti online; cosa succede al timeout JEV
 ### 1. Scansione automatica
 
 ```bash
-python skills/security-scanner/security_scan.py <percorso> [<percorso> ...] [--json]
+python skills/security-scanner/security_scan.py <percorso> [<percorso> ...] [--json]     [--fail-on {MEDIUM,HIGH,CRITICAL}]
 ```
+
+`--fail-on` fissa la soglia di blocco: l'esito è `1` solo se c'è almeno un
+rilevamento di severità pari o superiore. I rilevamenti sotto soglia si
+stampano comunque, marcati `AVVISO`, con una riga che dice che non bloccano;
+l'ultima riga dichiara la soglia effettiva. Il default è `MEDIUM`, e lo usano
+i gate di `plan` e `verify`. L'hook `pre-commit` (e `pre-push`, che passa
+dalla stessa `passo_sicurezza` di `.githooks/controlli-comuni.sh`) lancia lo
+scanner con `--fail-on HIGH`.
 
 Lo script vive solo in `skills/security-scanner/` (in `.claude/skills/` c'è
 solo questo markdown); su questa postazione si può lanciare anche con
@@ -52,10 +60,12 @@ famiglie si applica: su markdown, script e SQL valgono le regole di segreto
 (e TLS per gli script), non quelle di comportamento runtime. Directory
 saltate: `target`, `node_modules`, `.git`, `dist`, `build`, `coverage`.
 
-**Esiti**: `0` nessun rilevamento, `1` almeno un rilevamento, `2` non
+**Esiti**: `0` nessun rilevamento o solo rilevamenti sotto soglia, `1`
+almeno un rilevamento pari o sopra la soglia, `2` non
 eseguito — nessun file scansionabile nello scope (percorsi inesistenti o
 scope vuoto). Uno scope vuoto non è mai verde. In `--json` lo stdout è
-`{findings, excluded_dirs, missing_paths, scanned_files}`, oppure
+`{findings, fail_on, blocking_count, warning_count, excluded_dirs,
+missing_paths, scanned_files}`, dove ogni finding porta `blocking`, oppure
 `{error, message, status: "not-run"}`.
 
 ### 2. Le regole e la loro motivazione
@@ -153,7 +163,22 @@ o con la riga giudicata legittima, motivata, nel report di sicurezza.
 Lo script trova, l'agente giudica. Si elencano CRITICAL, HIGH, MEDIUM con
 `file:riga`, spiegazione e fix. **Qualsiasi CRITICAL ⇒ FAIL** e blocca la
 consegna. HIGH e MEDIUM si chiudono con una correzione o con una
-motivazione scritta. Segreti toccati, decisioni prese, vulnerabilità trovate
+motivazione scritta.
+
+**Regola dell'hook (decisione utente 2026-10-21).** Nel `pre-commit` e nel
+`pre-push` bloccano CRITICAL e HIGH. Un MEDIUM è un avviso: non ferma il
+commit, ma la sua giustificazione va scritta nel SUMMARY del piano che lo
+introduce (regola, `file:riga`, perché è accettabile, quale mitigazione lo
+contiene). Un MEDIUM non motivato nel SUMMARY è un difetto del piano, che il
+gate di `verify` (soglia di default `MEDIUM`) fa riemergere.
+
+*Storia.* Fino al 2026-10-21 l'hook chiamava lo scanner senza soglia, quindi
+bloccava anche i MEDIUM. I parser PDF e ZIP (lopdf, pdfium_render,
+ZipArchive, decoder) producono per natura `pdf-untrusted-parse` e
+`archive-decompress`, richiesti dai piani 01-07, 01-08, 01-09, 01-13 e 01-18:
+con quella regola nessun commit con quel codice passava. La riga finale dello
+script diceva «qualsiasi CRITICAL => FAIL», mentre l'esito era 1 per
+qualsiasi rilevamento; ora dichiara la soglia effettiva. Segreti toccati, decisioni prese, vulnerabilità trovate
 e risolte, esito del gate e rischi residui vanno nello stesso giro nel report
 di sicurezza della fase (`.planning/phases/<fase>/<fase>-SECURITY.md`, quello
 di `gsd-secure-phase`).
@@ -166,3 +191,4 @@ il marcatore), e si conferma con una scansione reale, non solo a occhio: una
 regola su un'estensione che lo scanner non vede è una regola morta.
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+**Modifica:** Claude (Anthropic) · 2026-10-21 · opzione `--fail-on`; l'hook blocca solo CRITICAL e HIGH, i MEDIUM sono avvisi da motivare nel SUMMARY (decisione utente)
