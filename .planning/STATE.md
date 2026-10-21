@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11)
-last_updated: "2026-10-21T15:03:01.024Z"
+stopped_at: "Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11). Traccia discuss: fase 2 contesto discusso, prossimo /discuss 3"
+last_updated: "2026-10-21T15:10:40.528Z"
 last_activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
 progress:
   total_phases: 17
@@ -101,6 +101,13 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01.2]: Rifiuto di record contato da rejected() (metodo additivo), ripiego saturato e avviso unico su stderr, firme invariate → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 - [Phase 01.2]: TEST-15/16 adottati su proposta del test design: ramo Err provato con new_with_max(2047, 3) dal mod tests → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 - [Phase 01.1]: Hook pre-commit invariato: con evidenze solo .txt/.csv il RED entra nel commit della correzione, in sezione distinta (decisione utente) → `../.planning/ORCHESTRATOR-STATUS.md#decisioni-ratificate-in-corsa`
+- [Phase 2]: Contract-first: YAML OpenAPI per servizio, trait Contract (from_json + validate) in crates/contracts, classi Rust a mano, nessun generatore; contract test = oasdiff + Schemathesis --mode all + unit test (D-01..D-03) → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- [Phase 2]: Schema per servizio in un database, search_path per ruolo, test 42501; cataloghi visibili e lock migrazioni unico accettati (D-07, D-08) → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- [Phase 2]: Migrazioni a fascia PPNNNN_nome.sql con gate CI: sqlx legge la versione prima del primo _ e applica fuori ordine in silenzio (D-09) → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- [Phase 2]: Primitive idempotency/outbox/lease alle fasi proprietarie, nessun seam in Fondazione; supera la raccomandazione del ROADMAP (D-10) → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- [Phase 2]: Errori problem+json RFC 9457 con code/message/request_id; 503+Retry-After per saturazione, 429 solo rate limit (D-05, D-06) → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- [Phase 2]: Proposte runtime Decise (Rust 1.99.1, axum 0.8.9, sqlx 0.9, otel 0.33, reqwest 0.13 senza reqwest-tracing, config); Caddy unico origin; Garage su rete interna senza TLS fino a fase 15 (D-11..D-18) → `phases/02-fondazione/02-CONTEXT.md#ambiente-build-e-ci-plat-06-criteri-1-e-2`
+- [Phase 2]: Frontend React Router 8 data mode, TS 7 se il lint regge, Tailwind 4 + shadcn; registro route esplicito (D-23..D-25) → `phases/02-fondazione/02-CONTEXT.md#shell-frontend-criterio-1-e-5`
 
 ### Pending Todos
 
@@ -121,6 +128,6 @@ Recenti, rilevanti per il lavoro corrente:
 
 ## Session Continuity
 
-Last session: 2026-10-19T19:39:45.302Z
-Stopped at: Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11)
-Resume file: None
+Last session: 2026-10-21T15:10:40.520Z
+Stopped at: Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11). Traccia discuss: fase 2 contesto discusso, prossimo /discuss 3
+Resume file: .planning/phases/02-fondazione/02-CONTEXT.md

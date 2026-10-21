@@ -39,4 +39,18 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Rifiuto di record contato da rejected() (metodo additivo), ripiego saturato e avviso unico su stderr, firme invariate → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 - 2026-10-21 · TEST-15/16 adottati su proposta del test design: ramo Err provato con new_with_max(2047, 3) dal mod tests → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 
+## Fase 2 — Fondazione (discuss)
+
+- 2026-10-21 · Contract-first: YAML OpenAPI per servizio, trait Contract (from_json + validate) in crates/contracts, classi Rust a mano, nessun generatore → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- 2026-10-21 · Contract test per servizio: oasdiff breaking + Schemathesis --mode all contro servizio avviato + unit test su validate(), a ogni push → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- 2026-10-21 · Errori problem+json RFC 9457 con code/message/request_id; 503+Retry-After per saturazione, 429 solo rate limit → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- 2026-10-21 · Schema per servizio in un database (contro raccomandazione), search_path per ruolo, test 42501, cataloghi visibili accettati → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- 2026-10-21 · Migrazioni a fascia PPNNNN_nome.sql con gate CI (sqlx: versione = prefisso prima del primo _, fuori ordine applicato in silenzio) → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- 2026-10-21 · Primitive idempotency/outbox/lease alle fasi proprietarie, nessun seam in Fondazione (contro raccomandazione) → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- 2026-10-21 · Proposte runtime Decise alle versioni del 2026-10-21; reqwest-tracing escluso; crate config; distroless debian13 → `phases/02-fondazione/02-CONTEXT.md#ambiente-build-e-ci-plat-06-criteri-1-e-2`
+- 2026-10-21 · Caddy unico origin, /internal/v1 bloccate e solo su rete interna; Garage HTTP su rete interna, TLS in fase 15; niente bind mount → `phases/02-fondazione/02-CONTEXT.md#ambiente-build-e-ci-plat-06-criteri-1-e-2`
+- 2026-10-21 · OTLP opzionale + Jaeger v2 in override (passa a fase 14); redazione di default; /livez e /readyz → `phases/02-fondazione/02-CONTEXT.md#telemetria-log-e-health-criterio-4`
+- 2026-10-21 · crates/contracts: tipi trasversali subito, tipi di dominio file vuoti per le fasi 3 e 7 → `phases/02-fondazione/02-CONTEXT.md#tipi-condivisi-area-e2`
+- 2026-10-21 · React Router 8 data mode, TS 7 se il lint regge, Tailwind 4 + shadcn, registro route esplicito → `phases/02-fondazione/02-CONTEXT.md#shell-frontend-criterio-1-e-5`
+
 **Modifica:** Claude (Anthropic) · 2026-10-19 · creazione dell'indice con le decisioni dell'onda 1 della fase 1

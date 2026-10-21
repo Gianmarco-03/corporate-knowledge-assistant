@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · aggiornato: 2026-10-21
+fase 02 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01.2 verify completato, fase chiusa) · aggiornato: 2026-10-21T15:10Z
 
 ## Prossima azione
 
-/execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati); UAT 01.1 e 01.2 in approfondimento.
+Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati), UAT 01.1 e 01.2 in approfondimento; traccia discuss: /discuss 3 (plan 2 solo dopo discuss 3-15 e fine Spike, ROADMAP «Strategia di consegna»).
 
 ## Findings
 
@@ -47,6 +47,15 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 - verify 01.1: passed 7/7; contratto onorato; WIRING-MAP invariata (nessun seam); PLAT-07 non spuntato; STATE riportato a fase 1 dopo phase complete (che puntava a fase 2); goal ROADMAP 01.1 ancora segnaposto → 01.1-VERIFICATION.md
 - onda 1 di 01.1 chiusa: 01.1-01 (fix 20c5e6f, merge 598022d, bridge 94f2753); test-write RED_EXPECTED; gate main verde (bash -n, compose config, proprieta-file conforme con riapertura, segreti 0, scanner ok) → 01.1-01-SUMMARY.md
 - deviazioni livello a 01.1-01: id piano 01-1-01 (regex senza punto); commit unico RED+GREEN (hook su soli .txt); testo «down -v» riformulato per TEST-10; PLAN riga 114 senza «:» (falso positivo hook) → SUMMARY
+- fase 02 criticità normale, ratificata utente 2026-10-21 → 02-CONTEXT.md
+- 02 contract-first: YAML per servizio, trait Contract (from_json+validate), classi a mano, nessun generatore; oasdiff + Schemathesis --mode all + unit (D-01..D-04) · fonte Area A → 02-CONTEXT.md
+- 02 errori problem+json RFC 9457 + code/message/request_id; 503 saturazione, 429 rate limit (D-05/06) · fonte Area B
+- 02 schema per servizio (contro raccomandazione), search_path per ruolo, test 42501, cataloghi visibili accettati (D-07/08) · fonte Area C
+- 02 migrazioni PPNNNN_nome.sql + gate (sqlx: versione prima del primo _, fuori ordine silenzioso) (D-09) · fonte Area C
+- 02 primitive idempotency/outbox/lease alle fasi proprietarie, nessun seam (contro raccomandazione, allineato 01-CONTRATTO §6) (D-10)
+- 02 stack runtime Deciso 2026-10-21, reqwest-tracing escluso, crate config, distroless debian13, Caddy unico origin, /internal bloccate, Garage HTTP rete interna (D-11..D-18) · fonte Area B/D/E
+- 02 OTLP opzionale + Jaeger v2 override (→ fase 14), redazione default, /livez /readyz; contracts: trasversali ora, dominio vuoti (D-19..D-22)
+- 02 frontend React Router 8 data mode, TS 7 se lint regge, Tailwind 4 + shadcn, registro route esplicito (D-23..D-25) · fonte Area D
 
 ## Limiti trovati
 
@@ -77,7 +86,12 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 - da confermare utente: soglie M10/M11 (01-18); lessico motivi quarantena + exit 3 driver (01-07); pin pip 24.3.1 / pip-tools 7.4.1 non verificati.
 - test_design_3, _6 (07 v2, 13 v2) senza risposta su AgentBridge: obsoleti, sostituiti da _8, _9.
 - D-27 Docling pagine-tabella: scelta dopo misura 01-08 → 01-CONTEXT Deferred Ideas.
-- interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012).
+- interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012); + 503/429 (02 D-06) → 02-CONTEXT TODO.
+- 02: DEPENDENCIES.md Proposte→Decise + contract-first, React Router 8, Caddy, Jaeger, Schemathesis/oasdiff, con Storia → plan 02.
+- 02: ROADMAP/STATE «primitive raccomandate in Fondazione» superata da D-10 → annotare via gsd-tools.
+- 02: IdempotencyKey in contracts o interno per servizio? assunzione provvisoria file vuoto → fase 6; decide wiring-design.
+- 02: rischio pipeline: D-18/D-22 provvisorie fino a ADR-0003 ratificato e ADR-0012 emesso (01-16/01-17).
+- 02: tag Jaeger v2 / Garage / cargo-chef e TS 7 + typescript-eslint da verificare in plan.
 - gate/verify su spikes/: target cache condivisa fra worktree può lasciare un binario di test stale (falsi rossi in verify 01.2) → partire da `cargo clean -p <crate toccato>` nei gate d'onda e in verify
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 
@@ -103,3 +117,4 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: decisione utente sull'hook pre-commit
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 02
