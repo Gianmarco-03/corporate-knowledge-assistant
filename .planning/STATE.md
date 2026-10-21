@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: "Traccia discuss: fase 4 contesto discusso (criticità critica), prossimo /discuss 5; traccia Spike: onda 4 di fase 1"
-last_updated: "2026-10-21T16:59:55.550Z"
-last_activity: 2026-10-21 -- piano 01-11 completato (JEV rank), 01-07 fermo
+last_updated: "2026-10-21T17:06:52.712Z"
+last_activity: 2026-10-21 -- piano 01.3-01 completato (compose /work)
 progress:
   total_phases: 18
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 21
-  completed_plans: 9
-  percent: 11
+  completed_plans: 10
+  percent: 17
 ---
 
 # Project State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 7 of 18 in current phase
 Status: Executing — fasi 1.1 e 1.2 chiuse; prossima onda 4 di fase 1
-Last activity: 2026-10-21 -- piano 01-11 completato (JEV rank), 01-07 fermo
+Last activity: 2026-10-21 -- piano 01.3-01 completato (compose /work)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -129,6 +129,9 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 4]: Snapshot OpenAPI JEV con hash; minimizzazione verso JEV e Anthropic; inference_geo global, nessun dato utente (D-11..D-13) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#adapter-jev-area-b`
 - [Phase 4]: AuditSink PG append-only per servizio, evento tipizzato; hash chain (contro raccomandazione), verify_chain → fase 11 (D-14..D-19) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#auditsink-area-f-forma-provvisoria-fino-a-q-04`
 - [Phase 4]: NoOpCache + fake in memoria con scope; replay wiremock in CI + gate locale a 0,50 USD; prova no-leak a sentinelle (D-20..D-23) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#contract-test-prova-no-leak-e-adapter-reali-aree-h-i`
+- [Phase 01.3]: tmpfs /work del worker con uid/gid 10001 e mode=0700 in sintassi corta; scartati 1777, /work nell'immagine e sintassi lunga → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#decisions-made`
+- [Phase 01.3]: Docker monta il tmpfs con noexec/nosuid/nodev: per 01-07 nessun binario si esegue da /work → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#punti-aperti`
+- [Phase 01.3]: TEST-5 e TEST-13 del design 01.3-01 difettosi (regex non ancorata, conflitto su «nessun down -v»): da correggere se riusati → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#deviations-from-plan`
 
 ### Pending Todos
 

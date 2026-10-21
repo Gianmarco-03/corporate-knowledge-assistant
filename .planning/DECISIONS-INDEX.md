@@ -48,6 +48,12 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Rifiuto di record contato da rejected() (metodo additivo), ripiego saturato e avviso unico su stderr, firme invariate → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 - 2026-10-21 · TEST-15/16 adottati su proposta del test design: ramo Err provato con new_with_max(2047, 3) dal mod tests → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 
+## Fase 1.3 — Gap-closure di compose.yaml
+
+- 2026-10-21 · tmpfs /work del worker con uid/gid 10001 e mode=0700 in sintassi corta; scartati 1777, /work nell'immagine e sintassi lunga → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#decisions-made`
+- 2026-10-21 · Docker monta il tmpfs con noexec/nosuid/nodev: per 01-07 nessun binario si esegue da /work → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#punti-aperti`
+- 2026-10-21 · TEST-5 e TEST-13 del design 01.3-01 difettosi (regex non ancorata, conflitto su «nessun down -v»): da correggere se riusati → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#deviations-from-plan`
+
 ## Fase 2 — Fondazione (discuss)
 
 - 2026-10-21 · Contract-first: YAML OpenAPI per servizio, trait Contract (from_json + validate) in crates/contracts, classi Rust a mano, nessun generatore → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
