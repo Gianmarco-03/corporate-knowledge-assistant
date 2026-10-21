@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Onda 1 completata; prossima onda 2 (01-03, 01-04)
-last_updated: "2026-10-21T09:48:59.140Z"
-last_activity: 2026-10-21 -- piano 01-03 completato (corpus)
+stopped_at: Onda 2 completata; prima dell'onda 3 gap-closure fase 1.1 (session.sh)
+last_updated: "2026-10-21T09:49:32.368Z"
+last_activity: 2026-10-21 -- onda 2 completata (01-03, 01-04)
 progress:
   total_phases: 15
   completed_phases: 0
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 3 of 18 in current phase
-Status: Executing — onda 2 in chiusura
-Last activity: 2026-10-21 -- piano 01-03 completato (corpus)
+Plan: 4 of 18 in current phase
+Status: Executing — onda 2 completata
+Last activity: 2026-10-21 -- onda 2 completata (01-03, 01-04)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -73,6 +73,13 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 1]: Fonte IT unica Banca d'Italia; niente SEC EDGAR (UA con recapito personale), 10-K dal PDF Berkshire → `phases/01-spike-tecnici/01-03-SUMMARY.md#decisions-made`
 - [Phase 1]: Manifest del corpus immutabile: fetch.sh e build.sh non riscrivono gli hash; sostituzione = voce nuova con motivo → `phases/01-spike-tecnici/01-03-SUMMARY.md#decisions-made`
 - [Phase 1]: Trappola «Progetto Cormorano» al posto di «Aurora», che collide con un Project Aurora reale nel BIS AER 2025 → `phases/01-spike-tecnici/01-03-SUMMARY.md#decisions-made`
+- [Phase 1]: Garage dietro DocumentStore solo con parti da 2 MiB e 1 in volo: il default di object_store supera la soglia VmHWM → `../spikes/s01-upload/RISULTATI.md#decisione-proposta`
+- [Phase 1]: PG bytea scartato per gli originali: canale laterale della deduplica 0/3 anche con ON CONFLICT DO UPDATE → `../docs/adr/0003-storage-originali-garage.md#decisione`
+- [Phase 1]: PUT idempotente con HEAD proposto per i 500 di Garage sulla dedup concorrente, non misurato: da provare nell'adapter → `../spikes/s01-upload/RISULTATI.md#decisione-proposta`
+- [Phase 1]: GC orfani con N = 24 h e protocollo live|deleting + pending, provato sulle sole interleaving enumerate → `../docs/adr/0003-storage-originali-garage.md#conseguenze`
+- [Phase 1]: Mitigazione del canale laterale su Garage spostata da parti 5 a 2 MiB dopo la misura di memoria, prima dei tempi → `../spikes/s01-upload/RISULTATI.md#anomalie-e-deviazioni`
+- [Phase 1]: Parti da 2 MiB sotto il minimo S3 di 5 MiB: portabilità non verificata, da valutare in 01-16/01-17 → `phases/01-spike-tecnici/01-04-SUMMARY.md#punti-aperti`
+- [Phase 1]: DATABASE_URL di sistema (altro progetto) eliminata dall'utente; difetto di session.sh (env host vince) → gap-closure fase 1.1 prima dell'onda 3 → `phases/01-spike-tecnici/01-04-SUMMARY.md#punti-aperti`
 
 ### Pending Todos
 
@@ -94,5 +101,5 @@ Recenti, rilevanti per il lavoro corrente:
 ## Session Continuity
 
 Last session: 2026-10-19T19:39:45.302Z
-Stopped at: Onda 1 completata; prossima onda 2 (01-03, 01-04)
+Stopped at: Onda 2 completata; prima dell'onda 3 gap-closure fase 1.1 (session.sh)
 Resume file: None
