@@ -101,4 +101,68 @@ mod tests {
         assert_eq!(empty.n, 0);
         assert_eq!(empty.max_us, 0);
     }
+
+    /// Criterio intero dello 0,1 %: `|got - exp| * 1000 <= exp`. Non va in
+    /// overflow per i valori usati qui (al massimo 60_000_000 × 1000).
+    fn assert_within_0_1_pct(label: &str, got: u64, exp: u64) {
+        assert!(
+            got.abs_diff(exp) * 1000 <= exp,
+            "{label}: got = {got}, exp = {exp}, oltre lo 0,1 %"
+        );
+    }
+
+    #[test]
+    fn hist_single_values_above_initial_range() {
+        // 1 ms sta sotto il massimo iniziale dell'istogramma (2047) ed è il
+        // controllo; 10 ms, 1 s e 60 s richiedono il ridimensionamento.
+        for v in [1_000u64, 10_000, 1_000_000, 60_000_000] {
+            let mut r = Recorder::new();
+            r.record_us(v);
+            let s = r.summary();
+            assert_eq!(s.n, 1, "v = {v}: n = {}", s.n);
+            assert_within_0_1_pct(&format!("v = {v}: p50_us"), s.p50_us, v);
+            assert_within_0_1_pct(&format!("v = {v}: p99_us"), s.p99_us, v);
+            assert_within_0_1_pct(&format!("v = {v}: max_us"), s.max_us, v);
+        }
+    }
+
+    #[test]
+    fn hist_mixed_latencies_percentiles() {
+        // Ranghi su 1000 campioni: p50 = 500° (gruppo 401-900, 10_000),
+        // p95 = 950°/951° (gruppo 901-980, 1_000_000), p99 = 990°/991°
+        // (gruppo 981-999, 5_000_000), max = 1000° (60_000_000). Ogni
+        // percentile cade lontano dai confini dei gruppi.
+        let mut r = Recorder::new();
+        for (count, v) in [
+            (400u64, 1_000u64),
+            (500, 10_000),
+            (80, 1_000_000),
+            (19, 5_000_000),
+            (1, 60_000_000),
+        ] {
+            for _ in 0..count {
+                r.record_us(v);
+            }
+        }
+        let s = r.summary();
+        assert_eq!(s.n, 1000, "n = {}", s.n);
+        assert_within_0_1_pct("p50_us", s.p50_us, 10_000);
+        assert_within_0_1_pct("p95_us", s.p95_us, 1_000_000);
+        assert_within_0_1_pct("p99_us", s.p99_us, 5_000_000);
+        assert_within_0_1_pct("max_us", s.max_us, 60_000_000);
+    }
+
+    #[test]
+    fn hist_extreme_value_u64_max() {
+        // Con auto-resize nessun valore u64 viene rifiutato su target a 64 bit
+        // (test upstream hdrhistogram `tests/auto_resize.rs:6-19`). Confronto
+        // esatto: `highest_equivalent(u64::MAX)` restituisce `u64::MAX`, e il
+        // criterio dello 0,1 % andrebbe in overflow.
+        let mut r = Recorder::new();
+        r.record_us(1_000);
+        r.record_us(u64::MAX);
+        let s = r.summary();
+        assert_eq!(s.n, 2, "n = {}", s.n);
+        assert_eq!(s.max_us, u64::MAX, "max_us = {}", s.max_us);
+    }
 }
