@@ -9,7 +9,7 @@ fase 03 / — / — / discuss completato (traccia discuss; traccia Spike: fase 0
 
 ## Prossima azione
 
-Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati), UAT 01.1 e 01.2 in approfondimento; traccia discuss: /discuss 4 (plan 2/3 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
+Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati), UAT 01.1 e 01.2 accettate; traccia discuss: /discuss 4 (plan 2/3 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
 
 ## Findings
 
@@ -81,9 +81,9 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 
 ## UAT
 
-- 01.1 pendente · TEST-8 conteggio grep -F sentinelle letterali attestato solo da rapporti (driver cancellato per piano) → 01.1-VERIFICATION.md
-- 01.1 pendente · RISK-14/15/16 LOW da confermare accettati (RISK-14 elenco reale vuoto) → 01.1-01-SUMMARY.md
-- 01.2 pendente · RISK-12 memoria auto-resize ≤ ~450 KB/Recorder senza benchmark; RISK-13 commento s05 «2047» storico (01-05-SUMMARY annotato) → 01.2-VERIFICATION.md
+- 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
+- 01.1 accettata · utente 2026-10-21 · RISK-14 vuoto (manca solo CKA_RUN_ID, impostato da dc()); RISK-15 0 collisioni; RISK-16 0 nomi non ASCII/non validi → 01.1-01-SUMMARY.md
+- 01.2 accettata · utente 2026-10-21 · RISK-12 memoria auto-resize ≤ ~704 KiB allocati/Recorder (≈3,4 MiB caso peggiore con 5 Recorder, ≈880 KiB a 60 s), calcolo da sorgente, misura diretta fallita (LNK1104); RISK-13 commento s05 accettato, correzione alla prossima riapertura fase 1 → 01.2-01-SUMMARY.md
 
 ## TODO
 
@@ -107,6 +107,7 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 - 03: discuss 6 Q-02 deve produrre insiemi di etichette (D-06); discuss 12 prima fonte entro D-13
 - 03: threat model SSRF connettore + DNS rebinding (01-17 o plan 3)
 - 03: rischio pipeline: ADR 0004-0007, 0012 non emessi → D-01..D-04, D-10..D-12 provvisorie fino a fine Spike
+- difetto commento spikes/s05-cancel/src/main.rs:279-281 (file chiuso 01-05): dice «satura a 2047 µs» al presente, reale era 2 µs e oggi corretto → correggere nella prossima gap-closure che riapre la fase 1 · utente 2026-10-21
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 
 ## Decisioni ratificate in corsa
@@ -133,3 +134,4 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: decisione utente sull'hook pre-commit
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 02
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 03
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --uat fasi 01.1 e 01.2 accettate
