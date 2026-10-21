@@ -71,6 +71,7 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 - 2026-10-20 · API Claude irraggiungibile (ENOTFOUND, DNS) durante onda 2: esecutore 01-03 morto senza commit, test-write 01-04 morto con test non committati · impatto: ripresa con agenti nuovi da primo task non committato · rif. 01-ONDE.md onda 2
 - 2026-10-20 · DATABASE_URL di sistema Windows (DB cloud Neon altro progetto) vince su --env-file nell'interpolazione compose di session.sh: gc_race (TRUNCATE) tentò 2× quel DB, nessuna connessione riuscita (DNS, poi TLS assente) · impatto: workaround in bench.sh 9341b43; difetto file chiuso 01-02 → gap-closure fase 1.1 prima onda 3 (decisione utente; utente toglie la variabile) · rif. .planning/tmp/rapporto-01-04.yaml → 01-04-SUMMARY
 - 2026-10-20 · DNS intermittente: 2 schede attive (Fritz!Box 192.168.178.1 + hotspot 172.20.10.1); cargo fetch runner 35/35 falliti, 2° esecutore 01-04 morto ENOTFOUND · impatto: build runner offline con vendor host; riprese agenti; utente lascia rete com'è
+- 2026-10-21 · 01-07 fermo su 3 blocchi esterni al piano: B1 scanner MEDIUM bloccante (pdf-untrusted-parse, archive-decompress) → hook --fail-on HIGH 4441aef; B2 tmpfs /work root 755 nel compose.yaml chiuso (worker uid 10001) → gap-closure 1.3; B3 soglie prescan rifiutano 8/8 PDF benigni (object stream conteggio×64 MiB, /Encrypt solo permessi, allegato) + B4 formula su VmPeak → ripasso plan 01-07 · utente 2026-10-21 · impatto: 01-11 fuso prima di 01-07; lavoro 01-07 Task 3 in worktree + patch in TEMP/cka-0107-wip · rif. .planning/tmp/rapporto-01-07.yaml
 
 ## Gate & verdetti
 
@@ -135,3 +136,4 @@ Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 02
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 03
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --uat fasi 01.1 e 01.2 accettate
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: 01-07 fermo su tre blocchi, decisioni utente

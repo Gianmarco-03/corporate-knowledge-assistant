@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: "Traccia discuss: fase 3 contesto discusso (criticità critica), prossimo /discuss 4; traccia Spike: onda 4 di fase 1"
-last_updated: "2026-10-21T15:59:34.264Z"
+last_updated: "2026-10-21T16:31:00.144Z"
 last_activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
 progress:
   total_phases: 17
@@ -113,6 +113,9 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 3]: Locator multi-span con al massimo un confine (PDF e testo), contro raccomandazione; emenda D-10 di fase 1; brief di 01-09 e 01-16 (D-10) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
 - [Phase 3]: Chunk in caratteri con TEI che rifiuta invece di troncare; Docling in fase 3 condizionato ad ADR-0004/D-27; SSRF nel processo + rete Compose dedicata (D-11..D-13) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
 - [Phase 3]: Contract suite unica su reale e fake; reali in CI (PG, Garage, PDFium+Tesseract, TEI CPU) + gate locale GPU; fake deterministici con guasti dietro feature testkit (D-14..D-18) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
+- [Phase 1]: Hook pre-commit blocca solo CRITICAL/HIGH (--fail-on HIGH); i MEDIUM sono avvisi da motivare nel SUMMARY; gate di plan/verify invariati → `../skills/security-scanner/SKILL.md`
+- [Phase 1]: Gap-closure 1.3: tmpfs /work del worker scrivibile da uid 10001 in compose.yaml (file chiuso 01-02) + commento s05-cancel → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
+- [Phase 1]: Ripasso di plan 01-07: object stream su somma reale decompressa ≤512 MiB, PDF con password utente vuota ammessi, allegati ignorati e registrati, memoria su VmHWM → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
 
 ### Pending Todos
 

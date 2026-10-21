@@ -24,6 +24,9 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Fan-out: variante A timeout_at+buffer_unordered di default, B JoinSet+Semaphore solo per task indipendenti; HTTP/2 preferito → `../docs/adr/0010-deadline-cancellazione-http.md#decisione`
 - 2026-10-21 · Addebito JEV dopo il drop non determinabile (console vuota 2026-10-21): cancellate contate come addebitate, lettura da ripetere → `../spikes/s05-cancel/RISULTATI.md#esito`
 - 2026-10-21 · Difetto hist.rs (01-01): Recorder satura a 2047 µs; gap-closure riapre_perimetro [1], verificare s01-upload → `phases/01-spike-tecnici/01-05-SUMMARY.md#deviations-from-plan`
+- 2026-10-21 · Hook pre-commit blocca solo CRITICAL/HIGH (--fail-on HIGH); i MEDIUM sono avvisi da motivare nel SUMMARY; gate di plan/verify invariati → `../skills/security-scanner/SKILL.md`
+- 2026-10-21 · Gap-closure 1.3: tmpfs /work del worker scrivibile da uid 10001 in compose.yaml (file chiuso 01-02) + commento s05-cancel → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
+- 2026-10-21 · Ripasso di plan 01-07: object stream su somma reale decompressa ≤512 MiB, PDF con password utente vuota ammessi, allegati ignorati e registrati, memoria su VmHWM → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
 
 ## Fase 1.1 — Gap-closure di session.sh
 
