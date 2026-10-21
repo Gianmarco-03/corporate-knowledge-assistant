@@ -79,10 +79,11 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
 **Depends on:** Phase 1
-**Plans:** 0 plans
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 01.2 to break down)
+
+- [x] TBD (run /gsd-plan-phase 01.2 to break down) (completed 2026-10-21)
 
 ### Phase 01.1: Gap-closure session.sh: segreti di spikes.env prevalgono su env host (INSERTED)
 

@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Onda 3 completata; prossima onda 4 (o gap-closure 1.2 su hist.rs)
-last_updated: "2026-10-21T14:03:39.413Z"
-last_activity: 2026-10-21 -- onda 3 completata (01-05, 01-06)
+last_updated: "2026-10-21T14:41:56.859Z"
+last_activity: 2026-10-21 -- piano 01.2-01 completato (hist.rs)
 progress:
   total_phases: 17
-  completed_phases: 1
-  total_plans: 19
-  completed_plans: 7
-  percent: 6
+  completed_phases: 2
+  total_plans: 20
+  completed_plans: 8
+  percent: 12
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 
 Phase: 1 of 15 (Spike tecnici)
 Plan: 6 of 18 in current phase
-Status: Executing — onda 3 completata
-Last activity: 2026-10-21 -- onda 3 completata (01-05, 01-06)
+Status: Executing — fase 1.2 eseguita, da verificare; poi onda 4 di fase 1
+Last activity: 2026-10-21 -- piano 01.2-01 completato (hist.rs)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -96,6 +96,9 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 1]: Fan-out: variante A timeout_at+buffer_unordered di default, B JoinSet+Semaphore solo per task indipendenti; HTTP/2 preferito → `../docs/adr/0010-deadline-cancellazione-http.md#decisione`
 - [Phase 1]: Addebito JEV dopo il drop non determinabile (console vuota 2026-10-21): cancellate contate come addebitate, lettura da ripetere → `../spikes/s05-cancel/RISULTATI.md#esito`
 - [Phase 1]: Difetto hist.rs (01-01): Recorder satura a 2047 µs; gap-closure riapre_perimetro [1], verificare s01-upload → `phases/01-spike-tecnici/01-05-SUMMARY.md#deviations-from-plan`
+- [Phase 01.2]: Il Recorder registra con record (auto-resize); il difetto reale saturava a 2 µs, non a 2047 → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#il-difetto-reale-più-grave-di-quello-del-context`
+- [Phase 01.2]: Rifiuto di record contato da rejected() (metodo additivo), ripiego saturato e avviso unico su stderr, firme invariate → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
+- [Phase 01.2]: TEST-15/16 adottati su proposta del test design: ramo Err provato con new_with_max(2047, 3) dal mod tests → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 
 ### Pending Todos
 
