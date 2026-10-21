@@ -1,0 +1,21 @@
+case,size_bytes,expected_status,actual_status,bytes_read_before_reject,db_rows_after,objects_after,tmpfiles_after,pass
+25MiB-1,26214399,200/accepted,200/accepted,26214610,1,1,0,true
+25MiB,26214400,200/accepted,200/accepted,26214611,1,1,0,true
+100MiB,104857600,413,413,0,0,0,0,true
+25MiB+1,26214401,413,413,26214401,0,0,0,true
+pdf-sintetico,200000,200/accepted,200/accepted,200208,1,1,0,true
+docx-sintetico,582,200/accepted,200/accepted,800,1,1,0,true
+markdown,58,200/accepted,200/accepted,269,1,1,0,true
+polyglot,127,415,415,334,0,0,0,true
+magic-mismatch,147,415,415,360,0,0,0,true
+zip-bomb,1044354,422,422,1044570,0,0,0,true
+dtd,582,422,422,794,0,0,0,true
+encrypted,1079,422,422,1287,0,0,0,true
+javascript,194,200/quarantined,200/quarantined,403,1,1,0,true
+javascript-offuscato,196,200/quarantined,200/quarantined,415,1,1,0,true
+launch,185,200/quarantined,200/quarantined,390,1,1,0,true
+embedded,215,200/quarantined,200/quarantined,422,1,1,0,true
+troncato,524288,422,422,524496,0,0,0,true
+duplicato,10485760,200/200,200/200,20971520,2,1,0,true
+interrotto,10485760,chiusura client,nessuna risposta,2162688,0,0,0,true
+crash-fra-put-e-tx,1048576,nessuna riga; orfano raccolto da gc N=0,100; orfani prima del gc 1,1048576,0,0,1,true

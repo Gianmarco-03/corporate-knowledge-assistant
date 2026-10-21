@@ -1,0 +1,2 @@
+case,max_inflight,max_validations,peak_active_uploads,peak_active_validations,status_503,status_408,fd_baseline,fd_after,tmp_bytes_after,pass
+slow12_docx6_half_closed,4,2,4,1,14,3,13,14,0,true
