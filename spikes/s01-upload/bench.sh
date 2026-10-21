@@ -553,7 +553,9 @@ host_mitig() {
 }
 
 # Canale laterale delle configurazioni mitigate, con il protocollo pre-registrato
-# (sessione pulita per ogni <sessione>, stesse regole di host_dedup).
+# (sessione pulita per ogni <sessione>, stesse regole di host_dedup). Garage con parti da
+# 2 MiB e una parte in volo: l'unica configurazione mitigata che sta sotto la soglia di
+# VmHWM in `host mitig` (sessione 303e), quindi quella che l'Esito propone.
 host_dedup_mitig() {
   local session=$1
   [[ $session =~ ^[123]$ ]] || die "sessione 1..3"
@@ -566,9 +568,9 @@ host_dedup_mitig() {
   bash "$S" oneshot "$RID" -- bash s01-upload/bench.sh dedup-client --adapter pgbytea \
     --label pgbytea-update --session "$session" --rid "$RID"
   stop_server
-  start_server --adapter garage --bench --garage-part-mib 5 --garage-part-concurrency 1
+  start_server --adapter garage --bench --garage-part-mib 2 --garage-part-concurrency 1
   bash "$S" oneshot "$RID" -- bash s01-upload/bench.sh dedup-client --adapter garage \
-    --label garage-p5k1 --session "$session" --rid "$RID"
+    --label garage-p2k1 --session "$session" --rid "$RID"
   stop_server
 }
 
@@ -619,7 +621,7 @@ host_finalize() {
   $p tsv2csv --input "$raw/correctness.tsv" --out "$r/correctness.csv" \
     --header case,size_bytes,expected_status,actual_status,bytes_read_before_reject,db_rows_after,objects_after,tmpfiles_after,pass
   local a s
-  for a in garage pgbytea null pgbytea-update garage-p5k1; do
+  for a in garage pgbytea null pgbytea-update garage-p2k1; do
     for s in 1 2 3; do $p dedup-ci --csv "$r/dedup_timing.csv" --adapter "$a" --session "$s" || true; done
   done
 }
