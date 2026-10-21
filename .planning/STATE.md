@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Onda 3 completata; prossima onda 4 (o gap-closure 1.2 su hist.rs)
-last_updated: "2026-10-21T14:00:47.223Z"
+last_updated: "2026-10-21T14:03:39.413Z"
 last_activity: 2026-10-21 -- onda 3 completata (01-05, 01-06)
 progress:
-  total_phases: 16
+  total_phases: 17
   completed_phases: 1
   total_plans: 19
   completed_plans: 7
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 ### Roadmap Evolution
 
 - Phase 01.1 inserted after Phase 1: Gap-closure session.sh (file chiuso 01-02): env host vince su --env-file; riapre_perimetro [1]; prima dell'onda 3 di fase 1 (URGENT)
+- Phase 01.2 inserted after Phase 1: Gap-closure spikes/common/src/hist.rs (file chiuso 01-01): saturating_record satura a 2047 µs; riapre_perimetro [1]; prima dell'onda 4 di fase 1 (URGENT)
 
 ### Decisions
 
