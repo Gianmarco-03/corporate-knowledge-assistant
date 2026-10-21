@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.1 chiusa; prossima onda 3 di fase 1 (01-05, 01-06)
-last_updated: "2026-10-21T12:15:16.024Z"
-last_activity: 2026-10-21 -- fase 1.1 verificata (passed) e chiusa
+last_updated: "2026-10-21T13:59:36.783Z"
+last_activity: 2026-10-21 -- piano 01-06 completato (oracoli)
 progress:
   total_phases: 16
   completed_phases: 1
   total_plans: 19
-  completed_plans: 5
+  completed_plans: 7
   percent: 6
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 4 of 18 in current phase
 Status: Executing — fase 1.1 verificata e chiusa; prossima onda 3 di fase 1
-Last activity: 2026-10-21 -- fase 1.1 verificata (passed) e chiusa
+Last activity: 2026-10-21 -- piano 01-06 completato (oracoli)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -87,6 +87,10 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01.1]: dc() toglie con env -u, dal solo processo compose, le variabili dell'host omonime (in maiuscolo) delle chiavi di spikes.env; la shell non cambia → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#decisions-made`
 - [Phase 01.1]: Id di piano 01-1-01 nelle sessioni di session.sh: le regex rifiutano il punto; fixture TEST-11/12 allineate, non indebolite → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#deviations-from-plan`
 - [Phase 01.1]: Commit unico RED+GREEN+regressione: l'hook rifiuta i commit di soli .txt (security-scope-empty); regola dell'hook da decidere → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#punti-aperti`
+- [Phase 1]: Utente 2026-10-21: ratifica-tutti sugli 85 oracoli CONFIRMED (74 query, 11 parser nelle misure) → `phases/01-spike-tecnici/01-06-SUMMARY.md#decisions-made`
+- [Phase 1]: Derivatore degli oracoli = esecutore del piano: deviazione accettata dall'utente, TEST-10 non verde → `../spikes/data/corpus/oracles/ORACOLI.md#da-dove-vengono-i-valori`
+- [Phase 1]: TODO-01 P-006: «teneteli», restano riquadro WEB e didascalia nell'oracolo → `../spikes/data/corpus/oracles/ORACOLI.md#to-do-di-dominio`
+- [Phase 1]: TODO-02: resta la regola di complessità; Q-008/010/012/040/048/056 fuori dalle misure (GPT non CONFIRMED), reinviabili → `../spikes/data/corpus/oracles/ORACOLI.md#to-do-di-dominio`
 
 ### Pending Todos
 
