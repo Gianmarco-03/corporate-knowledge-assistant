@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.1 / — / slice 01.1-01 / plan completato · aggiornato: 2026-10-21
+fase 01.1 / onda 1 / slice 01.1-01 / execute completato · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-/execute 01.1 (1 onda, 01.1-01, Opus, Docker acceso), POI /execute 1 onda 3 (01-05, 01-06).
+/verify 01.1 (gap-closure session.sh, 1 piano), POI /execute 1 onda 3 (01-05, 01-06); decisione utente pendente su hook pre-commit e commit di sole evidenze .txt/.csv (vedi TODO).
 
 ## Findings
 
@@ -39,6 +39,8 @@ fase 01.1 / — / slice 01.1-01 / plan completato · aggiornato: 2026-10-21
 - rimbalzi livello b: nessuno; segnalazione b su file chiuso 01-02 (session.sh env host) → gap-closure 1.1
 - fase 01.1 inserita (gsd-phase), criticità normale · utente 2026-10-21; CONTEXT D-01..D-04 → 01.1-CONTEXT.md
 - plan 01.1: 1 piano (checker PASSED 1° giro), gate 6/6 conformi o n/a dichiarati, test design Claude 16 RISK / 14 TEST → 01.1-GATE.md, 01.1-01-TEST-DESIGN.md, 01.1-CONTRATTO.md, 01.1-ONDE.md
+- onda 1 di 01.1 chiusa: 01.1-01 (fix 20c5e6f, merge 598022d, bridge 94f2753); test-write RED_EXPECTED; gate main verde (bash -n, compose config, proprieta-file conforme con riapertura, segreti 0, scanner ok) → 01.1-01-SUMMARY.md
+- deviazioni livello a 01.1-01: id piano 01-1-01 (regex senza punto); commit unico RED+GREEN (hook su soli .txt); testo «down -v» riformulato per TEST-10; PLAN riga 114 senza «:» (falso positivo hook) → SUMMARY
 
 ## Limiti trovati
 
@@ -66,6 +68,7 @@ fase 01.1 / — / slice 01.1-01 / plan completato · aggiornato: 2026-10-21
 - test_design_3, _6 (07 v2, 13 v2) senza risposta su AgentBridge: obsoleti, sostituiti da _8, _9.
 - D-27 Docling pagine-tabella: scelta dopo misura 01-08 → 01-CONTEXT Deferred Ideas.
 - interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012).
+- da decidere utente: hook pre-commit rifiuta commit di sole evidenze .txt/.csv (security-scope-empty rc=2) → commit RED separato impossibile (01-04, 01.1-01) → 01.1-01-SUMMARY.md#punti-aperti
 
 ## Decisioni ratificate in corsa
 
@@ -81,3 +84,4 @@ fase 01.1 / — / slice 01.1-01 / plan completato · aggiornato: 2026-10-21
 **Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: DATABASE_URL host nel runner, DNS su due schede
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --plan fase 01.1
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01.1 onda 1
