@@ -9,6 +9,8 @@
 //!
 //! Ogni sottocomando verifica `results/hw.json` prima di misurare.
 
+// Modifica: Claude (gsd-executor 01.3-01) · 2026-10-21 · doc comment di Exact al passato: il Recorder saturava a 2 µs (gap-closure 1.3)
+
 mod client;
 mod jev;
 mod probe;
@@ -277,8 +279,10 @@ fn main() -> anyhow::Result<()> {
 
 /// Percentili esatti (metodo nearest-rank) su campioni in microsecondi.
 ///
-/// Non si usa `common::hist::Recorder`: con `saturating_record` l'istogramma non si
-/// ridimensiona e satura a 2047 µs (difetto registrato nel rapporto di 01-05).
+/// In origine non si usava `common::hist::Recorder`: con `saturating_record`
+/// l'istogramma non si ridimensionava e saturava a 2 µs (difetto registrato nel
+/// rapporto di 01-05). Il difetto è stato corretto nella gap-closure 1.2 (RISK-13).
+/// `Exact` resta perché calcola i percentili esatti, senza l'approssimazione dell'istogramma.
 #[derive(Default)]
 struct Exact(Vec<i64>);
 
