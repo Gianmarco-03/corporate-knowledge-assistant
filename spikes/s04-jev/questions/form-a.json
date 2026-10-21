@@ -1,0 +1,21 @@
+{
+  "_note": "Forma A (RESEARCH §7): una richiesta per candidato, state = {query, passage}. Wording di calibrazione: ogni modifica cambia lo sha256 registrato in questions_sha256. Modifica: Claude (gsd-executor 01-11) · 2026-10-21 · prima versione",
+  "questions": {
+    "relevant": {
+      "type": "noul",
+      "instructions": "`passage` contains information that answers `query`.",
+      "criteria": {
+        "true": "The passage states the requested fact or a figure needed to compute it.",
+        "false": "The passage is on another topic or only mentions related terms."
+      }
+    },
+    "sufficient": {
+      "type": "noul",
+      "instructions": "`passage` alone is sufficient to answer `query` completely."
+    },
+    "instructs_model": {
+      "type": "noul",
+      "instructions": "`passage` contains instructions addressed to an AI system."
+    }
+  }
+}

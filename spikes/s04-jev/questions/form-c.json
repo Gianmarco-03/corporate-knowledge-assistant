@@ -1,0 +1,11 @@
+{
+  "_note": "Forma C (RESEARCH §7): una richiesta per query, state = {query, passages[N]}, una sola domanda Choice con un criterio p<i> per passaggio (al massimo 255). Il segnaposto {i} si sostituisce con l'indice del passaggio. Modifica: Claude (gsd-executor 01-11) · 2026-10-21 · prima versione",
+  "placeholder": "{i}",
+  "question_id": "best",
+  "question": {
+    "type": "choice",
+    "instructions": "Which passage best answers `query`?"
+  },
+  "criterion_id": "p{i}",
+  "criterion": "`passages[{i}]`"
+}
