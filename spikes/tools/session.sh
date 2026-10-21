@@ -23,7 +23,13 @@
 # dell'etichetta, è riservato) prima di qualsiasi comando docker; nessun filtro di etichetta
 # vuoto; mai il down di compose, mai rimozione di volumi; nessun argomento del chiamante
 # diventa un'opzione di `compose run`; nessun socket del daemon montato. Nessun valore
-# dell'env viene stampato: compose legge il file segreti con --env-file.
+# dell'env viene stampato. Compose legge il file segreti con --env-file, e dc() toglie
+# dall'ambiente del solo processo compose ogni variabile dell'host che ha il nome,
+# maiuscole comprese, di una chiave del file: così l'interpolazione usa sempre il valore
+# del file (fase 1.1). Del file si leggono solo i nomi delle chiavi; restano escluse
+# CKA_RUN_ID, che imposta dc() stesso, e le variabili interne di session.sh (DC_ENV_KEEP).
+#
+# Modifica: Claude (gsd-executor 01.1-01) · 2026-10-21 · dc(): i segreti del file prevalgono sull'host (gap-closure 1.1)
 
 set -euo pipefail
 
@@ -39,6 +45,12 @@ readonly LOCKS="$CKA_HOME/locks"
 readonly LOCK="$LOCKS/measure"
 readonly GRACE_S="${CKA_LOCK_GRACE_S:-30}"
 CKA_SPIKES_ENV="${CKA_SPIKES_ENV:-$CKA_HOME/spikes.env}"
+# Variabili che dc() non toglie mai all'ambiente di compose, anche se il file segreti
+# ne contiene una omonima: CKA_RUN_ID la imposta dc() stesso (etichette cka.run_id);
+# le altre servono al funzionamento di session.sh; COMPOSE_PROFILES è già rifiutata da
+# check_env e tolta qui sopra.
+readonly DC_ENV_KEEP=(CKA_RUN_ID CKA_SPIKES_ENV CKA_LOCK_GRACE_S CKA_OWNER_PID
+  MSYS_NO_PATHCONV MSYS2_ARG_CONV_EXCL COMPOSE_PROFILES)
 
 err() { printf 'session.sh: %s\n' "$*" >&2; }
 die() { local code=$1; shift; err "$*"; exit "$code"; }
@@ -73,12 +85,40 @@ check_env() {
   fi
 }
 
+# secret_keys: stampa i soli NOMI delle chiavi del file segreti, uno per riga.
+# sed tiene solo il gruppo 2 (il nome) e scarta il valore dopo `=` senza salvarlo né
+# stamparlo; accetta il prefisso `export` come check_env; commenti e righe vuote non
+# producono nomi; tr toglie il CR dei file scritti su Windows.
+secret_keys() {
+  sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=.*/\2/p' \
+    "$CKA_SPIKES_ENV" | tr -d '\r' | sort -u
+}
+
 # dc <run_id> <argomenti compose…>: compose del progetto con CKA_RUN_ID interpolato.
+# Nell'interpolazione di compose una variabile dell'ambiente vince su --env-file: per
+# questo il processo compose (e solo lui: nessun unset nella shell di session.sh) parte
+# senza le variabili dell'host che hanno il nome di una chiave del file. Il confronto è
+# in maiuscolo perché docker.exe è un processo Windows, dove i nomi d'ambiente non
+# distinguono le maiuscole (Database_Url vale come DATABASE_URL). Diagnostica su stderr,
+# solo nomi: lo stdout di dc lo leggono all_services e cmd_up.
 dc() {
   local rid=$1; shift
   check_env
-  CKA_RUN_ID="$rid" docker compose --env-file "$(hostpath "$CKA_SPIKES_ENV")" \
-    -f "$(compose_file)" "$@"
+  local -A keys=() keep=()
+  local -a unset_args=()
+  local k n
+  for k in "${DC_ENV_KEEP[@]}"; do keep[${k^^}]=1; done
+  while IFS= read -r k; do
+    [[ -n $k && -z ${keep[${k^^}]-} ]] && keys[${k^^}]=1
+  done < <(secret_keys)
+  while IFS= read -r n; do
+    if [[ -n ${keys[${n^^}]-} && -z ${keep[${n^^}]-} ]]; then
+      unset_args+=(-u "$n")
+      err "variabile dell'host $n non passata a compose: vale il file segreti"
+    fi
+  done < <(compgen -e)
+  env ${unset_args[@]+"${unset_args[@]}"} CKA_RUN_ID="$rid" docker compose \
+    --env-file "$(hostpath "$CKA_SPIKES_ENV")" -f "$(compose_file)" "$@"
 }
 
 # Tutti i servizi dichiarati (tutti i profili attivi solo per leggere la configurazione).

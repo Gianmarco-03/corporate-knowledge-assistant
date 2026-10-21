@@ -1,0 +1,209 @@
+# session-env-precedence — i segreti di spikes.env prevalgono sull'ambiente dell'host (fase 1.1, D-01/D-02)
+# data UTC: 2026-10-21T11:05:00Z  git_rev base: dfb5dd4
+# La parte RED usa session.sh di base (identico a 58ee617); la parte GREEN usa session.sh con la correzione.
+# Identificativo di piano per session.sh: 01-1-01, perché new-id, acquire e la regex del run_id rifiutano il punto di 01.1-01.
+
+sonda P = h(){ printf %s "$1" | sha256sum | cut -d" " -f1; }; s=assente; [ "$(h "${DATABASE_URL-}")" = "$1" ] && s=presente; p=no; case "${DATABASE_URL-}" in *@postgres:5432/*) p=si;; esac; c=no; case "${DATABASE_URL-}" in *:"${POSTGRES_PASSWORD-}"@postgres:*) c=si;; esac; t=assente; [ "$(h "${TYPESAFE_API_KEY-}")" = "$2" ] && t=presente; if [ -n "${CKA_SENTINELLA_HOST+x}" ]; then o=presente; else o=assente; fi; echo "DATABASE_URL sentinella=$s, punta_a_postgres=$p, coerente_con_POSTGRES_PASSWORD=$c"; echo "TYPESAFE_API_KEY sentinella=$t"; echo "CKA_SENTINELLA_HOST: $o"
+
+Sentinelle: una URL postgres fittizia senza password verso un host .invalid e una chiave fittizia, esportate solo nell'ambiente del comando; i loro hash sono calcolati nel driver e passati alla sonda come argomenti. Nessun valore, sentinella o hash è trascritto qui.
+
+run_id RED = 01-1-01-20261021t110500z-aaa8
+
+$ CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-1-01 01-1-01-20261021t110500z-aaa8 --wait 1800
+PRENOTATO run_id=01-1-01-20261021t110500z-aaa8 piano=01-1-01
+[exit 0]
+
+## Prova 1 (RED): variabili omonime dell'host, session.sh senza correzione
+
+$ DATABASE_URL="$SENT_DB" TYPESAFE_API_KEY="$SENT_KEY" CKA_SENTINELLA_HOST=1 bash spikes/tools/session.sh oneshot 01-1-01-20261021t110500z-aaa8 -- sh -c "$SONDA" sonda "$SENT_DB_SHA" "$SENT_KEY_SHA"
+ Container cka-spikes-runner-run-5df99b6f4cb8 Creating 
+ Container cka-spikes-runner-run-5df99b6f4cb8 Created 
+DATABASE_URL sentinella=presente, punta_a_postgres=no, coerente_con_POSTGRES_PASSWORD=no
+TYPESAFE_API_KEY sentinella=presente
+CKA_SENTINELLA_HOST: assente
+[exit 0]
+
+$ env -u DATABASE_URL Database_Url="$SENT_DB" TYPESAFE_API_KEY="$SENT_KEY" CKA_SENTINELLA_HOST=1 bash spikes/tools/session.sh oneshot 01-1-01-20261021t110500z-aaa8 -- sh -c "$SONDA" sonda "$SENT_DB_SHA" "$SENT_KEY_SHA"
+ Container cka-spikes-runner-run-04e8624f1f9a Creating 
+ Container cka-spikes-runner-run-04e8624f1f9a Created 
+DATABASE_URL sentinella=assente, punta_a_postgres=si, coerente_con_POSTGRES_PASSWORD=si
+TYPESAFE_API_KEY sentinella=presente
+CKA_SENTINELLA_HOST: assente
+[exit 0]
+
+esito 1-RED: 1a DATABASE_URL sentinella=presente (atteso presente), punta_a_postgres=no (atteso no), TYPESAFE_API_KEY sentinella=presente (atteso presente); 1b Database_Url sentinella=assente (osservato, nessun atteso per il RED); CKA_SENTINELLA_HOST assente (atteso assente)
+
+## Pulizia RED
+
+$ bash spikes/tools/session.sh down 01-1-01-20261021t110500z-aaa8
+DOWN run_id=01-1-01-20261021t110500z-aaa8: rimossi 0, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-1-01-20261021t110500z-aaa8
+RILASCIATO run_id=01-1-01-20261021t110500z-aaa8
+[exit 0]
+
+GREEN: session.sh con la correzione nell'albero (dfb5dd4 + diff)
+
+run_id GREEN = 01-1-01-20261021t111026z-f680
+
+$ CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-1-01 01-1-01-20261021t111026z-f680 --wait 1800
+PRENOTATO run_id=01-1-01-20261021t111026z-f680 piano=01-1-01
+[exit 0]
+
+## Prova 1 (GREEN): variabili omonime dell'host, session.sh corretto
+
+$ DATABASE_URL="$SENT_DB" TYPESAFE_API_KEY="$SENT_KEY" CKA_SENTINELLA_HOST=1 bash spikes/tools/session.sh oneshot 01-1-01-20261021t111026z-f680 -- sh -c "$SONDA" sonda "$SENT_DB_SHA" "$SENT_KEY_SHA"
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+ Container cka-spikes-runner-run-342d1401405b Creating 
+ Container cka-spikes-runner-run-342d1401405b Created 
+DATABASE_URL sentinella=assente, punta_a_postgres=si, coerente_con_POSTGRES_PASSWORD=si
+TYPESAFE_API_KEY sentinella=assente
+CKA_SENTINELLA_HOST: assente
+[exit 0]
+
+$ env -u DATABASE_URL Database_Url="$SENT_DB" TYPESAFE_API_KEY="$SENT_KEY" CKA_SENTINELLA_HOST=1 bash spikes/tools/session.sh oneshot 01-1-01-20261021t111026z-f680 -- sh -c "$SONDA" sonda "$SENT_DB_SHA" "$SENT_KEY_SHA"
+session.sh: variabile dell'host Database_Url non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+ Container cka-spikes-runner-run-f9fde9b26bc2 Creating 
+ Container cka-spikes-runner-run-f9fde9b26bc2 Created 
+DATABASE_URL sentinella=assente, punta_a_postgres=si, coerente_con_POSTGRES_PASSWORD=si
+TYPESAFE_API_KEY sentinella=assente
+CKA_SENTINELLA_HOST: assente
+[exit 0]
+
+esito 1-GREEN: 1a DATABASE_URL sentinella=assente (atteso assente), punta_a_postgres=si (atteso si), coerente_con_POSTGRES_PASSWORD=si (atteso si), TYPESAFE_API_KEY sentinella=assente (atteso assente); 1b Database_Url sentinella=assente (atteso assente), punta_a_postgres=si (atteso si)
+
+## Prova 2: variabile dell'host assente dal file segreti
+
+esito 2: CKA_SENTINELLA_HOST RED assente (atteso assente), GREEN assente (atteso assente)
+chiavi interpolate dal compose e assenti dal file segreti (rischio residuo, solo nomi): VAR
+nota: VAR viene dai commenti di spikes/compose.yaml (righe 4 e 14, dove `${VAR}` è un esempio), non da un'interpolazione reale; ripetendo il confronto sulle sole righe non commentate l'elenco è vuoto: nessuna chiave reale del compose è assente dal file segreti.
+
+## Pulizia GREEN
+
+$ bash spikes/tools/session.sh down 01-1-01-20261021t111026z-f680
+DOWN run_id=01-1-01-20261021t111026z-f680: rimossi 0, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-1-01-20261021t111026z-f680
+RILASCIATO run_id=01-1-01-20261021t111026z-f680
+[exit 0]
+
+## Prova 3: regressione dei sottocomandi e prove negative di session-negative.txt
+
+Per tutta la prova 3 il driver esporta DATABASE_URL="$SENT_DB" e TYPESAFE_API_KEY="$SENT_KEY".
+
+run_id A = 01-1-01-20261021t111106z-ded7
+
+$ bash spikes/tools/session.sh acquire 01-1-01 01-1-01-20261021t111106z-ded7 --wait 1800
+PRENOTATO run_id=01-1-01-20261021t111106z-ded7 piano=01-1-01
+[exit 0]
+
+### 3a: assert-only (prova a di session-negative.txt)
+
+$ bash spikes/tools/session.sh up 01-1-01-20261021t111106z-ded7 postgres
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+SET RISOLTO = NOMINATO: {postgres }
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+ Container cka-spikes-postgres-1 Creating 
+ Container cka-spikes-postgres-1 Created 
+ Container cka-spikes-postgres-1 Starting 
+ Container cka-spikes-postgres-1 Started 
+ Container cka-spikes-postgres-1 Waiting 
+ Container cka-spikes-postgres-1 Healthy 
+CONTAINER della sessione 01-1-01-20261021t111106z-ded7 (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-1-01-20261021t111106z-ded7  running
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+ASSERT-ONLY ok: in esecuzione solo {postgres}
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot 01-1-01-20261021t111106z-ded7 -- true
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+ Container cka-spikes-runner-run-7e2e894a2959 Creating 
+ Container cka-spikes-runner-run-7e2e894a2959 Created 
+[exit 0]
+
+$ bash spikes/tools/session.sh ps 01-1-01-20261021t111106z-ded7 --assert-only garage
+CONTAINER della sessione 01-1-01-20261021t111106z-ded7 (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-1-01-20261021t111106z-ded7  running
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+session.sh: in esecuzione un servizio fuori elenco: postgres (cka-spikes-postgres-1, run_id=01-1-01-20261021t111106z-ded7)
+[exit 1]
+
+$ bash spikes/tools/session.sh ps 01-1-01-20261021t111106z-ded7 --assert-only postgres
+CONTAINER della sessione 01-1-01-20261021t111106z-ded7 (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-1-01-20261021t111106z-ded7  running
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+ASSERT-ONLY ok: in esecuzione solo {postgres}
+[exit 0]
+
+esito 3a: up postgres exit 0 (atteso 0), oneshot exit 0 (atteso 0), assert-only garage exit 1 (atteso 1), assert-only postgres exit 0 (atteso 0)
+
+### 3b: rifiuto di un servizio già in esecuzione con un'altra sessione (prova b di session-negative.txt)
+
+container di A prima:
+6aec4a3a396d cka-spikes-postgres-1 running 01-1-01-20261021t111106z-ded7
+
+$ bash spikes/tools/session.sh release 01-1-01-20261021t111106z-ded7
+RILASCIATO run_id=01-1-01-20261021t111106z-ded7
+[exit 0]
+
+run_id B = 01-1-01-20261021t111111z-a7af
+
+$ bash spikes/tools/session.sh acquire 01-1-01 01-1-01-20261021t111111z-a7af --wait 1800
+PRENOTATO run_id=01-1-01-20261021t111111z-a7af piano=01-1-01
+[exit 0]
+
+$ bash spikes/tools/session.sh up 01-1-01-20261021t111111z-a7af postgres
+session.sh: variabile dell'host DATABASE_URL non passata a compose: vale il file segreti
+session.sh: variabile dell'host TYPESAFE_API_KEY non passata a compose: vale il file segreti
+SET RISOLTO = NOMINATO: {postgres }
+session.sh: servizio postgres già in esecuzione con un'altra sessione (cka-spikes-postgres-1, run_id=01-1-01-20261021t111106z-ded7): non lo tocco
+[exit 1]
+
+container di A dopo:
+6aec4a3a396d cka-spikes-postgres-1 running 01-1-01-20261021t111106z-ded7
+
+container di A intatto: stesso ID e stato prima/dopo
+
+esito 3b: up B postgres exit 1 (atteso 1)
+
+esito 3: regressione ok (acquire, up, oneshot, ps --assert-only, release, new-id; prove a e b di session-negative.txt con gli stessi exit code)
+
+## Pulizia
+
+$ bash spikes/tools/session.sh down 01-1-01-20261021t111111z-a7af
+DOWN run_id=01-1-01-20261021t111111z-a7af: rimossi 0, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-1-01-20261021t111111z-a7af
+RILASCIATO run_id=01-1-01-20261021t111111z-a7af
+[exit 0]
+
+$ bash spikes/tools/session.sh acquire 01-1-01 01-1-01-20261021t111106z-ded7 --wait 1800
+PRENOTATO run_id=01-1-01-20261021t111106z-ded7 piano=01-1-01
+[exit 0]
+
+$ bash spikes/tools/session.sh down 01-1-01-20261021t111106z-ded7
+DOWN run_id=01-1-01-20261021t111106z-ded7: rimossi 1, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-1-01-20261021t111106z-ded7
+RILASCIATO run_id=01-1-01-20261021t111106z-ded7
+[exit 0]
+
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+[exit 0]
+
+container cka-spikes rimasti:
+(fine elenco)
+volumi docker: elenco identico prima/dopo (nessun volume creato o rimosso; compose mai lanciato con la rimozione dei volumi)
