@@ -6,6 +6,7 @@
 - Sostituisce: nessuno
 
 **Modifica:** Claude (gsd-executor 01-05) · 2026-10-21 · ADR proposto con le misure dello spike S-05; esito sull'addebito JEV in lettura dall'utente
+**Modifica:** Claude (gsd-executor 01-05) · 2026-10-21 · esito sull'addebito JEV dopo la lettura dell'utente: non determinabile (console vuota)
 
 ## Contesto
 
@@ -66,7 +67,12 @@ In tutti e nove gli scenari di cancellazione (mock h1, mock h2, wiremock × 50, 
   - ogni porta verso un provider porta una deadline in firma: è un vincolo per S-07 e per tutti gli adapter, fake compresi;
   - con HTTP/1 (provider senza h2) ogni cancellazione costa una riconnessione: con deadline strette va messo in conto l'handshake;
   - le misure della deadline sono 18 run per variante: il p99 coincide con il massimo, con ampio margine sulla soglia ma senza una stima della coda estrema.
-- **Addebito JEV dopo il drop: in lettura dall'utente.** Le 20 richieste cancellate a 50 ms (2026-10-21, dalle 13:32:17.806Z alle 13:33:00.800Z UTC) e le 5 di controllo (dalle 13:35:02.846Z alle 13:35:11.841Z UTC, 332 + 21 token ciascuna) vanno confrontate nella console typesafe. Finché l'esito non è noto, il budget di costo conta come addebitate anche le richieste cancellate.
+- **Addebito JEV dopo il drop: non determinabile** (lettura dell'utente del 2026-10-21).
+  - **Le finestre controllate:** le 20 richieste cancellate a 50 ms (2026-10-21, dalle 13:32:17.806Z alle 13:33:00.800Z UTC) e le 5 di controllo (dalle 13:35:02.846Z alle 13:35:11.841Z UTC, 332 + 21 token ciascuna).
+  - **La risposta dell'utente, testuale:** «vuota». Nella console di typesafe.ai non compare nessuna richiesta nelle finestre indicate, nemmeno le 5 di controllo.
+  - **Perché non è determinabile:** la console non mostra neppure le richieste di controllo, completate con 200. Non distingue quindi né conferma l'addebito: può esserci un ritardo di aggregazione, oppure la console riguarda un altro account o un'altra vista.
+  - **Conseguenza:** nel budget di costo le richieste cancellate si contano come addebitate.
+  - **Punto aperto:** la lettura si può ripetere più avanti.
 
 ## Evidenze
 
@@ -81,4 +87,4 @@ In tutti e nove gli scenari di cancellazione (mock h1, mock h2, wiremock × 50, 
 | Drop visto dal server, h2 (3 × 10.000 cicli) | 100 %, max 7,061 ms | ≥ 95 % entro 100 ms |
 | Drop visto dal server, h1 (3 × 10.000 cicli) | 100 %, max 23,517 ms | senza soglia |
 | Task, fd e connessioni a fine scenario (9 scenari) | uguali alla base | task ± 2, fd + 2, conn. ≤ 8 |
-| JEV: richieste cancellate / di controllo | 20 droppate a 50-52 ms / 5 × 200, `jev-1.13.0` | nessuna soglia; addebito in lettura |
+| JEV: richieste cancellate / di controllo | 20 droppate a 50-52 ms / 5 × 200, `jev-1.13.0` | nessuna soglia; addebito non determinabile (console vuota, 2026-10-21) |

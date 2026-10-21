@@ -22,6 +22,8 @@ Tabella immutabile dopo il commit che la introduce: correzioni solo in «Anomali
 
 **Modifica:** Claude (gsd-executor 01-05) · 2026-10-21 · setup, risultati, anomalie ed esito dopo le misure (le Soglie sopra sono invariate)
 
+**Modifica:** Claude (gsd-executor 01-05) · 2026-10-21 · esito sull'addebito JEV dopo la lettura dell'utente: non determinabile (Task 3)
+
 ## Setup
 
 - Hardware: `results/hw.json` (sha256 `4a3ab747ccc485032f037fc00a143da56f486d2ebc32acbd6ccb98372049d4d9`, sessione `01-05-20261021t124025z-2846`): i7-13700K con 16 core e 24 thread, 32 GiB, Docker Desktop 29.8.2 su WSL 2 (16 CPU e 19,5 GiB alla VM), piano energetico «Bilanciato». Il manifest è normalizzato allo schema di `common::manifest` (vedi «Anomalie e deviazioni»); l'originale sta in `results/raw/`.
@@ -112,7 +114,7 @@ Percentili esatti (nearest-rank), ricalcolati dai grezzi per ciclo. I tempi sono
   - quando il client chiude una connessione h1, hyper droppa l'handler in pochi ms (100 % dei cicli, p99 ≤ 3,9 ms);
   - in wiremock 0.6.5 `set_delay` e `received_requests` funzionano come descritto;
   - `num_alive_tasks` è stabile in tokio 1.53, senza `tokio_unstable`.
-- **[NV] di §11.13 (addebito JEV):** aperto, in attesa della lettura in console (Task 3).
+- **[NV] di §11.13 (addebito JEV):** resta aperto. La lettura in console del 2026-10-21 è risultata vuota, anche per le richieste di controllo, quindi l'esito è «non determinabile» (vedi «Esito»). La lettura si può ripetere più avanti.
 
 ## Esito
 
@@ -133,9 +135,14 @@ Percentili esatti (nearest-rank), ricalcolati dai grezzi per ciclo. I tempi sono
 - **Alternative scartate:**
   - un timeout per ogni richiesta senza deadline globale: non limita la durata del fan-out;
   - `tokio::spawn` senza `JoinSet`: alla scadenza i task restano vivi, ed è proprio il caso che il test dei task (base ± 2) esclude.
-- **Addebito JEV dopo il drop: in lettura dall'utente.** Vanno confrontate nella console typesafe:
-  - le 20 richieste cancellate, dalle 13:32:17.806Z alle 13:33:00.800Z UTC;
-  - le 5 di controllo, dalle 13:35:02.846Z alle 13:35:11.841Z UTC, con 332 + 21 token ciascuna.
+- **Addebito JEV dopo il drop: non determinabile** (lettura dell'utente del 2026-10-21).
+  - **Le finestre controllate nella console typesafe:**
+    - le 20 richieste cancellate, dalle 13:32:17.806Z alle 13:33:00.800Z UTC;
+    - le 5 di controllo, dalle 13:35:02.846Z alle 13:35:11.841Z UTC, con 332 + 21 token ciascuna.
+  - **La risposta dell'utente, testuale:** «vuota». Nella console non compare nessuna richiesta nelle finestre indicate, nemmeno le 5 di controllo.
+  - **Perché l'esito è «non determinabile»:** la console non mostra neppure le 5 richieste di controllo, che sono state completate con status 200. Quindi non distingue né conferma l'addebito. Le cause possibili sono due: un ritardo di aggregazione della console, oppure una console che riguarda un altro account o un'altra vista.
+  - **Conseguenza per il budget di costo:** le richieste cancellate si contano come addebitate.
+  - **Punto aperto:** la lettura si può ripetere più avanti, sulle stesse finestre orarie.
 - **Impatto sulle porte (S-07):**
   - `DecisionEngine`, `AnswerGenerator`, `Embedder` e il trait stretto `Reranker::rank` (ADR-0012) ricevono una deadline esplicita (`tokio::time::Instant`) o un contesto di query che la contiene;
   - l'adapter non si costruisce una deadline sua più lunga, e la cancellazione è il drop del future;
