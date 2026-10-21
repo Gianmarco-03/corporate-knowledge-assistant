@@ -243,4 +243,72 @@ Decisione con la regola pre-registrata: **PG `bytea` mitigato non supera** (0 se
 
 ## Esito
 
-(da compilare dopo le misure)
+**Modifica:** Claude (gsd-executor 01-04, ripresa 4) · 2026-10-21 · esito di S-01 e A-02
+
+### Esito delle soglie
+
+| Soglia | Esito | Evidenza |
+|--------|-------|----------|
+| Puro streaming, delta dhat 25 − 1 MiB < 2 MiB | **supera** (1,03 MiB) | `dhat_*.json` |
+| Percorso completo, delta `VmHWM` 25 − 1 MiB < 8 MiB | PG `bytea` e nullo **superano**; Garage con la configurazione di default di `object_store` **non supera** (42,6 / 48,1 MiB); Garage a parti da 2 MiB con una parte in volo **supera** (1,2 / 1,9 MiB) | `mem_by_size.csv` |
+| Ack p95 ≤ 500 ms, 10 MiB, Garage, `new`, c = 1 e 4 | **supera** con il default (318,6 / 49,5 e 101,6 / 78,9 ms) e con le parti da 2 MiB (58,0 / 59,7 e 97,0 / 99,6 ms) | `adapters.csv` |
+| Confini 25 MiB e byte letti prima del 413 | **supera** | `correctness.csv` |
+| Correttezza al 100 % | **supera** (20 su 20) | `correctness.csv` |
+| `new` 200 → 200 sha e 200 oggetti; `dedup` → 1 oggetto | **supera** in tutte le righe di Garage e PG | `adapters.csv` |
+| Admission control | **supera** | `admission.csv` |
+| Canale laterale della deduplica | Garage **supera** (default e parti da 2 MiB, 3 sessioni su 3); PG `bytea` **non supera**, né con `ON CONFLICT DO NOTHING` né con la riscrittura dei chunk (0 su 3 in entrambi i casi) | `dedup_timing.csv` |
+| Range da 64 KiB p95 ≤ 50 ms | **supera** (Garage 3,267 ms, PG 0,742 ms) | `storage.csv` |
+| GC contro adozione concorrente, interleaving enumerate | **supera** (8 su 8) | `gc_race.csv` |
+
+Il criterio 1 della fase è chiuso con una condizione: la memoria del percorso completo è costante rispetto alla dimensione solo se il client S3 ha un buffer di multipart limitato. La configurazione di default di `object_store` (parti da 10 MiB, fino a 8 in volo) tiene in memoria un file intero fino a 25 MiB, e non va usata.
+
+Fuori soglia ma da portare avanti: nella deduplica concorrente (stesso corpo, c ≥ 4, file ≥ 10 MiB) Garage restituisce 500 su una parte delle richieste, fino a 78 su 200 con il default a 25 MiB e c = 16, ancora 2-13 su 200 a 10 MiB con le parti piccole. La causa sta nel multipart concorrente sulla stessa chiave (diagnosi in «Anomalie e deviazioni»).
+
+### Decisione proposta
+
+**Garage dietro la porta `DocumentStore`, client `object_store` (D-01 confermata)**, con tre condizioni che vengono dalle misure:
+
+1. **buffer del multipart limitato:** parti da 2 MiB e una parte in volo (`BufWriter::with_capacity(…, 2 MiB).with_max_concurrency(1)`), cioè la configurazione `garage-p2k1`, l'unica misurata che supera sia la soglia di memoria sia quella del canale laterale; il budget di memoria per upload è dimensione della parte × parti in volo, e resta un parametro dell'adapter, non della porta;
+2. **PUT idempotente sulla chiave di contenuto:** quando il PUT di un hash fallisce, l'adapter verifica con un HEAD che l'oggetto `sha256/<hex>` esista con la dimensione attesa e in quel caso considera il PUT riuscito; solo altrimenti l'errore risale. È la correzione proposta per i 500 della deduplica concorrente: non è stata misurata nello spike e va provata (con lo stesso carico `dedup` a c = 16 e con il canale laterale) dove si implementa l'adapter;
+3. **N = 24 h** per il GC degli orfani, con il protocollo di adozione `live|deleting` + `pending` provato sulle interleaving enumerate.
+
+### Alternative scartate
+
+Confronti solo a parità di dimensione, carico e concorrenza (run 2 / run 3).
+
+- **PG `bytea` a chunk da 1 MiB (D-06):** scartato per il canale laterale e per la latenza sotto concorrenza. Canale laterale: non supera in 3 sessioni su 3 con `ON CONFLICT DO NOTHING` (la deduplica è più veloce di 32-194 ms) e in 3 su 3 anche con la riscrittura dei chunk (intervalli fino a [−191; −38] ms con T = 39,8 ms). Latenza, 10 MiB `new`, p95: 1_170,8 / 1_169,3 ms a c = 4 contro 101,6 / 78,9 ms di Garage; 4_734,3 / 6_043,7 ms a c = 16 contro 281,6 / 278,0 ms; a 25 MiB e c = 16, 12_175,0 / 14_444,0 ms contro 805,9 / 972,6 ms. WAL di 1_123_080 byte per MiB scritto: ogni originale passa due volte sul disco del database. A suo favore restano la memoria costante, nessun 500 nella deduplica concorrente e la lettura per range più veloce (0,742 contro 3,267 ms di p95, entrambe molto sotto la soglia di 50 ms): non bastano a compensare il canale laterale, che è un requisito di sicurezza (T-11).
+- **Adapter nullo:** è la baseline dello streaming e dell'hash (p95 a 10 MiB `new` 15,0 / 17,1 ms a c = 1), non persiste nulla e non è un'opzione di prodotto. Serve a leggere i costi: a 10 MiB e c = 1 lo storage su Garage aggiunge 42,8 / 32,8 ms di p50 (56,5 / 46,7 contro 13,7 / 13,9 ms).
+- **MinIO CE e RustFS** non sono stati misurati: MinIO CE è archiviato (2026-04-25) e RustFS è GA solo dal 2026-09-16 (01-CONTEXT, D-01).
+
+### Impatto su porte (S-07)
+
+Da trascrivere nelle firme candidate di `spikes/s07-ports/src/lib.rs` (proprietario 01-16, WIRING W16); qui solo come testo:
+
+- `DocumentStore::put` riceve un `ContentHash` già calcolato in streaming e il percorso di un file già validato (nessuna validazione dentro l'adapter); la chiave fisica è `sha256/<hex>` e non contiene mai il nome file del client;
+- `put` è **idempotente per chiave**, anche sotto PUT concorrenti dello stesso hash (condizione 2 della decisione); il caso d'uso esegue `put` sempre, anche quando l'oggetto esiste già, così la sequenza è la stessa con o senza deduplica;
+- `get` con range (`Range<u64>`), per il viewer;
+- `delete` usato solo dal GC;
+- nessun tipo di `object_store` (`ObjectStore`, `Path`, `PutResult`, errori) in firma: errori di dominio;
+- il buffer del multipart (dimensione della parte e parti in volo) è configurazione dell'adapter;
+- il protocollo di adozione `live|deleting` + `pending` (adozione A prima del PUT, adozione B dentro la transazione dei metadati e dell'outbox, GC in tre passi con l'I/O fuori transazione) è il contratto fra il caso d'uso di upload e il GC;
+- l'admission control (tetto di upload in corso con 503 + `Retry-After`, semaforo di validazione, budget di byte temporanei, deadline di ricezione e di validazione, permesso e tempfile tenuti dal lavoro blocking fino alla fine) è un requisito del caso d'uso di upload, non dell'adapter;
+- all'avvio il servizio ripulisce i tempfile rimasti da un crash (nel caso `crash-fra-put-e-tx` l'`abort` ne lascia uno in `/work/tmp/srv`).
+
+### Impatto threat model
+
+Da riportare in `docs/security/threat-model.md` dal consolidamento (WIRING W15):
+
+- **T-05** (upload enormi, lenti, concorrenti): limite di 25 MiB su tre livelli, 413 dopo al più 26_214_401 byte letti, 408 per la ricezione lenta, 503 + `Retry-After` oltre il tetto, risorse al baseline dopo 15 s; evidenza `correctness.csv`, `admission.csv`, `dhat_*.json`.
+- **T-06** (tipo falso, polyglot): magic bytes e struttura, 415; evidenza `correctness.csv`.
+- **T-07** (zip bomb, DTD/entità): limiti d'archivio e rifiuto di `<!DOCTYPE`/`<!ENTITY`, 422; evidenza `correctness.csv`. Il prefiltro PDF (cifrati rifiutati, `/JavaScript`, `/Launch`, `/EmbeddedFile` anche con nomi `#hh` in quarantena) è byte-level: il controllo autorevole resta il processo isolato di S-02.
+- **T-08** (path traversal): chiave `sha256/<hex>`, nome file del client mai nei percorsi; evidenza `correctness.csv` e codice di `sink.rs`.
+- **T-11** (canale laterale della deduplica): risposta con la stessa forma e `upload_id` nuovo; tempi entro la soglia pre-registrata per Garage (default e parti da 2 MiB), fuori per PG `bytea`; evidenza `dedup_timing.csv`. Nuovo segnale: i 500 della deduplica concorrente rivelano che qualcuno sta caricando lo stesso contenuto nello stesso momento; la condizione 2 della decisione (PUT idempotente) lo chiude, da verificare quando si implementa l'adapter. Con le parti da 2 MiB d è negativo in tutte e tre le sessioni (−1,3 … −9,6 ms), entro T ma da rimisurare.
+- **T-23** (accesso diretto allo storage): Garage solo sulla rete Compose, nessuna porta del server pubblicata, credenziali da env non versionato, `garage.toml` senza segreti, scanner di sicurezza verde; `with_allow_http(true)` accettato solo sulla rete locale (T-01-04-07); evidenza codice di `sink.rs`, `spikes/docker/garage.toml`, rapporto dello scanner.
+- **Crash fra PUT e transazione e GC concorrente** (T-01-04-06 del piano): nessuna riga senza oggetto, orfano raccolto; evidenza `correctness.csv`, `gc.csv`, `gc_race.csv` (solo le interleaving enumerate).
+
+### Destinazione
+
+- **ADR-0003** [`docs/adr/0003-storage-originali-garage.md`](../../docs/adr/0003-storage-originali-garage.md), Stato `Proposed`: ad `Accepted` lo porta il consolidamento (01-17) dopo la ratifica dell'utente.
+- **Riga `DEPENDENCIES.md` «Originali PDF/DOCX»:** Aperta → Decisa (Garage dietro `DocumentStore`, client `object_store` con buffer di multipart limitato). La scrive il consolidamento (WIRING W14), non questo piano.
+- **N = 24 h** per il GC degli orfani (D-02).
+- **Canale laterale:** nessuna mitigazione ulteriore richiesta per Garage dalla regola pre-registrata; PG `bytea` resta fuori anche mitigato.
