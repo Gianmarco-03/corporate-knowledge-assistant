@@ -17,7 +17,6 @@ mod server;
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use client::{FanoutOutcome, Proto};
-use common::hist::Recorder;
 use futures::StreamExt;
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -276,6 +275,39 @@ fn main() -> anyhow::Result<()> {
     })
 }
 
+/// Percentili esatti (metodo nearest-rank) su campioni in microsecondi.
+///
+/// Non si usa `common::hist::Recorder`: con `saturating_record` l'istogramma non si
+/// ridimensiona e satura a 2047 µs (difetto registrato nel rapporto di 01-05).
+#[derive(Default)]
+struct Exact(Vec<i64>);
+
+impl Exact {
+    fn record(&mut self, v: i64) {
+        self.0.push(v);
+    }
+    fn line(&self) -> String {
+        let mut v = self.0.clone();
+        v.sort_unstable();
+        let q = |p: f64| -> i64 {
+            if v.is_empty() {
+                return 0;
+            }
+            // nearest-rank: indice ceil(p·n) − 1, limitato a [0, n − 1]
+            let rank = (p * v.len() as f64).ceil() as usize;
+            v[rank.clamp(1, v.len()) - 1]
+        };
+        format!(
+            "n {} p50 {} p95 {} p99 {} max {} us",
+            v.len(),
+            q(0.50),
+            q(0.95),
+            q(0.99),
+            v.last().copied().unwrap_or(0)
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Cicli di cancellazione
 // ---------------------------------------------------------------------------
@@ -462,7 +494,7 @@ async fn run_cancel_scenario(
     std::fs::create_dir_all(&raw).context("cartella results/raw")?;
     let mut cyc = String::from(CYCLES_HEADER);
     cyc.push('\n');
-    let mut exit_rec = Recorder::new();
+    let mut exit_rec = Exact::default();
     let (mut seen, mut seen_100, mut early) = (0usize, 0usize, 0usize);
     for (n, id) in order.iter().enumerate() {
         let Some(out) = outcomes[usize::try_from(*id)?] else {
@@ -478,7 +510,7 @@ async fn run_cancel_scenario(
         if out.finished_before_cancel {
             early += 1;
         }
-        exit_rec.record_us(u64::try_from(out.exit_after_cancel_us.max(0)).unwrap_or(0));
+        exit_rec.record(out.exit_after_cancel_us);
         writeln!(
             cyc,
             "{},{id},{},{},{}",
@@ -522,17 +554,12 @@ async fn run_cancel_scenario(
         Mock::Wiremock(srv) => srv.received_requests().await.map(|v| v.len()),
         Mock::Axum(m) => Some(usize::try_from(m.started()).unwrap_or(usize::MAX)),
     };
-    let sum = exit_rec.summary();
     let (b, f) = (&samples[0], &samples[samples.len() - 1]);
     println!(
-        "[{tag}] exit_after_cancel_us p50 {} p95 {} p99 {} max {} (n {}); visti dal server {seen} \
+        "[{tag}] exit_after_cancel_us {}; visti dal server {seen} \
          ({seen_100} entro 100 ms); terminati prima della cancellazione {early}; richieste \
          arrivate al server {} (riscaldamento compreso)",
-        sum.p50_us,
-        sum.p95_us,
-        sum.p99_us,
-        sum.max_us,
-        sum.n,
+        exit_rec.line(),
         opt(received)
     );
     println!(
@@ -824,19 +851,14 @@ fn collect(dir: &Path, cycles: usize) -> anyhow::Result<()> {
     let mut report = String::new();
     for v in ["a", "b"] {
         let rows = read_rows(&raw.join(format!("deadline-{v}.csv")), &DEADLINE_HEADER)?;
-        let mut all = Recorder::new();
+        let mut all = Exact::default();
         for r in rows.iter().filter(|r| r[4] != "1") {
             let fields: Vec<&str> = r.iter().map(String::as_str).collect();
             deadline.write_row(&fields)?;
             let us: i64 = r[5].parse().context("exit_after_deadline_us")?;
-            all.record_us(u64::try_from(us.max(0)).unwrap_or(0));
+            all.record(us);
         }
-        let s = all.summary();
-        writeln!(
-            report,
-            "variante {v}: n {} p50 {} p95 {} p99 {} max {} us (run 1 esclusa, anticipi a 0)",
-            s.n, s.p50_us, s.p95_us, s.p99_us, s.max_us
-        )?;
+        writeln!(report, "variante {v}: {} (run 1 esclusa)", all.line())?;
     }
     print!("{report}");
     std::io::stdout().flush()?;
