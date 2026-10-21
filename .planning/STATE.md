@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Onda 1 completata; prossima onda 2 (01-03, 01-04)
-last_updated: "2026-10-19T19:51:00.541Z"
-last_activity: 2026-10-19 -- onda 1 completata (01-01, 01-02)
+last_updated: "2026-10-21T09:48:59.140Z"
+last_activity: 2026-10-21 -- piano 01-03 completato (corpus)
 progress:
   total_phases: 15
   completed_phases: 0
   total_plans: 18
-  completed_plans: 2
+  completed_plans: 4
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 2 of 18 in current phase
-Status: Executing — onda 1 completata
-Last activity: 2026-10-19 -- onda 1 completata (01-01, 01-02)
+Plan: 3 of 18 in current phase
+Status: Executing — onda 2 in chiusura
+Last activity: 2026-10-21 -- piano 01-03 completato (corpus)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -70,6 +70,9 @@ Recenti, rilevanti per il lavoro corrente:
 - 2026-10-18: U-04 strategia provider-first e insiemi di file chiusi per fase. Ordine: discuss di tutte le fasi → Spike (1) → plan Fondazione e Provider (2-4) → plan consumer (5-15) → riconciliazione dei piani provider → execute in ordine numerico.
 - [Phase 1]: Spesa Anthropic di 01-12 dimezzata (Sonnet solo su complex/no_answer, fallback 15 query, tetto 2 USD); ripasso di plan prima dell onda 7 → `01-02-SUMMARY.md#punti-aperti`
 - [Phase 1]: Pesi Docling tenuti con --all (28,6 GB); chiavi provider inserite; gate GPU verde → `01-02-SUMMARY.md#task-4-checkpoint-umano`
+- [Phase 1]: Fonte IT unica Banca d'Italia; niente SEC EDGAR (UA con recapito personale), 10-K dal PDF Berkshire → `phases/01-spike-tecnici/01-03-SUMMARY.md#decisions-made`
+- [Phase 1]: Manifest del corpus immutabile: fetch.sh e build.sh non riscrivono gli hash; sostituzione = voce nuova con motivo → `phases/01-spike-tecnici/01-03-SUMMARY.md#decisions-made`
+- [Phase 1]: Trappola «Progetto Cormorano» al posto di «Aurora», che collide con un Project Aurora reale nel BIS AER 2025 → `phases/01-spike-tecnici/01-03-SUMMARY.md#decisions-made`
 
 ### Pending Todos
 
