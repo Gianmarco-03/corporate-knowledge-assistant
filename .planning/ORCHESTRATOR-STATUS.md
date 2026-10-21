@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 03 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01 onda 4 parziale, 01-11 fuso, 01-07 fermo su 3 blocchi) · aggiornato: 2026-10-21
+fase 04 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01 onda 4 parziale, 01-11 fuso, 01-07 fermo su 3 blocchi) · aggiornato: 2026-10-21T16:57Z
 
 ## Prossima azione
 
-Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s05-cancel), poi ripasso /plan di 01-07 (soglie prescan nuove, audit+test design GPT), poi ripresa execute 01-07 dal Task 3 (patch in TEMP/cka-0107-wip); bridge 01-11 in corso; traccia discuss: /discuss 4 (plan 2/3 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
+Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s05-cancel), poi ripasso /plan di 01-07 (soglie prescan nuove, audit+test design GPT), poi ripresa execute 01-07 dal Task 3 (patch in TEMP/cka-0107-wip); bridge 01-11 in corso; traccia discuss: /discuss 5 (plan 2/3/4 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
 
 ## Findings
 
@@ -64,6 +64,12 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 - 03 chunk in caratteri + TEI rifiuta (no troncamento); Docling in fase 3 condizionato ADR-0004/D-27 (D-11, D-12) · fonte Area D/E
 - 03 SSRF in-process (resolver IP globali, redirect controllati, https, tetti) + rete Compose dedicata; no Smokescreen (D-13) · fonte Area H (OWASP)
 - 03 contract suite unica reale/fake; CI PG+Garage+PDFium/Tesseract+TEI CPU, gate locale GPU (TEI Qwen3, Docling) in verify; testkit mai in release; fake con copione guasti; fixture ostili copiate con manifest (D-14..D-18) · fonte Area I
+- fase 04 criticità critica, ratificata utente 2026-10-21 → 04-CONTEXT.md
+- 04 split S-07 Reranker/DecisionEngine; baseline solo Reranker, guasto JEV = errore tipizzato; adapter solo segnali, soglie fase 8 (±0,1 ADR-0008); generate con Complexity, single-turn fino Q-05; structured output validato lato client (D-01..D-06) · fonte Area A/B/D/E
+- 04 breaker a mano, uno per provider, solo guasti provider; semaforo globale + 16 per query (ADR-0008); retry JEV 429/529 (D-07..D-10) · fonte Area C
+- 04 snapshot OpenAPI JEV sha256 ee599512…; forma A rank + guardia ACL (ADR-0008); inference_geo global, nessun dato utente (D-11..D-13) · fonte Area B/D
+- 04 AuditSink PG append-only per servizio (identity/document/rag), evento tipizzato, IdempotencyConflict; hash chain contro raccomandazione, testa FOR UPDATE, no ancoraggio, verify_chain → 11 (D-14..D-19) · fonte Area F
+- 04 NoOpCache + fake con scope (fase 10); replay wiremock CI + gate locale 0,50 USD; no-leak a sentinelle, OTel senza contenuti (D-20..D-23) · fonte Area G/H/I
 
 ## Limiti trovati
 
@@ -108,6 +114,11 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 - 03: discuss 6 Q-02 deve produrre insiemi di etichette (D-06); discuss 12 prima fonte entro D-13
 - 03: threat model SSRF connettore + DNS rebinding (01-17 o plan 3)
 - 03: rischio pipeline: ADR 0004-0007, 0012 non emessi → D-01..D-04, D-10..D-12 provvisorie fino a fine Spike
+- 04: ROADMAP criterio 1 riformulato (3 op DecisionEngine + Reranker::rank, baseline solo Reranker) + tracciabilità (Reranker→8,13; verify_chain→11; fake Cache→10) via gsd-tools → 04-CONTEXT.md §TODO
+- 04: brief execute 01-16 ← D-03, D-04, D-06, D-15, D-16, D-19; brief 01-12 ← fixture replay (01-11 già fuso: fixture da recuperare dagli artefatti) → 04-CONTEXT.md §TODO
+- 04: discuss 8 (policy guasto JEV, soglie, Q-05), 11 (forma AuditSink, query nell'audit, verify_chain), 13 (Q-07 processo) ricevono vincoli da 04
+- 04: plan 2 → slot AuditSink + fascia 04 anche in identity e document-service; threat model ← D-13, D-18, D-20
+- 04: rischio pipeline: ADR 0009, 0011, 0012 non emessi → D-02, D-04, D-06 provvisorie fino a fine Spike
 - difetto commento spikes/s05-cancel/src/main.rs:279-281 (file chiuso 01-05): dice «satura a 2047 µs» al presente, reale era 2 µs e oggi corretto → correggere nella prossima gap-closure che riapre la fase 1 · utente 2026-10-21
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 

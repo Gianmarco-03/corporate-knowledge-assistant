@@ -74,5 +74,16 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Contract suite unica su reale e fake; reali in CI (PG, Garage, PDFium+Tesseract, TEI CPU) + gate locale GPU in verify → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
 - 2026-10-21 · Fake deterministici con copione di guasti dietro feature testkit, mai in release; fixture ostili copiate con manifest → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
 
+## Fase 4 — Provider di decisione, risposta e trasversali (discuss)
+
+- 2026-10-21 · Split S-07 Reranker/DecisionEngine; baseline solo sul Reranker, guasto JEV = errore tipizzato; criterio 1 ROADMAP da riformulare → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#porte-e-baseline-aree-a-b-d-e`
+- 2026-10-21 · Adapter solo segnali, soglie nel caso d'uso della fase 8 (calibrate 13/14); generate con Complexity di dominio, single-turn fino a Q-05 → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#porte-e-baseline-aree-a-b-d-e`
+- 2026-10-21 · Circuit breaker scritto a mano, uno per provider, solo guasti del provider; semaforo globale + limite per query → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#resilienza-area-c`
+- 2026-10-21 · Snapshot OpenAPI JEV con hash; minimizzazione verso i provider; inference_geo global, nessun dato utente → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#adapter-jev-area-b`
+- 2026-10-21 · AuditSink PG append-only per servizio, evento tipizzato, IdempotencyConflict (forma provvisoria fino a Q-04) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#auditsink-area-f-forma-provvisoria-fino-a-q-04`
+- 2026-10-21 · Hash chain dell'audit già in fase 4 (contro raccomandazione), riga di testa FOR UPDATE, nessun ancoraggio, verify_chain → fase 11 → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#auditsink-area-f-forma-provvisoria-fino-a-q-04`
+- 2026-10-21 · NoOpCache + fake in memoria con scope; replay wiremock in CI + gate locale a 0,50 USD; prova no-leak a sentinelle → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#contract-test-prova-no-leak-e-adapter-reali-aree-h-i`
+
 **Modifica:** Claude (Anthropic) · 2026-10-19 · creazione dell'indice con le decisioni dell'onda 1 della fase 1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 3
+**Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 4

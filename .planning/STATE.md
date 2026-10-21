@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Traccia discuss: fase 3 contesto discusso (criticità critica), prossimo /discuss 4; traccia Spike: onda 4 di fase 1"
-last_updated: "2026-10-21T16:36:25.993Z"
+stopped_at: "Traccia discuss: fase 4 contesto discusso (criticità critica), prossimo /discuss 5; traccia Spike: onda 4 di fase 1"
+last_updated: "2026-10-21T16:59:55.550Z"
 last_activity: 2026-10-21 -- piano 01-11 completato (JEV rank), 01-07 fermo
 progress:
   total_phases: 18
   completed_phases: 2
-  total_plans: 20
+  total_plans: 21
   completed_plans: 9
   percent: 11
 ---
@@ -123,6 +123,12 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 1]: Varianza Noul oltre soglia per 1 candidato su 600 (std 0,0954): margine di calibrazione ≥ ±0,1 attorno al taglio → `../spikes/s04-jev/RISULTATI-jev.md#esito`
 - [Phase 1]: 01-11 fuso prima di 01-07 contro 01-ONDE (decisione utente: 01-07 fermo su tre blocchi esterni) → `phases/01-spike-tecnici/01-11-SUMMARY.md#integrazione-fuori-ordine`
 - [Phase 1]: instructs_model misurato solo sui falsi positivi (0/1.800): il rilevamento sul testo ostile va a 01-12 o a un oracolo nuovo → `phases/01-spike-tecnici/01-11-SUMMARY.md#issues-encountered`
+- [Phase 4]: Split S-07 Reranker/DecisionEngine; baseline solo sul Reranker, guasto JEV = errore tipizzato; criterio 1 ROADMAP da riformulare (D-01, D-02) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#porte-e-baseline-aree-a-b-d-e`
+- [Phase 4]: Adapter solo segnali (soglie nel caso d'uso fase 8, calibrate 13/14); generate con Complexity di dominio, single-turn fino a Q-05; structured output validato lato client (D-03..D-06) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#porte-e-baseline-aree-a-b-d-e`
+- [Phase 4]: Circuit breaker scritto a mano, uno per provider, solo guasti del provider; semaforo globale + limite per query (D-07..D-10) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#resilienza-area-c`
+- [Phase 4]: Snapshot OpenAPI JEV con hash; minimizzazione verso JEV e Anthropic; inference_geo global, nessun dato utente (D-11..D-13) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#adapter-jev-area-b`
+- [Phase 4]: AuditSink PG append-only per servizio, evento tipizzato; hash chain (contro raccomandazione), verify_chain → fase 11 (D-14..D-19) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#auditsink-area-f-forma-provvisoria-fino-a-q-04`
+- [Phase 4]: NoOpCache + fake in memoria con scope; replay wiremock in CI + gate locale a 0,50 USD; prova no-leak a sentinelle (D-20..D-23) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#contract-test-prova-no-leak-e-adapter-reali-aree-h-i`
 
 ### Pending Todos
 
@@ -143,6 +149,6 @@ Recenti, rilevanti per il lavoro corrente:
 
 ## Session Continuity
 
-Last session: 2026-10-21T15:59:34.256Z
-Stopped at: Traccia discuss: fase 3 contesto discusso (criticità critica), prossimo /discuss 4; traccia Spike: onda 4 di fase 1
-Resume file: .planning/phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md
+Last session: 2026-10-21T16:59:55.544Z
+Stopped at: Traccia discuss: fase 4 contesto discusso (criticità critica), prossimo /discuss 5; traccia Spike: onda 4 di fase 1
+Resume file: .planning/phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md
