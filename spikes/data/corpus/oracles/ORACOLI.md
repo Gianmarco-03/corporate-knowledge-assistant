@@ -77,11 +77,32 @@ Le query senza risposta nel corpus riguardano tutte Alfa Componenti, la società
 | Asse | Stato |
 |---|---|
 | Claude (derivazione) | compilato su 91/91 oracoli |
-| GPT (double-check) | da eseguire (Task 2) |
+| GPT (double-check) | eseguito su 91/91: 85 `CONFIRMED`, 6 `PARTIALLY_CONFIRMED`, nessun `REJECTED` o `UNDETERMINED` |
 | Utente (ratifica) | da eseguire (Task 3) |
+
+Il double-check si è svolto il 2026-10-21 su AgentBridge, in sette lotti. Ogni risposta di GPT è trascritta verbatim in `doublecheck/doublecheck_N.md` ed è stata archiviata con `ACK-RESPONSE` solo dopo il salvataggio. Il verdetto per oracolo viene dalla tabella della risposta; ogni voce JSON porta `gpt_ref` al file del lotto.
+
+| Lotto | Oracoli | Verdetto del lotto | Non `CONFIRMED` |
+|---|---|---|---|
+| `doublecheck_1` | Q-001…Q-016 (query IT) | `PARTIALLY_CONFIRMED` | Q-008, Q-010, Q-012 (complessità) |
+| `doublecheck_2` | Q-017…Q-032 (query IT) | `CONFIRMED` | — |
+| `doublecheck_3` | Q-033…Q-048 (query EN) | `PARTIALLY_CONFIRMED` | Q-040, Q-048 (complessità) |
+| `doublecheck_4` | Q-049…Q-064 (query EN) | `PARTIALLY_CONFIRMED` | Q-056 (complessità) |
+| `doublecheck_5` | Q-065…Q-080 (cross-lingual) | `CONFIRMED` | — |
+| `doublecheck_6` | P-001…P-006 (testo pagine IT) | `CONFIRMED` | — |
+| `doublecheck_7` | P-007…P-011 (tabelle IT, pagine con tabelle) | `CONFIRMED` | — |
+
+I sei dissensi riguardano tutti l'etichetta di complessità, non il valore atteso né l'estratto: GPT conferma il contenuto e considera `complex` una risposta con più elementi anche quando stanno in una sola frase. Nessun oracolo è stato allineato al verificatore: valore, passaggi, complessità, ruolo e classe sono identici al commit del Task 1 (controllo `git show` sui due JSON). I sei oracoli restano pendenti con `todo_ref: TODO-02`.
+
+Oracoli con i tre assi potenzialmente verdi dopo la ratifica: 74 query su 80 (il minimo del piano è 60) e 10 oracoli del parser su 11 (P-006 resta su TODO-01 finché l'utente non decide).
 
 ## TO-DO di dominio
 
 **TODO-01 — P-006, testo sovrapposto alla fotografia.** A pagina 12 di `pub-it-03` la fotografia ha accanto un riquadro «WEB · L’Economia per tutti · Banca d’Italia per la cultura finanziaria» e una didascalia «Inventiamo una banconota · Centro Convegni Carlo Azeglio Ciampi, Roma». A vista sembrano testo sovrapposto, non pixel della foto, e l'oracolo li include; se nel PDF fossero un'immagine, la regola di esclusione li toglierebbe. Assunzione provvisoria: inclusi. Ne dipende il CER di S-02 su P-006 (circa 120 caratteri su circa 2.400). Domanda per l'utente: tenere l'assunzione, o escludere i due blocchi da P-006? Fino alla risposta P-006 resta pendente e fuori dalle misure.
 
+*Aggiornamento dopo il double-check (2026-10-21).* GPT (`doublecheck_6`) dà `CONFIRMED` a P-006 e riferisce che l'estrazione di testo dal PDF include quelle diciture come testo estraibile, cioè che l'assunzione regge. È un'indicazione del verificatore, non una decisione: il TO-DO resta aperto fino alla risposta dell'utente.
+
+**TODO-02 — Regola di complessità sulle risposte con più elementi in una frase.** GPT (`doublecheck_1`, `doublecheck_3`, `doublecheck_4`) giudica `PARTIALLY_CONFIRMED` sei query etichettate `simple`, perché la risposta contiene più elementi anche se un solo passaggio la sostiene: Q-008 (due autorizzazioni), Q-010 (prezzo e due fonti di finanziamento), Q-012 (due obiettivi con i loro pesi), Q-040 (due società acquisite), Q-048 (tre indicazioni di policy), Q-056 (due requisiti di approvazione). Contenuto ed estratti sono confermati. La regola scritta prima delle etichette dice `simple` = «un solo fatto, e un solo passaggio basta a sostenerlo»: le sei query sono state lette come un fatto composto in una frase. Assunzione provvisoria: restano `simple`. Ne dipende la misura del routing per complessità in A-04 (D-18) su queste sei query; recall, nDCG, rerank e fedeltà delle citazioni non cambiano. Domanda per l'utente: tenere la regola com'è (le sei restano `simple`), oppure precisarla in «più elementi nella risposta ⇒ `complex`» e rietichettarle con una nuova derivazione? Fino alla risposta le sei query restano pendenti e fuori dalle misure.
+
 **Modifica:** Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06 · 2026-10-21 · regole, classi, convenzioni, regola di complessità, conteggi e primo TO-DO (piano 01-06, Task 1)
+**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · esito del double-check GPT per lotto, nota su TODO-01, TODO-02 sulla regola di complessità (piano 01-06, Task 2)

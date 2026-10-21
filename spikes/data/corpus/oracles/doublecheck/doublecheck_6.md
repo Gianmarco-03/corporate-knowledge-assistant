@@ -2,7 +2,7 @@
 
 Richiesta inviata da Claude ad AgentBridge (progetto CorporateKnowledgeAssistant, task double-check, content_id doublecheck_6, recipient gpt, phase 1) il 2026-10-21. La risposta di GPT (OpenAI), content_id doublecheck_6, si trascrive verbatim nella sezione «Risposta» quando è disponibile, prima dell'ACK-RESPONSE.
 
-**Stato:** risposta in attesa.
+**Stato:** risposta ricevuta e trascritta; verdetto complessivo del lotto: CONFIRMED.
 
 ## Richiesta inviata (verbatim)
 
@@ -98,6 +98,23 @@ Per i PDF pubblici trovi URL e sha256 in fondo: la pagina indicata è l'indice f
 
 ## Risposta
 
-In attesa.
+Autore: **GPT (OpenAI), content_id doublecheck_6**. Verdetto complessivo dichiarato dal controller: `CONFIRMED`. Testo trascritto verbatim, byte per byte, dalla READ-RESPONSE di AgentBridge, prima dell'ACK-RESPONSE:
 
-**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta di double-check inviata (piano 01-06, Task 2)
+``````markdown
+---
+verdict: CONFIRMED
+---
+
+| oracle_id | verdetto | motivo |
+|---|---|---|
+| P-001 | CONFIRMED | La pagina fisica 11 del PDF ufficiale contiene la trascrizione indicata e termina con la frase che prosegue a pagina 12; intestazione ricorrente esclusa come richiesto. |
+| P-002 | CONFIRMED | A pagina fisica 12 la Tavola 1.1 contiene le intestazioni su PIL/inflazione e i valori riportati; la cella India PIL 2025 è 7,6. |
+| P-003 | CONFIRMED | La pagina fisica 13 contiene il testo atteso su India (7,6%) e Cina (5%) e il seguito del riquadro. |
+| P-004 | CONFIRMED | La pagina fisica 5 della sintesi riporta il testo sulle attività di politica monetaria e sulle riserve valutarie; i valori 529 e 343 miliardi corrispondono. |
+| P-005 | CONFIRMED | La pagina fisica 6 riporta il testo atteso su banconote ed euro digitale; le sillabazioni a fine riga si ricompongono secondo la normalizzazione indicata. |
+| P-006 | CONFIRMED | La pagina fisica 12 contiene i paragrafi, i dati ABF e le diciture “WEB”, “L’Economia per tutti”, “Inventiamo una banconota” e la didascalia indicata. L'estrazione del testo dal PDF include tali diciture come testo estraibile, risolvendo il dubbio di TODO-01; la sequenza segue l'ordine di lettura dichiarato. |
+``````
+
+*Trascrizione:* Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · risposta di GPT copiata senza modifiche; delivery_token `sha256:80507b2439e5b4ce8a611d4776d2f2b3a28b620eeee0b3092c46e476af1a8134`.
+
+**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta inviata e risposta di GPT trascritta (piano 01-06, Task 2)

@@ -2,7 +2,7 @@
 
 Richiesta inviata da Claude ad AgentBridge (progetto CorporateKnowledgeAssistant, task double-check, content_id doublecheck_4, recipient gpt, phase 1) il 2026-10-21. La risposta di GPT (OpenAI), content_id doublecheck_4, si trascrive verbatim nella sezione «Risposta» quando è disponibile, prima dell'ACK-RESPONSE.
 
-**Stato:** risposta in attesa.
+**Stato:** risposta ricevuta e trascritta; verdetto complessivo del lotto: PARTIALLY_CONFIRMED.
 
 ## Richiesta inviata (verbatim)
 
@@ -822,6 +822,33 @@ L'esistenza del Progetto Cormorano è nota solo al Consiglio di Amministrazione,
 
 ## Risposta
 
-In attesa.
+Autore: **GPT (OpenAI), content_id doublecheck_4**. Verdetto complessivo dichiarato dal controller: `PARTIALLY_CONFIRMED`. Testo trascritto verbatim, byte per byte, dalla READ-RESPONSE di AgentBridge, prima dell'ACK-RESPONSE:
 
-**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta di double-check inviata (piano 01-06, Task 2)
+``````markdown
+---
+verdict: PARTIALLY_CONFIRMED
+---
+
+| oracle_id | verdetto | motivo |
+|---|---|---|
+| Q-049 | CONFIRMED | Il BIS attribuisce l'aumento dei rischi di liquidità allo spostamento dell'intermediazione dalle banche agli NBFI e al finanziamento del debito pubblico. |
+| Q-050 | CONFIRMED | Il registro assegna a R-01 score 16 (4 × 4). |
+| Q-051 | CONFIRMED | Con soglia high ≥15, solo R-01 (16) e R-03 (15) superano la soglia; la classificazione è coerente. |
+| Q-052 | CONFIRMED | La stima indica perdita EBITDA di circa EUR 1,2 milioni dopo copertura, contro circa EUR 3,5 milioni prima. |
+| Q-053 | CONFIRMED | La segmentazione deve essere completata entro il 30 giugno 2026. |
+| Q-054 | CONFIRMED | La perdita massima tollerabile dichiarata è EUR 6,0 milioni di EBITDA in un anno. |
+| Q-055 | CONFIRMED | Il termine standard è 60 giorni dalla fine del mese della fattura. |
+| Q-056 | PARTIALLY_CONFIRMED | Il requisito di approvazione riportato è completare i quattro passaggi e ottenere almeno 8/10 dal Quality department sul campione; contenuto corretto, ma la classe simple è sottostimata per i requisiti multipli. |
+| Q-057 | CONFIRMED | La policy si applica oltre EUR 50.000 di acquisti annuali. |
+| Q-058 | CONFIRMED | La revisione è biennale o anticipata in caso di incidente qualità. |
+| Q-059 | CONFIRMED | Il CET1 della società Alfa non è specificato nei documenti visibili all'admin; il rifiuto evita di inventarlo. |
+| Q-060 | CONFIRMED | La percentuale di copertura GBP non è documentata; il rapporto specifica USD. |
+| Q-061 | CONFIRMED | Il nome del secondo fornitore qualificato non è fornito; il rifiuto è corretto. |
+| Q-062 | CONFIRMED | La policy richiede il CFO solo per termini più brevi dello standard, ma non stabilisce un termine massimo; il rifiuto è corretto. |
+| Q-063 | CONFIRMED | Il perimetro comprende la capogruppo e due controllate estere. |
+| Q-064 | CONFIRMED | Il primo fornitore di barre d'acciaio rappresenta il 22% degli acquisti per valore. |
+``````
+
+*Trascrizione:* Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · risposta di GPT copiata senza modifiche; delivery_token `sha256:b8cdf8888284880c65664e1ad7b427fee9d8632fb630a242ceb7d3caf5a51b49`.
+
+**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta inviata e risposta di GPT trascritta (piano 01-06, Task 2)

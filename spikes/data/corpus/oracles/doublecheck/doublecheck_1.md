@@ -2,7 +2,7 @@
 
 Richiesta inviata da Claude ad AgentBridge (progetto CorporateKnowledgeAssistant, task double-check, content_id doublecheck_1, recipient gpt, phase 1) il 2026-10-21. La risposta di GPT (OpenAI), content_id doublecheck_1, si trascrive verbatim nella sezione «Risposta» quando è disponibile, prima dell'ACK-RESPONSE.
 
-**Stato:** risposta in attesa.
+**Stato:** risposta ricevuta e trascritta; verdetto complessivo del lotto: PARTIALLY_CONFIRMED.
 
 ## Richiesta inviata (verbatim)
 
@@ -830,6 +830,33 @@ Approved suppliers are reviewed every two years, or earlier after a quality inci
 
 ## Risposta
 
-In attesa.
+Autore: **GPT (OpenAI), content_id doublecheck_1**. Verdetto complessivo dichiarato dal controller: `PARTIALLY_CONFIRMED`. Testo trascritto verbatim, byte per byte, dalla READ-RESPONSE di AgentBridge, prima dell'ACK-RESPONSE:
 
-**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta di double-check inviata (piano 01-06, Task 2)
+``````markdown
+---
+verdict: PARTIALLY_CONFIRMED
+---
+
+| oracle_id | verdetto | motivo |
+|---|---|---|
+| Q-001 | CONFIRMED | Le FAQ pubbliche riportano ricavi consolidati 2025 pari a 182,4 M€; visibili al ruolo guest. |
+| Q-002 | CONFIRMED | La colonna Budget 2026 indica EBITDA 30,4 M€. |
+| Q-003 | CONFIRMED | La frase sulla PFN indica 36,8 milioni a fine 2026. |
+| Q-004 | CONFIRMED | Il budget esplicita capex 2026 pari a 14,5 milioni e la ripartizione somma a tale totale. |
+| Q-005 | CONFIRMED | La tabella comparativa indica Servizi e ricambi +13,3%; classe complex coerente con il confronto. |
+| Q-006 | CONFIRMED | La policy indica il limite di 200 € per notte in hotel all'estero. |
+| Q-007 | CONFIRMED | La rendicontazione è dovuta entro 30 giorni dal rientro. |
+| Q-008 | PARTIALLY_CONFIRMED | Sono richiesti visto del responsabile diretto e del direttore di divisione; la classe simple è sottostimata perché la risposta richiede due approvazioni distinte. |
+| Q-009 | CONFIRMED | Il target EBITDA 2028 è 17,0%. |
+| Q-010 | PARTIALLY_CONFIRMED | Prezzo 34,0 M€, finanziamento bancario quinquennale 24,0 M€ e cassa 10,0 M€ sono coerenti; la classe simple è sottostimata, perché la risposta include prezzo e due componenti di finanziamento. |
+| Q-011 | CONFIRMED | La soglia massima senza ulteriore passaggio al Consiglio è 36,0 M€. |
+| Q-012 | PARTIALLY_CONFIRMED | La remunerazione variabile usa 60% EBITDA budget (30,4 M€) e 40% OCF (19,0 M€); sono due obiettivi e metriche, quindi la classe dovrebbe essere complex. |
+| Q-013 | CONFIRMED | Il prezzo di cessione Valfonda è 12,7 milioni. |
+| Q-014 | CONFIRMED | 12,7 − 8,9 − 0,6 − 0,3 = 2,9 milioni; calcolo e componenti sono coerenti. |
+| Q-015 | CONFIRMED | La data di closing richiesta non è nei documenti autorizzati al ruolo manager; rifiuto atteso corretto. |
+| Q-016 | CONFIRMED | L'identità dell'acquirente non è disponibile nei documenti visibili al ruolo employee; rifiuto atteso corretto. |
+``````
+
+*Trascrizione:* Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · risposta di GPT copiata senza modifiche; delivery_token `sha256:c4ce6299de5259676ff8f8ea21ebd12fc33c78df193b097db8c125d11d6747b8`.
+
+**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta inviata e risposta di GPT trascritta (piano 01-06, Task 2)

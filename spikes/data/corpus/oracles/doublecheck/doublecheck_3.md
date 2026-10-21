@@ -2,7 +2,7 @@
 
 Richiesta inviata da Claude ad AgentBridge (progetto CorporateKnowledgeAssistant, task double-check, content_id doublecheck_3, recipient gpt, phase 1) il 2026-10-21. La risposta di GPT (OpenAI), content_id doublecheck_3, si trascrive verbatim nella sezione «Risposta» quando è disponibile, prima dell'ACK-RESPONSE.
 
-**Stato:** risposta in attesa.
+**Stato:** risposta ricevuta e trascritta; verdetto complessivo del lotto: PARTIALLY_CONFIRMED.
 
 ## Richiesta inviata (verbatim)
 
@@ -266,6 +266,33 @@ Matrice di visibilità del corpus (acl.json): admin vede public, internal, confi
 
 ## Risposta
 
-In attesa.
+Autore: **GPT (OpenAI), content_id doublecheck_3**. Verdetto complessivo dichiarato dal controller: `PARTIALLY_CONFIRMED`. Testo trascritto verbatim, byte per byte, dalla READ-RESPONSE di AgentBridge, prima dell'ACK-RESPONSE:
 
-**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta di double-check inviata (piano 01-06, Task 2)
+``````markdown
+---
+verdict: PARTIALLY_CONFIRMED
+---
+
+| oracle_id | verdetto | motivo |
+|---|---|---|
+| Q-033 | CONFIRMED | La lettera agli azionisti riporta float assicurativo di $176 miliardi a fine 2025. |
+| Q-034 | CONFIRMED | La stessa sezione confronta $176 miliardi con $171 miliardi a fine 2024 e $88 miliardi a fine 2015. |
+| Q-035 | CONFIRMED | Il ritorno delle attività assicurative nel 2025 è $29 miliardi; $31 miliardi è il limite senza previa approvazione regolamentare. |
+| Q-036 | CONFIRMED | Il rapporto descrive 51 attività operative non assicurative. |
+| Q-037 | CONFIRMED | Il margine operativo BNSF è 34,5% nel 2025 contro 32,0% nel 2024. |
+| Q-038 | CONFIRMED | Il rapporto associa circa $230 milioni a ogni punto percentuale di margine operativo BNSF. |
+| Q-039 | CONFIRMED | BNSF ha restituito $4,4 miliardi a Berkshire tramite dividendi. |
+| Q-040 | PARTIALLY_CONFIRMED | Le due attività sono OxyChem e Bell Laboratories; la classe simple è sottostimata perché la risposta identifica due acquisizioni distinte. |
+| Q-041 | CONFIRMED | L'acquisizione di National Indemnity è datata 1967. |
+| Q-042 | CONFIRMED | Il rapporto indica 32 società nel gruppo supervisionato da Adam Johnson. |
+| Q-043 | CONFIRMED | Il levy della Bank of England decorre dal 1° marzo 2024. |
+| Q-044 | CONFIRMED | Prima del levy le funzioni di policy erano finanziate dal CRD, che era in deficit. |
+| Q-045 | CONFIRMED | La relazione indica oltre 100 colleghi a Leeds e l'obiettivo di 500 entro il 2027; la classe complex è appropriata. |
+| Q-046 | CONFIRMED | La relazione annuale riporta il completamento del programma di rinnovo RTGS nel 2025. |
+| Q-047 | CONFIRMED | La figura elenca sei priorità; la risposta le riassume tutte. |
+| Q-048 | PARTIALLY_CONFIRMED | La formulazione BIS corrisponde: finanze pubbliche sostenibili, resilienza macrofinanziaria con condizioni eque e priorità alla stabilità dei prezzi. La classe simple è sottostimata perché la risposta richiede tre elementi. |
+``````
+
+*Trascrizione:* Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · risposta di GPT copiata senza modifiche; delivery_token `sha256:b88b3ec040fea1a952d6a8101c99b5789c558f59aa21b9f706154e6678bf60eb`.
+
+**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · richiesta inviata e risposta di GPT trascritta (piano 01-06, Task 2)
