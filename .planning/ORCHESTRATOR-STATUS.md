@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 2 / slice 01-03, 01-04 / execute onda 2 completata · aggiornato: 2026-10-21
+fase 01.1 / — / slice 01.1-01 / plan completato · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-Inserisci gap-closure fase 1.1 con gsd-phase (session.sh: segreti di spikes.env prevalgono su env host, `riapre_perimetro: [1]`), plan+execute 1.1, POI /execute 1 onda 3 (01-05, 01-06).
+/execute 01.1 (1 onda, 01.1-01, Opus, Docker acceso), POI /execute 1 onda 3 (01-05, 01-06).
 
 ## Findings
 
@@ -37,6 +37,8 @@ Inserisci gap-closure fase 1.1 con gsd-phase (session.sh: segreti di spikes.env 
 - 01-04 esito: Garage proposto solo parti 2 MiB/1 in volo (default supera VmHWM); 500 dedup concorrente ridotti non eliminati; PG bytea scartato (canale laterale 0/3); PUT idempotente non misurato → ADR-0003 Proposed, s01-upload/RISULTATI.md
 - deviazioni livello a onda 2: 01-03 container esplorativo fuori sessione; 01-04 SIGTERM/after_put, pin_env, bench.sh toglie env host, p5k1→p2k1 dopo misura memoria (83720bb) → SUMMARY
 - rimbalzi livello b: nessuno; segnalazione b su file chiuso 01-02 (session.sh env host) → gap-closure 1.1
+- fase 01.1 inserita (gsd-phase), criticità normale · utente 2026-10-21; CONTEXT D-01..D-04 → 01.1-CONTEXT.md
+- plan 01.1: 1 piano (checker PASSED 1° giro), gate 6/6 conformi o n/a dichiarati, test design Claude 16 RISK / 14 TEST → 01.1-GATE.md, 01.1-01-TEST-DESIGN.md, 01.1-CONTRATTO.md, 01.1-ONDE.md
 
 ## Limiti trovati
 
@@ -78,3 +80,4 @@ Inserisci gap-closure fase 1.1 con gsd-phase (session.sh: segreti di spikes.env 
 **Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: interruzione di rete in onda 2
 **Modifica:** Claude (Anthropic) · 2026-10-20 · --evento: DATABASE_URL host nel runner, DNS su due schede
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 2
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --plan fase 01.1
