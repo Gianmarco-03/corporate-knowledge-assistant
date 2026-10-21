@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 3 / slice 01-05, 01-06 / execute onda 3 completata · aggiornato: 2026-10-21
+fase 01.2 / onda 1 / slice 01.2-01 / verify: banda ECC verde, in corso goal verification GSD · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-Gap-closure fase 1.2 (hist.rs di 01-01: Recorder satura a 2047 µs; `riapre_perimetro: [1]`; verificare impatto su 01-04) PRIMA di /execute 1 onda 4 (01-07, 01-11 usano Recorder); pendenti utente: UAT 01.1, hook pre-commit (TODO).
+/verify 01.2 passo 3 (gsd-verifier → 01.2-VERIFICATION.md), poi /execute 1 onda 4 (01-07, 01-11); pendenti utente: UAT 01.1, hook pre-commit (TODO).
 
 ## Findings
 
@@ -58,6 +58,7 @@ Gap-closure fase 1.2 (hist.rs di 01-01: Recorder satura a 2047 µs; `riapre_peri
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| 01.2-01 | conforme 6/6 (1° giro) + 2 ritocchi post-gate (TEST-15/16, errata RED) → 01.2-GATE.md | verde: lint-stato verde; cargo fmt/clippy/test spikes verdi dopo `cargo clean -p common` (common 17/17); security HIGH «3 FAILED» = falso allarme da binario di test stale del RED (decaduto, confermato da rust-reviewer); LOW accettati: assert `max_us <= 2047` debole in TEST-15 (rejected==3 e n==4 già asseriti), tolleranza 0,1 % vicina a 1/1024 con valori scelti lontani dal caso peggiore, doc «anche u64::MAX» poggia su test upstream, `saturating_add` superfluo, commento storico s05-cancel/src/main.rs:280 (fuori perimetro D-03) | — |
 | 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | passed 7/7, 0 gap → 01.1-VERIFICATION.md |
 
 ## UAT
@@ -76,6 +77,7 @@ Gap-closure fase 1.2 (hist.rs di 01-01: Recorder satura a 2047 µs; `riapre_peri
 - D-27 Docling pagine-tabella: scelta dopo misura 01-08 → 01-CONTEXT Deferred Ideas.
 - interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012).
 - da decidere utente: hook pre-commit rifiuta commit di sole evidenze .txt/.csv (security-scope-empty rc=2) → commit RED separato impossibile (01-04, 01.1-01) → 01.1-01-SUMMARY.md#punti-aperti
+- gate/verify su spikes/: target cache condivisa fra worktree può lasciare un binario di test stale (falsi rossi in verify 01.2) → partire da `cargo clean -p <crate toccato>` nei gate d'onda e in verify
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 
 ## Decisioni ratificate in corsa
@@ -96,3 +98,4 @@ Gap-closure fase 1.2 (hist.rs di 01-01: Recorder satura a 2047 µs; `riapre_peri
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 3
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.2
