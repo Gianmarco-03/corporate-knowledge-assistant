@@ -171,6 +171,54 @@ Decisione con la regola pre-registrata: **Garage supera** (3 sessioni su 3); **P
 [`gc.csv`](results/gc.csv): list del prefisso `sha256/` + head su 1.000 oggetti in 11,5-12,1 ms (head p95 0,30-0,31 ms); 100 orfani di 48 h raccolti con N = 24 h, 100 orfani di 1 h protetti (0 cancellati).
 [`gc_race.csv`](results/gc_race.csv): 8 interleaving enumerate (a, b, c, d × Garage, PG) con `unreadable` = 0 e `pass` = `true`. È la prova delle sole interleaving enumerate, non dell'assenza di ogni race.
 
+### Mitigazioni (misurate dopo la matrice, soglie e protocollo invariati)
+
+**Modifica:** Claude (gsd-executor 01-04, ripresa 4) · 2026-10-21 · misure delle configurazioni mitigate di Garage e PG `bytea` e diagnosi dei 500
+
+Le mitigazioni sono opzioni del server con il default uguale alla configurazione della matrice (commit `2bc8a00`): `--garage-part-mib <n> --garage-part-concurrency <k>` fissa la capacità del `BufWriter` di `object_store` (= dimensione di una parte del multipart) e le parti in volo; `--pg-conflict update` fa riscrivere a PG `bytea` i chunk anche quando la chiave esiste già (`ON CONFLICT DO UPDATE`), così la deduplica scrive quanto un upload nuovo. Le righe stanno negli stessi CSV della matrice con un'etichetta propria nella colonna `adapter` (`garage-diag`, `garage-p5k1`, `garage-p2k1`, `pgbytea-update`): nessuna riga della matrice è cambiata, `finalize` ha solo aggiunto righe.
+
+| Misura | run_id | Codice | Comando dall'host |
+|--------|--------|--------|-------------------|
+| Diagnosi dei 500 + Garage a parti da 5 MiB e da 2 MiB, una parte in volo, 3 run | `01-04-20261020t161935z-303e` | `2bc8a00` | `bash spikes/s01-upload/bench.sh host mitig` |
+| Canale laterale mitigato, sessioni 1, 2, 3 (`pgbytea-update`, `garage-p2k1`) | `01-04-20261021t091524z-da48`, `…t092100z-9c72`, `…t092431z-089d` | `83720bb` (sorgenti del server identici a `2bc8a00`) | `bash spikes/s01-upload/bench.sh host dedup-mitig <1\|2\|3>` |
+
+Ogni sessione ha il proprio manifest hardware grezzo in `results/raw/hw-<run_id>.raw.json`, sullo stesso host della matrice; `results/hw.json` resta quello della sessione `c0f9` citato in «Setup».
+
+**Memoria, `VmHWM` del server** dopo 200 upload `new` a c = 1, processo nuovo per riga ([`mem_by_size.csv`](results/mem_by_size.csv); run 2 / run 3, la run 1 è il warm-up come nella matrice):
+
+| Configurazione | 1 MiB (KiB) | 25 MiB (KiB) | Delta 25 − 1 (MiB) | Esito vs < 8 MiB | `memory.peak` a 25 MiB |
+|----------------|-------------|--------------|--------------------|------------------|------------------------|
+| Garage default (matrice: parti da 10 MiB, fino a 8 in volo) | 24_952 / 20_392 | 68_544 / 69_656 | 42,6 / 48,1 | non supera | circa 104 MB |
+| Garage, parti da 5 MiB, 1 in volo (`garage-p5k1`) | 26_656 / 23_604 | 36_304 / 38_572 | 9,4 / 14,6 | **non supera** | circa 60 MB |
+| Garage, parti da 2 MiB, 1 in volo (`garage-p2k1`) | 25_240 / 23_660 | 26_460 / 25_608 | 1,2 / 1,9 | **supera** | circa 48 MB |
+
+Anche la run 1 di `garage-p2k1` sta sotto soglia (4,5 MiB). A 10 e 24 MiB `garage-p2k1` resta fra 25_924 e 27_368 KiB.
+
+**Latenza di `garage-p2k1`**, p95 in ms ([`adapters.csv`](results/adapters.csv), run 2 / run 3): 10 MiB `new` c = 1 58,0 / 59,7 e c = 4 97,0 / 99,6 (soglia TTQ ≤ 500 ms: **supera**); 1 MiB c = 1 11,5 / 11,8; 25 MiB `new` c = 1 133,7 / 138,2; `dedup` c = 16 287,3 / 287,5 a 10 MiB e 678,4 / 676,1 a 25 MiB. `new` a 200 richieste: 200 sha e 200 oggetti in ogni riga; `dedup`: 1 oggetto in ogni riga.
+
+**Errori 500 nella deduplica concorrente** (`status_5xx` su 200 richieste a c = 16, run 1 / 2 / 3):
+
+| Configurazione | 10 MiB | 25 MiB |
+|----------------|--------|--------|
+| Garage default (riga di diagnosi, sessione 303e) | — | 41 (matrice: 54-78) |
+| `garage-p5k1` | 6 / 10 / 13 | 0 / 5 / 1 |
+| `garage-p2k1` | 7 / 2 / 2 | 0 / 0 / 0 |
+
+La riduzione delle parti riduce gli errori ma non li elimina: la mitigazione della memoria non è una mitigazione dei 500 (diagnosi in «Anomalie e deviazioni»).
+
+**Canale laterale delle configurazioni mitigate** ([`dedup_timing.csv`](results/dedup_timing.csv), etichette `pgbytea-update` e `garage-p2k1`, 2.400 righe in più; protocollo pre-registrato invariato: 3 sessioni pulite, 200 + 200 richieste, blocchi alternati, 0 esclusioni, nessun non-2xx; intervalli da `probe dedup-ci`, bootstrap 2.000, seme = sessione):
+
+| Configurazione | Sessione | p50 new (ms) | p50 dedup (ms) | d (ms) | IC 95 % (ms) | T (ms) | Dentro [−T, +T] |
+|----------------|----------|--------------|----------------|--------|--------------|--------|-----------------|
+| PG `bytea`, `ON CONFLICT DO UPDATE` | 1 | 397,885 | 287,979 | −109,906 | [−190,997; −38,397] | 39,788 | no |
+| PG `bytea`, `ON CONFLICT DO UPDATE` | 2 | 211,210 | 228,100 | 16,890 | [−5,276; 38,662] | 21,121 | no |
+| PG `bytea`, `ON CONFLICT DO UPDATE` | 3 | 219,790 | 227,137 | 7,347 | [−33,419; 51,255] | 21,979 | no |
+| Garage, parti da 2 MiB, 1 in volo | 1 | 84,472 | 74,914 | −9,558 | [−13,418; −3,590] | 20,000 | sì |
+| Garage, parti da 2 MiB, 1 in volo | 2 | 69,110 | 60,573 | −8,537 | [−15,860; −3,069] | 20,000 | sì |
+| Garage, parti da 2 MiB, 1 in volo | 3 | 52,325 | 51,025 | −1,300 | [−1,977; −0,298] | 20,000 | sì |
+
+Decisione con la regola pre-registrata: **PG `bytea` mitigato non supera** (0 sessioni su 3: la riscrittura toglie quasi tutto il vantaggio della deduplica, ma la varianza della scrittura dei chunk lascia intervalli più larghi di T; nella sessione 1 la deduplica resta più veloce di 110 ms). **Garage a parti da 2 MiB supera** (3 sessioni su 3). In tutte e tre le sessioni d è negativo (la deduplica è più veloce di 1-10 ms): resta entro la tolleranza pre-registrata, ma è un segnale piccolo e sistematico da rimisurare nel prodotto.
+
 ## Anomalie e deviazioni
 
 **Modifica:** Claude (gsd-executor 01-04, ripresa 2) · 2026-10-20 · provenienza delle misure ereditate da un esecutore interrotto
@@ -185,6 +233,13 @@ Decisione con la regola pre-registrata: **Garage supera** (3 sessioni su 3); **P
 - **Errori 500 di Garage nel carico `dedup` concorrente** (righe con `status_5xx` > 0 in `adapters.csv`, solo `garage`, solo `dedup`, solo c ≥ 4 e file ≥ 10 MiB). Il server mappa a 500 un errore di `sink.put`, di `gc::adopt_begin` o della transazione dei metadati; PG `bytea` percorre la stessa adozione e la stessa transazione senza errori, quindi l'indiziato è il PUT concorrente della stessa chiave su Garage (sopra 10 MiB `object_store` passa al multipart). Il CSV non distingue il punto di errore: la diagnosi è nella misura aggiuntiva sotto. Le statistiche di latenza di quelle righe usano solo le risposte 2xx.
 - **`VmHWM` di Garage cresce con la dimensione** (42,6 e 48,1 MiB di delta fra 25 e 1 MiB, soglia 8 MiB). Causa probabile: `object_store::buffered::BufWriter::new` usa una capacità di 10 MiB e fino a 8 parti in volo, quindi tiene in memoria fino a un intero file da 25 MiB. Il puro streaming (dhat) e gli altri due adapter sono costanti: il limite è nella configurazione dell'adapter Garage, non nella ricezione. Mitigazione proposta e misurata sotto.
 - **Istogrammi per fase di `GET /bench/phases`** (file `*.phases.json` in `results/raw/`, non richiesti dal piano): i percentili per fase escono saturati a valori non plausibili (p50 di 2 µs per `receive_hash`), quindi non si usano. Le latenze riportate vengono tutte da `time_total` di `curl`.
+
+**Modifica:** Claude (gsd-executor 01-04, ripresa 4) · 2026-10-21 · diagnosi dei 500, scelta della configurazione mitigata, manifest hardware
+
+- **Diagnosi dei 500 di Garage.** Nella sessione `303e` ogni richiesta 500 del server ha una riga `upload: put fallito` nel log del server (`results/raw/01-04-20261020t161935z-303e/<config>-<size>-dedup-c16-r<n>.log`, ignorati da git): 41 su 41 nella riga di diagnosi, e lo stesso in tutte le righe mitigate. L'errore è sempre lo stesso: la `DELETE …?uploadId=<id>` (abort del multipart) riceve `404 NoSuchUpload`. Nessun errore viene da `gc::adopt_begin` né dalla transazione dei metadati. Lettura: più PUT concorrenti della stessa chiave aprono multipart distinti; quando uno si completa, il multipart di un altro non esiste più per Garage, il suo completamento fallisce, `object_store` tenta l'abort, anche l'abort fallisce con `NoSuchUpload` e l'errore propagato è quello dell'abort (l'errore originale del completamento non arriva nel log). Che Garage chiuda i multipart concorrenti sulla stessa chiave è un'inferenza coerente con i log, non verificata sul codice di Garage. Il corpo e la chiave sono identici, e in tutte le righe `objects_after` = 1 (la leggibilità dell'oggetto dopo i 500 non è stata misurata a parte); il 500 è un falso negativo dell'upload, più un segnale osservabile della presenza di un upload concorrente dello stesso contenuto (vedi «Impatto threat model»). La correzione proposta per S-07 (non misurata nello spike) sta nell'Esito.
+- **Configurazione mitigata del canale laterale scelta dopo la misura di memoria.** Lo script preparato dalla ripresa 3 misurava il canale laterale di Garage a parti da 5 MiB; dato che `garage-p5k1` non supera la soglia di `VmHWM`, il commit `83720bb` lo ha spostato su `garage-p2k1`, l'unica configurazione che l'Esito può proporre, prima di raccogliere qualsiasi tempo del canale laterale mitigato. Le soglie, il protocollo e i tempi del canale laterale della matrice non sono cambiati.
+- **`results/hw.json`.** Ogni sessione riscrive `results/hw.json` con il proprio manifest; dopo le sessioni di mitigazione il file è stato riportato a quello della sessione `c0f9` (sha256 `1f650e01…1edd`, lo stesso citato in «Setup»), e i manifest delle sessioni `303e`, `da48`, `9c72`, `089d` restano in `results/raw/`: stesso host, stessa configurazione di Docker Desktop.
+- **Righe mitigate negli stessi CSV della matrice.** Le righe con etichetta `garage-diag`, `garage-p5k1`, `garage-p2k1` (in `adapters.csv`, `runs.csv`, `mem_by_size.csv`) e `pgbytea-update`, `garage-p2k1` (in `dedup_timing.csv`) non sono righe della matrice: i conteggi del criterio di accettazione (288 righe, 3 adapter × 4 dimensioni × 2 carichi × 4 concorrenze × 3 run) si leggono filtrando `adapter` ∈ {`garage`, `pgbytea`, `null`}. Nessun CSV nuovo fuori dall'elenco del piano.
 
 ## Esito
 
