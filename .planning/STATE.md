@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Onda 3 completata; prossima onda 4 (o gap-closure 1.2 su hist.rs)
-last_updated: "2026-10-21T14:41:56.859Z"
-last_activity: 2026-10-21 -- piano 01.2-01 completato (hist.rs)
+stopped_at: Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11)
+last_updated: "2026-10-21T14:49:30.792Z"
+last_activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
 progress:
   total_phases: 17
   completed_phases: 2
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 
 Phase: 1 of 15 (Spike tecnici)
 Plan: 6 of 18 in current phase
-Status: Executing — fase 1.2 eseguita, da verificare; poi onda 4 di fase 1
-Last activity: 2026-10-21 -- piano 01.2-01 completato (hist.rs)
+Status: Executing — fasi 1.1 e 1.2 chiuse; prossima onda 4 di fase 1
+Last activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -39,7 +39,7 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -48,6 +48,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01.1 | 1 | - | - |
+| 01.2 | 1 | - | - |
 
 **Recent Trend:**
 
@@ -120,5 +121,5 @@ Recenti, rilevanti per il lavoro corrente:
 ## Session Continuity
 
 Last session: 2026-10-19T19:39:45.302Z
-Stopped at: Onda 3 completata; prossima onda 4 (o gap-closure 1.2 su hist.rs)
+Stopped at: Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11)
 Resume file: None

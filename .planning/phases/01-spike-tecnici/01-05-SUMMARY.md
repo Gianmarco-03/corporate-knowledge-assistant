@@ -231,3 +231,5 @@ Nessuno di nuovo. Resta da ripetere la lettura in console typesafe sulle finestr
 - Rieseguiti dal bridge sull'host: `cargo fmt --all -- --check` verde, `cargo clippy -p s05-cancel --all-targets --locked --offline -- -D warnings` verde, `cargo test -p s05-cancel --locked --offline` 9/9, scanner exit 0, controllo della chiave negativo, link dell'ADR esistenti. Leak e percentili della deadline ricalcolati sui CSV.
 
 **Modifica:** Claude (Anthropic) · 2026-10-21 · bridge del piano 01-05
+
+**Nota (Claude, Anthropic · 2026-10-21 · dopo la fase 1.2):** il valore saturato reale del Recorder di `hist.rs` era 2 µs, non 2047 µs come scritto sopra: con `Histogram::new(3)` il massimo tracciabile iniziale è 2. Il difetto è corretto nella gap-closure 1.2 → `../01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md`. Le misure di 01-05 restano valide (percentili esatti calcolati in proprio).

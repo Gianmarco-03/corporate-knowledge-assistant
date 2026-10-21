@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.2 / onda 1 / slice 01.2-01 / verify: banda ECC verde, in corso goal verification GSD · aggiornato: 2026-10-21
+fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-/verify 01.2 passo 3 (gsd-verifier → 01.2-VERIFICATION.md), poi /execute 1 onda 4 (01-07, 01-11); pendenti utente: UAT 01.1, hook pre-commit (TODO).
+/execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati); pendenti utente: UAT 01.1 e 01.2, hook pre-commit (TODO).
 
 ## Findings
 
@@ -43,6 +43,7 @@ fase 01.2 / onda 1 / slice 01.2-01 / verify: banda ECC verde, in corso goal veri
 - 01-06: GPT 91/91 (85 CONFIRMED, 6 PARTIALLY su complessità); ratifica utente ratifica-tutti, TODO-01 teneteli, TODO-02 regola invariata (6 fuori misure); derivatore = esecutore accettato · utente 2026-10-21 → ORACOLI.md
 - 01-05: leak 0 su 9×10k cicli, deadline p99 2,1/1,8 ms; addebito JEV non determinabile (console vuota) · utente 2026-10-21; ADR-0010 Proposed → s05-cancel/RISULTATI.md
 - deviazione b-segnalazione onda 3: spikes/common/src/hist.rs (file chiuso 01-01) Recorder satura 2047 µs (saturating_record senza resize) → gap-closure 1.2; usato da 01-04/07/10/11/12 → 01-05-SUMMARY.md
+- fase 01.2 chiusa: hist.rs registra con record (auto-resize), difetto reale saturava a 2 µs; RED dc42c83, fix dc113c4, merge e693a85, bridge 8f1ea24, verify passed 7/7 → 01.2-VERIFICATION.md
 - verify 01.1: passed 7/7; contratto onorato; WIRING-MAP invariata (nessun seam); PLAT-07 non spuntato; STATE riportato a fase 1 dopo phase complete (che puntava a fase 2); goal ROADMAP 01.1 ancora segnaposto → 01.1-VERIFICATION.md
 - onda 1 di 01.1 chiusa: 01.1-01 (fix 20c5e6f, merge 598022d, bridge 94f2753); test-write RED_EXPECTED; gate main verde (bash -n, compose config, proprieta-file conforme con riapertura, segreti 0, scanner ok) → 01.1-01-SUMMARY.md
 - deviazioni livello a 01.1-01: id piano 01-1-01 (regex senza punto); commit unico RED+GREEN (hook su soli .txt); testo «down -v» riformulato per TEST-10; PLAN riga 114 senza «:» (falso positivo hook) → SUMMARY
@@ -58,13 +59,14 @@ fase 01.2 / onda 1 / slice 01.2-01 / verify: banda ECC verde, in corso goal veri
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
-| 01.2-01 | conforme 6/6 (1° giro) + 2 ritocchi post-gate (TEST-15/16, errata RED) → 01.2-GATE.md | verde: lint-stato verde; cargo fmt/clippy/test spikes verdi dopo `cargo clean -p common` (common 17/17); security HIGH «3 FAILED» = falso allarme da binario di test stale del RED (decaduto, confermato da rust-reviewer); LOW accettati: assert `max_us <= 2047` debole in TEST-15 (rejected==3 e n==4 già asseriti), tolleranza 0,1 % vicina a 1/1024 con valori scelti lontani dal caso peggiore, doc «anche u64::MAX» poggia su test upstream, `saturating_add` superfluo, commento storico s05-cancel/src/main.rs:280 (fuori perimetro D-03) | — |
+| 01.2-01 | conforme 6/6 (1° giro) + 2 ritocchi post-gate (TEST-15/16, errata RED) → 01.2-GATE.md | verde: lint-stato verde; cargo fmt/clippy/test spikes verdi dopo `cargo clean -p common` (common 17/17); security HIGH «3 FAILED» = falso allarme da binario di test stale del RED (decaduto, confermato da rust-reviewer); LOW accettati: assert `max_us <= 2047` debole in TEST-15 (rejected==3 e n==4 già asseriti), tolleranza 0,1 % vicina a 1/1024 con valori scelti lontani dal caso peggiore, doc «anche u64::MAX» poggia su test upstream, `saturating_add` superfluo, commento storico s05-cancel/src/main.rs:280 (fuori perimetro D-03) | passed 7/7, 0 gap → 01.2-VERIFICATION.md |
 | 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | passed 7/7, 0 gap → 01.1-VERIFICATION.md |
 
 ## UAT
 
 - 01.1 pendente · TEST-8 conteggio grep -F sentinelle letterali attestato solo da rapporti (driver cancellato per piano) → 01.1-VERIFICATION.md
 - 01.1 pendente · RISK-14/15/16 LOW da confermare accettati (RISK-14 elenco reale vuoto) → 01.1-01-SUMMARY.md
+- 01.2 pendente · RISK-12 memoria auto-resize ≤ ~450 KB/Recorder senza benchmark; RISK-13 commento s05 «2047» storico (01-05-SUMMARY annotato) → 01.2-VERIFICATION.md
 
 ## TODO
 
@@ -99,3 +101,4 @@ fase 01.2 / onda 1 / slice 01.2-01 / verify: banda ECC verde, in corso goal veri
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.2
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.2
