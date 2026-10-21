@@ -92,7 +92,7 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 - 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · RISK-14 vuoto (manca solo CKA_RUN_ID, impostato da dc()); RISK-15 0 collisioni; RISK-16 0 nomi non ASCII/non validi → 01.1-01-SUMMARY.md
 - 01.2 accettata · utente 2026-10-21 · RISK-12 memoria auto-resize ≤ ~704 KiB allocati/Recorder (≈3,4 MiB caso peggiore con 5 Recorder, ≈880 KiB a 60 s), calcolo da sorgente, misura diretta fallita (LNK1104); RISK-13 commento s05 accettato, correzione alla prossima riapertura fase 1 → 01.2-01-SUMMARY.md
-- 01.3 pendente · RISK-15 noexec/nosuid/nodev del tmpfs non misurato (default Docker, passa a 01-07); RISK-13 uid scollegato da user:, RISK-14 tmpfs nel cgroup: accettati dal threat model → 01.3-VERIFICATION.md
+- 01.3 accettata · utente 2026-10-21 · RISK-15 noexec/nosuid/nodev del tmpfs non misurato (default Docker, passa a 01-07); RISK-13 uid scollegato da user:, RISK-14 tmpfs nel cgroup: accettati → 01.3-VERIFICATION.md
 
 ## TODO
 
@@ -152,3 +152,4 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: 01-07 fermo su tre blocchi, decisioni utente
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.3
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --uat fase 01.3 accettata
