@@ -74,6 +74,16 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Perimetro file**: `spikes/**` (usa-e-getta), nuovi ADR in `docs/adr/`, `DEPENDENCIES.md`, `docs/security/threat-model.md`
 **Plans**: TBD
 
+### Phase 01.1: Gap-closure session.sh: segreti di spikes.env prevalgono su env host (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 1
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 01.1 to break down)
+
 ### Phase 2: Fondazione
 
 **Goal**: Lo sviluppatore avvia l'intero sistema scheletro da un clone pulito con un solo comando, la CI verifica ogni push, e ogni fase successiva trova già pronti i propri punti di innesto vuoti, senza dover modificare file comuni

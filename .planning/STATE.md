@@ -4,10 +4,10 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Onda 2 completata; prima dell'onda 3 gap-closure fase 1.1 (session.sh)
-last_updated: "2026-10-21T09:49:32.368Z"
+last_updated: "2026-10-21T10:14:05.661Z"
 last_activity: 2026-10-21 -- onda 2 completata (01-03, 01-04)
 progress:
-  total_phases: 15
+  total_phases: 16
   completed_phases: 0
   total_plans: 18
   completed_plans: 4
@@ -57,6 +57,10 @@ Progress: [░░░░░░░░░░] 0%
 *Updated after each plan completion*
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 01.1 inserted after Phase 1: Gap-closure session.sh (file chiuso 01-02): env host vince su --env-file; riapre_perimetro [1]; prima dell'onda 3 di fase 1 (URGENT)
 
 ### Decisions
 
