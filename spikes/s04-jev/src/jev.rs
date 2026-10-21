@@ -22,9 +22,10 @@ pub const PRICE_INPUT_USD_PER_MTOK: f64 = 0.042;
 /// Output gratuito (stessa fonte).
 pub const PRICE_OUTPUT_USD_PER_MTOK: f64 = 0.0;
 
-/// Retry massimi su 429/529 per chiamata logica, sempre entro la deadline
-/// (default `max_retries` dell'SDK Python, RICERCA Area D §1.3).
-pub const MAX_RETRIES: u32 = 2;
+/// Retry massimi su 429/529 per chiamata logica, sempre entro la deadline:
+/// uno, come il budget di retry di ADR-0010 (Decisione 5). L'SDK Python ne
+/// fa due (RICERCA Area D §1.3), ma lì non c'è una deadline globale.
+pub const MAX_RETRIES: u32 = 1;
 /// Attesa iniziale quando la risposta non porta `retry-after` (raddoppia, tetto 5 s).
 const BACKOFF_INITIAL: Duration = Duration::from_millis(500);
 const BACKOFF_MAX: Duration = Duration::from_secs(5);
