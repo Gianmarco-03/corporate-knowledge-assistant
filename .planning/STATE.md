@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Onda 2 completata; prima dell'onda 3 gap-closure fase 1.1 (session.sh)
-last_updated: "2026-10-21T10:14:05.661Z"
-last_activity: 2026-10-21 -- onda 2 completata (01-03, 01-04)
+stopped_at: Fase 1.1 eseguita; prossimi /verify 01.1 e onda 3 di fase 1 (01-05, 01-06)
+last_updated: "2026-10-21T11:20:00.523Z"
+last_activity: 2026-10-21 -- piano 01.1-01 completato (session.sh)
 progress:
   total_phases: 16
-  completed_phases: 0
-  total_plans: 18
-  completed_plans: 4
-  percent: 0
+  completed_phases: 1
+  total_plans: 19
+  completed_plans: 5
+  percent: 6
 ---
 
 # Project State
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 
 Phase: 1 of 15 (Spike tecnici)
 Plan: 4 of 18 in current phase
-Status: Executing — onda 2 completata
-Last activity: 2026-10-21 -- onda 2 completata (01-03, 01-04)
+Status: Executing — fase 1.1 eseguita (01.1-01), da verificare; poi onda 3 di fase 1
+Last activity: 2026-10-21 -- piano 01.1-01 completato (session.sh)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -84,6 +84,9 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 1]: Mitigazione del canale laterale su Garage spostata da parti 5 a 2 MiB dopo la misura di memoria, prima dei tempi → `../spikes/s01-upload/RISULTATI.md#anomalie-e-deviazioni`
 - [Phase 1]: Parti da 2 MiB sotto il minimo S3 di 5 MiB: portabilità non verificata, da valutare in 01-16/01-17 → `phases/01-spike-tecnici/01-04-SUMMARY.md#punti-aperti`
 - [Phase 1]: DATABASE_URL di sistema (altro progetto) eliminata dall'utente; difetto di session.sh (env host vince) → gap-closure fase 1.1 prima dell'onda 3 → `phases/01-spike-tecnici/01-04-SUMMARY.md#punti-aperti`
+- [Phase 01.1]: dc() toglie con env -u, dal solo processo compose, le variabili dell'host omonime (in maiuscolo) delle chiavi di spikes.env; la shell non cambia → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#decisions-made`
+- [Phase 01.1]: Id di piano 01-1-01 nelle sessioni di session.sh: le regex rifiutano il punto; fixture TEST-11/12 allineate, non indebolite → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#deviations-from-plan`
+- [Phase 01.1]: Commit unico RED+GREEN+regressione: l'hook rifiuta i commit di soli .txt (security-scope-empty); regola dell'hook da decidere → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#punti-aperti`
 
 ### Pending Todos
 
@@ -105,5 +108,5 @@ Recenti, rilevanti per il lavoro corrente:
 ## Session Continuity
 
 Last session: 2026-10-19T19:39:45.302Z
-Stopped at: Onda 2 completata; prima dell'onda 3 gap-closure fase 1.1 (session.sh)
+Stopped at: Fase 1.1 eseguita; prossimi /verify 01.1 e onda 3 di fase 1 (01-05, 01-06)
 Resume file: None
