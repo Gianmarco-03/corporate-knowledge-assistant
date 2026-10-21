@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.1 / onda 1 / slice 01.1-01 / execute completato · aggiornato: 2026-10-21
+fase 01.1 / — / slice 01.1-01 / verify: banda ECC verde, in corso goal verification GSD · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-/verify 01.1 (gap-closure session.sh, 1 piano), POI /execute 1 onda 3 (01-05, 01-06); decisione utente pendente su hook pre-commit e commit di sole evidenze .txt/.csv (vedi TODO).
+/verify 01.1 passo 3: gsd-verifier su 01.1 → VERIFICATION; poi /execute 1 onda 3 (01-05, 01-06); decisione utente pendente su hook pre-commit e commit di sole evidenze .txt/.csv (vedi TODO).
 
 ## Findings
 
@@ -53,6 +53,7 @@ fase 01.1 / onda 1 / slice 01.1-01 / execute completato · aggiornato: 2026-10-2
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | — |
 
 ## UAT
 
@@ -69,6 +70,7 @@ fase 01.1 / onda 1 / slice 01.1-01 / execute completato · aggiornato: 2026-10-2
 - D-27 Docling pagine-tabella: scelta dopo misura 01-08 → 01-CONTEXT Deferred Ideas.
 - interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012).
 - da decidere utente: hook pre-commit rifiuta commit di sole evidenze .txt/.csv (security-scope-empty rc=2) → commit RED separato impossibile (01-04, 01.1-01) → 01.1-01-SUMMARY.md#punti-aperti
+- residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 
 ## Decisioni ratificate in corsa
 
@@ -85,3 +87,4 @@ fase 01.1 / onda 1 / slice 01.1-01 / execute completato · aggiornato: 2026-10-2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --plan fase 01.1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01.1 onda 1
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.1
