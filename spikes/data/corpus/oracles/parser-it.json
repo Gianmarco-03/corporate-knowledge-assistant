@@ -17,11 +17,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "page-text",
-    "gpt_ref": "doublecheck/doublecheck_6.md"
+    "gpt_ref": "doublecheck/doublecheck_6.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-002",
@@ -41,11 +42,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "page-text",
-    "gpt_ref": "doublecheck/doublecheck_6.md"
+    "gpt_ref": "doublecheck/doublecheck_6.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-003",
@@ -65,11 +67,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "page-text",
-    "gpt_ref": "doublecheck/doublecheck_6.md"
+    "gpt_ref": "doublecheck/doublecheck_6.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-004",
@@ -89,11 +92,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "page-text",
-    "gpt_ref": "doublecheck/doublecheck_6.md"
+    "gpt_ref": "doublecheck/doublecheck_6.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-005",
@@ -113,11 +117,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "page-text",
-    "gpt_ref": "doublecheck/doublecheck_6.md"
+    "gpt_ref": "doublecheck/doublecheck_6.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-006",
@@ -137,11 +142,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
-    "todo_ref": "TODO-01",
+    "todo_ref": null,
     "parser_kind": "page-text",
-    "gpt_ref": "doublecheck/doublecheck_6.md"
+    "gpt_ref": "doublecheck/doublecheck_6.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-007",
@@ -672,11 +678,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "table",
-    "gpt_ref": "doublecheck/doublecheck_7.md"
+    "gpt_ref": "doublecheck/doublecheck_7.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-008",
@@ -858,11 +865,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "table",
-    "gpt_ref": "doublecheck/doublecheck_7.md"
+    "gpt_ref": "doublecheck/doublecheck_7.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-009",
@@ -1255,11 +1263,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "table",
-    "gpt_ref": "doublecheck/doublecheck_7.md"
+    "gpt_ref": "doublecheck/doublecheck_7.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-010",
@@ -1472,11 +1481,12 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "table",
-    "gpt_ref": "doublecheck/doublecheck_7.md"
+    "gpt_ref": "doublecheck/doublecheck_7.md",
+    "ratified_at": "2026-10-21"
   },
   {
     "oracle_id": "P-011",
@@ -1500,10 +1510,11 @@
     "guardrail": {
       "claude": "concordo — Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06",
       "gpt": "CONFIRMED",
-      "user": null
+      "user": "ratified"
     },
     "todo_ref": null,
     "parser_kind": "table-pages",
-    "gpt_ref": "doublecheck/doublecheck_7.md"
+    "gpt_ref": "doublecheck/doublecheck_7.md",
+    "ratified_at": "2026-10-21"
   }
 ]

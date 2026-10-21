@@ -22,6 +22,8 @@ Per i Markdown il controllo che l'estratto sia verbatim è meccanico (verify del
 
 **Agente derivatore.** Ha derivato gli oracoli Claude Opus 5.5 (Anthropic), nella sessione `gsd-executor` del piano 01-06, in un worktree isolato (`exec/01-06`). È un agente diverso da quelli che eseguiranno S-02, S-03, S-04 e A-04 e dall'orchestratore di `execute`, ma è anche l'esecutore di questo piano: il piano chiedeva un agente fresco distinto anche dall'esecutore, e in questa sessione non era possibile avviare un sotto-agente. La deviazione è dichiarata nel rapporto del piano e va giudicata alla ratifica (Task 3).
 
+*Decisione dell'utente (2026-10-21, checkpoint 01-06).* L'utente accetta la deviazione: il derivatore resta lo stesso agente dell'esecutore del piano. Il motivo è che l'indipendenza che conta per gli oracoli è quella dalla pipeline e dagli esecutori degli spike, e quella è rispettata; in più, ogni valore è passato dal double-check di GPT e dalla ratifica dell'utente. Il TEST-10 del test design resta registrato come deviazione accettata, non come verde.
+
 ## Classi di provenienza
 
 Sono ammesse solo le tre classi qualificanti di `skills/eval-oracle-check`:
@@ -78,7 +80,9 @@ Le query senza risposta nel corpus riguardano tutte Alfa Componenti, la società
 |---|---|
 | Claude (derivazione) | compilato su 91/91 oracoli |
 | GPT (double-check) | eseguito su 91/91: 85 `CONFIRMED`, 6 `PARTIALLY_CONFIRMED`, nessun `REJECTED` o `UNDETERMINED` |
-| Utente (ratifica) | da eseguire (Task 3) |
+| Utente (ratifica) | eseguita il 2026-10-21 (checkpoint 01-06, decisione «ratifica-tutti»): `ratified` su 85/91, cioè tutti gli oracoli `CONFIRMED` |
+
+**Oracoli utilizzabili nelle misure (tre assi verdi):** 74 query su 80 e 11 oracoli del parser su 11. **Esclusi:** Q-008, Q-010, Q-012, Q-040, Q-048 e Q-056. Per queste sei `guardrail.gpt` resta `PARTIALLY_CONFIRMED`, `guardrail.user` resta `null` e `todo_ref` punta a TODO-02. Gli spike le escludono e ne dichiarano il numero nei RISULTATI. Nessuna voce usa la classe `ratifica-utente`, quindi nessuna ha bisogno di `ratification_ref`. La data della ratifica sta nel campo `ratified_at` di ogni voce.
 
 Il double-check si è svolto il 2026-10-21 su AgentBridge, in sette lotti. Ogni risposta di GPT è trascritta verbatim in `doublecheck/doublecheck_N.md` ed è stata archiviata con `ACK-RESPONSE` solo dopo il salvataggio. Il verdetto per oracolo viene dalla tabella della risposta; ogni voce JSON porta `gpt_ref` al file del lotto.
 
@@ -94,7 +98,7 @@ Il double-check si è svolto il 2026-10-21 su AgentBridge, in sette lotti. Ogni 
 
 I sei dissensi riguardano tutti l'etichetta di complessità, non il valore atteso né l'estratto: GPT conferma il contenuto e considera `complex` una risposta con più elementi anche quando stanno in una sola frase. Nessun oracolo è stato allineato al verificatore: valore, passaggi, complessità, ruolo e classe sono identici al commit del Task 1 (controllo `git show` sui due JSON). I sei oracoli restano pendenti con `todo_ref: TODO-02`.
 
-Oracoli con i tre assi potenzialmente verdi dopo la ratifica: 74 query su 80 (il minimo del piano è 60) e 10 oracoli del parser su 11 (P-006 resta su TODO-01 finché l'utente non decide).
+Dopo il double-check si contavano 74 query su 80 con i tre assi potenzialmente verdi (il minimo del piano è 60) e 10 oracoli del parser su 11. P-006 restava su TODO-01 in attesa della decisione dell'utente; con la chiusura di TODO-01 il conteggio del parser è salito a 11 su 11.
 
 ## TO-DO di dominio
 
@@ -102,7 +106,12 @@ Oracoli con i tre assi potenzialmente verdi dopo la ratifica: 74 query su 80 (il
 
 *Aggiornamento dopo il double-check (2026-10-21).* GPT (`doublecheck_6`) dà `CONFIRMED` a P-006 e riferisce che l'estrazione di testo dal PDF include quelle diciture come testo estraibile, cioè che l'assunzione regge. È un'indicazione del verificatore, non una decisione: il TO-DO resta aperto fino alla risposta dell'utente.
 
+*Chiuso il 2026-10-21 (decisione dell'utente al checkpoint 01-06: «teneteli»).* Il riquadro «WEB» e la didascalia restano nel testo atteso di P-006. Poiché P-006 è `CONFIRMED`, è stato ratificato con gli altri oracoli e il suo `todo_ref` è tornato `null`.
+
 **TODO-02 — Regola di complessità sulle risposte con più elementi in una frase.** GPT (`doublecheck_1`, `doublecheck_3`, `doublecheck_4`) giudica `PARTIALLY_CONFIRMED` sei query etichettate `simple`, perché la risposta contiene più elementi anche se un solo passaggio la sostiene: Q-008 (due autorizzazioni), Q-010 (prezzo e due fonti di finanziamento), Q-012 (due obiettivi con i loro pesi), Q-040 (due società acquisite), Q-048 (tre indicazioni di policy), Q-056 (due requisiti di approvazione). Contenuto ed estratti sono confermati. La regola scritta prima delle etichette dice `simple` = «un solo fatto, e un solo passaggio basta a sostenerlo»: le sei query sono state lette come un fatto composto in una frase. Assunzione provvisoria: restano `simple`. Ne dipende la misura del routing per complessità in A-04 (D-18) su queste sei query; recall, nDCG, rerank e fedeltà delle citazioni non cambiano. Domanda per l'utente: tenere la regola com'è (le sei restano `simple`), oppure precisarla in «più elementi nella risposta ⇒ `complex`» e rietichettarle con una nuova derivazione? Fino alla risposta le sei query restano pendenti e fuori dalle misure.
+
+*Domanda di dominio chiusa il 2026-10-21 (decisione dell'utente al checkpoint 01-06: «resta la regola attuale»).* La regola di complessità non cambia e le sei query restano `simple`. Le sei query restano comunque **non ratificate e fuori dalle misure**, perché il loro `guardrail.gpt` è `PARTIALLY_CONFIRMED` e solo `CONFIRMED` è verde. Il loro `todo_ref` punta a questa decisione. Per recuperarle basta reinviarle a GPT in un nuovo lotto di double-check, con la regola di complessità scritta in modo esplicito come criterio di giudizio. Se GPT le conferma, tornano alla ratifica dell'utente. Il verdetto del primo double-check resta registrato e non si modifica.
 
 **Modifica:** Claude Opus 5.5 (Anthropic), agente derivatore della sessione gsd-executor 01-06 · 2026-10-21 · regole, classi, convenzioni, regola di complessità, conteggi e primo TO-DO (piano 01-06, Task 1)
 **Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · esito del double-check GPT per lotto, nota su TODO-01, TODO-02 sulla regola di complessità (piano 01-06, Task 2)
+**Modifica:** Claude Opus 5.5 (Anthropic), sessione gsd-executor 01-06 · 2026-10-21 · ratifica dell'utente (ratifica-tutti su 85 CONFIRMED), deviazione del derivatore accettata, TODO-01 e TODO-02 chiusi (piano 01-06, Task 3)
