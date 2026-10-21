@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 03 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01.2 verify completato, fase chiusa, prossima onda 4 di fase 1) · aggiornato: 2026-10-21T15:58Z
+fase 03 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01 onda 4 parziale, 01-11 fuso, 01-07 fermo su 3 blocchi) · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-Traccia Spike: /execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati), UAT 01.1 e 01.2 accettate; traccia discuss: /discuss 4 (plan 2/3 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
+Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s05-cancel), poi ripasso /plan di 01-07 (soglie prescan nuove, audit+test design GPT), poi ripresa execute 01-07 dal Task 3 (patch in TEMP/cka-0107-wip); bridge 01-11 in corso; traccia discuss: /discuss 4 (plan 2/3 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
 
 ## Findings
 
