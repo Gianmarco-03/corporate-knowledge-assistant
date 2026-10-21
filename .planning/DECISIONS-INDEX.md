@@ -27,6 +27,12 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Hook pre-commit blocca solo CRITICAL/HIGH (--fail-on HIGH); i MEDIUM sono avvisi da motivare nel SUMMARY; gate di plan/verify invariati → `../skills/security-scanner/SKILL.md`
 - 2026-10-21 · Gap-closure 1.3: tmpfs /work del worker scrivibile da uid 10001 in compose.yaml (file chiuso 01-02) + commento s05-cancel → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
 - 2026-10-21 · Ripasso di plan 01-07: object stream su somma reale decompressa ≤512 MiB, PDF con password utente vuota ammessi, allegati ignorati e registrati, memoria su VmHWM → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
+- 2026-10-21 · Forma A per il rank JEV: nDCG@5 1,0 contro 0,729 (C) e 0,679 (B), p95 606 ms ≤ 2.000 → `../spikes/s04-jev/RISULTATI-jev.md#esito`
+- 2026-10-21 · Concorrenza JEV 16 (massimo misurato con 0 risposte 429, non limite trovato); retry unico su 429/529 entro la deadline → `../docs/adr/0008-jev-forma-rank-concorrenza-pin.md#decisione`
+- 2026-10-21 · Pin jev-1.13.0 da JEV_MODEL senza default; jev-latest mobile, jev-preview già 1.14.0 → `../docs/adr/0008-jev-forma-rank-concorrenza-pin.md#decisione`
+- 2026-10-21 · Varianza Noul oltre soglia per 1 candidato su 600 (std 0,0954): margine di calibrazione ≥ ±0,1 attorno al taglio → `../spikes/s04-jev/RISULTATI-jev.md#esito`
+- 2026-10-21 · 01-11 fuso prima di 01-07 contro 01-ONDE (decisione utente: 01-07 fermo su tre blocchi esterni) → `phases/01-spike-tecnici/01-11-SUMMARY.md#integrazione-fuori-ordine`
+- 2026-10-21 · instructs_model misurato solo sui falsi positivi (0/1.800): il rilevamento sul testo ostile va a 01-12 o a un oracolo nuovo → `phases/01-spike-tecnici/01-11-SUMMARY.md#issues-encountered`
 
 ## Fase 1.1 — Gap-closure di session.sh
 

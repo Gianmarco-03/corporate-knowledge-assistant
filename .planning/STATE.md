@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: "Traccia discuss: fase 3 contesto discusso (criticità critica), prossimo /discuss 4; traccia Spike: onda 4 di fase 1"
-last_updated: "2026-10-21T16:32:31.951Z"
-last_activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
+last_updated: "2026-10-21T16:36:25.993Z"
+last_activity: 2026-10-21 -- piano 01-11 completato (JEV rank), 01-07 fermo
 progress:
   total_phases: 18
   completed_phases: 2
   total_plans: 20
-  completed_plans: 8
+  completed_plans: 9
   percent: 11
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 6 of 18 in current phase
+Plan: 7 of 18 in current phase
 Status: Executing — fasi 1.1 e 1.2 chiuse; prossima onda 4 di fase 1
-Last activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
+Last activity: 2026-10-21 -- piano 01-11 completato (JEV rank), 01-07 fermo
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -117,6 +117,12 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 1]: Hook pre-commit blocca solo CRITICAL/HIGH (--fail-on HIGH); i MEDIUM sono avvisi da motivare nel SUMMARY; gate di plan/verify invariati → `../skills/security-scanner/SKILL.md`
 - [Phase 1]: Gap-closure 1.3: tmpfs /work del worker scrivibile da uid 10001 in compose.yaml (file chiuso 01-02) + commento s05-cancel → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
 - [Phase 1]: Ripasso di plan 01-07: object stream su somma reale decompressa ≤512 MiB, PDF con password utente vuota ammessi, allegati ignorati e registrati, memoria su VmHWM → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
+- [Phase 1]: Forma A per il rank JEV: nDCG@5 1,0 contro 0,729 (C) e 0,679 (B), p95 606 ms ≤ 2.000 → `../spikes/s04-jev/RISULTATI-jev.md#esito`
+- [Phase 1]: Concorrenza JEV 16 (massimo misurato con 0 risposte 429, non limite trovato); retry unico su 429/529 entro la deadline → `../docs/adr/0008-jev-forma-rank-concorrenza-pin.md#decisione`
+- [Phase 1]: Pin jev-1.13.0 da JEV_MODEL senza default; jev-latest mobile, jev-preview già 1.14.0 → `../docs/adr/0008-jev-forma-rank-concorrenza-pin.md#decisione`
+- [Phase 1]: Varianza Noul oltre soglia per 1 candidato su 600 (std 0,0954): margine di calibrazione ≥ ±0,1 attorno al taglio → `../spikes/s04-jev/RISULTATI-jev.md#esito`
+- [Phase 1]: 01-11 fuso prima di 01-07 contro 01-ONDE (decisione utente: 01-07 fermo su tre blocchi esterni) → `phases/01-spike-tecnici/01-11-SUMMARY.md#integrazione-fuori-ordine`
+- [Phase 1]: instructs_model misurato solo sui falsi positivi (0/1.800): il rilevamento sul testo ostile va a 01-12 o a un oracolo nuovo → `phases/01-spike-tecnici/01-11-SUMMARY.md#issues-encountered`
 
 ### Pending Todos
 
