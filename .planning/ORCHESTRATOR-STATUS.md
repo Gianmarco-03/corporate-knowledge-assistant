@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.1 / — / slice 01.1-01 / verify completato (passed), fase chiusa · aggiornato: 2026-10-21
+fase 01 / onda 3 / slice 01-05, 01-06 / execute onda 3 completata · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-/execute 1 onda 3 (01-05 JEV, 01-06 oracoli); prima: UAT 01.1 (2 giudizi) e decisione utente su hook pre-commit con sole evidenze .txt/.csv (vedi UAT e TODO).
+Gap-closure fase 1.2 (hist.rs di 01-01: Recorder satura a 2047 µs; `riapre_perimetro: [1]`; verificare impatto su 01-04) PRIMA di /execute 1 onda 4 (01-07, 01-11 usano Recorder); pendenti utente: UAT 01.1, hook pre-commit (TODO).
 
 ## Findings
 
@@ -39,6 +39,10 @@ fase 01.1 / — / slice 01.1-01 / verify completato (passed), fase chiusa · agg
 - rimbalzi livello b: nessuno; segnalazione b su file chiuso 01-02 (session.sh env host) → gap-closure 1.1
 - fase 01.1 inserita (gsd-phase), criticità normale · utente 2026-10-21; CONTEXT D-01..D-04 → 01.1-CONTEXT.md
 - plan 01.1: 1 piano (checker PASSED 1° giro), gate 6/6 conformi o n/a dichiarati, test design Claude 16 RISK / 14 TEST → 01.1-GATE.md, 01.1-01-TEST-DESIGN.md, 01.1-CONTRATTO.md, 01.1-ONDE.md
+- onda 3 chiusa: 01-06 (merge af705f3, bridge b50f307) + 01-05 (merge 4dccede, bridge 612200f); gate onda verde (fmt/clippy/test spikes, compose, proprieta-file, segreti 0, triplo guardrail 74 query ≥ 60) → 01-05/01-06-SUMMARY.md
+- 01-06: GPT 91/91 (85 CONFIRMED, 6 PARTIALLY su complessità); ratifica utente ratifica-tutti, TODO-01 teneteli, TODO-02 regola invariata (6 fuori misure); derivatore = esecutore accettato · utente 2026-10-21 → ORACOLI.md
+- 01-05: leak 0 su 9×10k cicli, deadline p99 2,1/1,8 ms; addebito JEV non determinabile (console vuota) · utente 2026-10-21; ADR-0010 Proposed → s05-cancel/RISULTATI.md
+- deviazione b-segnalazione onda 3: spikes/common/src/hist.rs (file chiuso 01-01) Recorder satura 2047 µs (saturating_record senza resize) → gap-closure 1.2; usato da 01-04/07/10/11/12 → 01-05-SUMMARY.md
 - verify 01.1: passed 7/7; contratto onorato; WIRING-MAP invariata (nessun seam); PLAT-07 non spuntato; STATE riportato a fase 1 dopo phase complete (che puntava a fase 2); goal ROADMAP 01.1 ancora segnaposto → 01.1-VERIFICATION.md
 - onda 1 di 01.1 chiusa: 01.1-01 (fix 20c5e6f, merge 598022d, bridge 94f2753); test-write RED_EXPECTED; gate main verde (bash -n, compose config, proprieta-file conforme con riapertura, segreti 0, scanner ok) → 01.1-01-SUMMARY.md
 - deviazioni livello a 01.1-01: id piano 01-1-01 (regex senza punto); commit unico RED+GREEN (hook su soli .txt); testo «down -v» riformulato per TEST-10; PLAN riga 114 senza «:» (falso positivo hook) → SUMMARY
@@ -91,3 +95,4 @@ fase 01.1 / — / slice 01.1-01 / verify completato (passed), fase chiusa · agg
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01.1 onda 1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.1
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 3
