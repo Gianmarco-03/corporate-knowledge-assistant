@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.1 / — / slice 01.1-01 / verify: banda ECC verde, in corso goal verification GSD · aggiornato: 2026-10-21
+fase 01.1 / — / slice 01.1-01 / verify completato (passed), fase chiusa · aggiornato: 2026-10-21
 
 ## Prossima azione
 
-/verify 01.1 passo 3: gsd-verifier su 01.1 → VERIFICATION; poi /execute 1 onda 3 (01-05, 01-06); decisione utente pendente su hook pre-commit e commit di sole evidenze .txt/.csv (vedi TODO).
+/execute 1 onda 3 (01-05 JEV, 01-06 oracoli); prima: UAT 01.1 (2 giudizi) e decisione utente su hook pre-commit con sole evidenze .txt/.csv (vedi UAT e TODO).
 
 ## Findings
 
@@ -39,6 +39,7 @@ fase 01.1 / — / slice 01.1-01 / verify: banda ECC verde, in corso goal verific
 - rimbalzi livello b: nessuno; segnalazione b su file chiuso 01-02 (session.sh env host) → gap-closure 1.1
 - fase 01.1 inserita (gsd-phase), criticità normale · utente 2026-10-21; CONTEXT D-01..D-04 → 01.1-CONTEXT.md
 - plan 01.1: 1 piano (checker PASSED 1° giro), gate 6/6 conformi o n/a dichiarati, test design Claude 16 RISK / 14 TEST → 01.1-GATE.md, 01.1-01-TEST-DESIGN.md, 01.1-CONTRATTO.md, 01.1-ONDE.md
+- verify 01.1: passed 7/7; contratto onorato; WIRING-MAP invariata (nessun seam); PLAT-07 non spuntato; STATE riportato a fase 1 dopo phase complete (che puntava a fase 2); goal ROADMAP 01.1 ancora segnaposto → 01.1-VERIFICATION.md
 - onda 1 di 01.1 chiusa: 01.1-01 (fix 20c5e6f, merge 598022d, bridge 94f2753); test-write RED_EXPECTED; gate main verde (bash -n, compose config, proprieta-file conforme con riapertura, segreti 0, scanner ok) → 01.1-01-SUMMARY.md
 - deviazioni livello a 01.1-01: id piano 01-1-01 (regex senza punto); commit unico RED+GREEN (hook su soli .txt); testo «down -v» riformulato per TEST-10; PLAN riga 114 senza «:» (falso positivo hook) → SUMMARY
 
@@ -53,11 +54,12 @@ fase 01.1 / — / slice 01.1-01 / verify: banda ECC verde, in corso goal verific
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
-| 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | — |
+| 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | passed 7/7, 0 gap → 01.1-VERIFICATION.md |
 
 ## UAT
 
-*(vuoto)*
+- 01.1 pendente · TEST-8 conteggio grep -F sentinelle letterali attestato solo da rapporti (driver cancellato per piano) → 01.1-VERIFICATION.md
+- 01.1 pendente · RISK-14/15/16 LOW da confermare accettati (RISK-14 elenco reale vuoto) → 01.1-01-SUMMARY.md
 
 ## TODO
 
@@ -88,3 +90,4 @@ fase 01.1 / — / slice 01.1-01 / verify: banda ECC verde, in corso goal verific
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --plan fase 01.1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01.1 onda 1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.1
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.1

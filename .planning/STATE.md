@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Fase 1.1 eseguita; prossimi /verify 01.1 e onda 3 di fase 1 (01-05, 01-06)
-last_updated: "2026-10-21T11:20:00.523Z"
-last_activity: 2026-10-21 -- piano 01.1-01 completato (session.sh)
+stopped_at: Fase 1.1 chiusa; prossima onda 3 di fase 1 (01-05, 01-06)
+last_updated: "2026-10-21T12:15:16.024Z"
+last_activity: 2026-10-21 -- fase 1.1 verificata (passed) e chiusa
 progress:
   total_phases: 16
   completed_phases: 1
@@ -30,8 +30,8 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 
 Phase: 1 of 15 (Spike tecnici)
 Plan: 4 of 18 in current phase
-Status: Executing — fase 1.1 eseguita (01.1-01), da verificare; poi onda 3 di fase 1
-Last activity: 2026-10-21 -- piano 01.1-01 completato (session.sh)
+Status: Executing — fase 1.1 verificata e chiusa; prossima onda 3 di fase 1
+Last activity: 2026-10-21 -- fase 1.1 verificata (passed) e chiusa
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -39,7 +39,7 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 1
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -47,7 +47,7 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01.1 | 1 | - | - |
 
 **Recent Trend:**
 
@@ -108,5 +108,5 @@ Recenti, rilevanti per il lavoro corrente:
 ## Session Continuity
 
 Last session: 2026-10-19T19:39:45.302Z
-Stopped at: Fase 1.1 eseguita; prossimi /verify 01.1 e onda 3 di fase 1 (01-05, 01-06)
+Stopped at: Fase 1.1 chiusa; prossima onda 3 di fase 1 (01-05, 01-06)
 Resume file: None
