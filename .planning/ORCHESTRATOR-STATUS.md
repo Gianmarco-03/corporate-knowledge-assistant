@@ -83,7 +83,7 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
-| 01.3-01 | conforme 6/6 (1° giro) → 01.3-GATE.md | verde: compose config, fmt/clippy/test spikes, lint-stato; security 0 gravi (0700+10001 restringe, isolamento invariato, evidenza pulita, noexec coerente con 01-07); code review non applicabile (1 riga YAML + commento) | — |
+| 01.3-01 | conforme 6/6 (1° giro) → 01.3-GATE.md | verde: compose config, fmt/clippy/test spikes, lint-stato; security 0 gravi (0700+10001 restringe, isolamento invariato, evidenza pulita, noexec coerente con 01-07); code review non applicabile (1 riga YAML + commento) | passed 7/7, 0 gap → 01.3-VERIFICATION.md |
 | 01.2-01 | conforme 6/6 (1° giro) + 2 ritocchi post-gate (TEST-15/16, errata RED) → 01.2-GATE.md | verde: lint-stato verde; cargo fmt/clippy/test spikes verdi dopo `cargo clean -p common` (common 17/17); security HIGH «3 FAILED» = falso allarme da binario di test stale del RED (decaduto, confermato da rust-reviewer); LOW accettati: assert `max_us <= 2047` debole in TEST-15 (rejected==3 e n==4 già asseriti), tolleranza 0,1 % vicina a 1/1024 con valori scelti lontani dal caso peggiore, doc «anche u64::MAX» poggia su test upstream, `saturating_add` superfluo, commento storico s05-cancel/src/main.rs:280 (fuori perimetro D-03) | passed 7/7, 0 gap → 01.2-VERIFICATION.md |
 | 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | passed 7/7, 0 gap → 01.1-VERIFICATION.md |
 
@@ -92,6 +92,7 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 - 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · RISK-14 vuoto (manca solo CKA_RUN_ID, impostato da dc()); RISK-15 0 collisioni; RISK-16 0 nomi non ASCII/non validi → 01.1-01-SUMMARY.md
 - 01.2 accettata · utente 2026-10-21 · RISK-12 memoria auto-resize ≤ ~704 KiB allocati/Recorder (≈3,4 MiB caso peggiore con 5 Recorder, ≈880 KiB a 60 s), calcolo da sorgente, misura diretta fallita (LNK1104); RISK-13 commento s05 accettato, correzione alla prossima riapertura fase 1 → 01.2-01-SUMMARY.md
+- 01.3 pendente · RISK-15 noexec/nosuid/nodev del tmpfs non misurato (default Docker, passa a 01-07); RISK-13 uid scollegato da user:, RISK-14 tmpfs nel cgroup: accettati dal threat model → 01.3-VERIFICATION.md
 
 ## TODO
 
@@ -150,3 +151,4 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --uat fasi 01.1 e 01.2 accettate
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: 01-07 fermo su tre blocchi, decisioni utente
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.3
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.3
