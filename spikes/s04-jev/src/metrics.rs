@@ -1,17 +1,44 @@
 //! Metriche di qualità del ranking con rilevanza binaria dagli oracoli.
 
+use std::collections::HashSet;
+
 /// nDCG@k con guadagno binario; 0 se non ci sono rilevanti (mai NaN).
 pub fn ndcg_at_k(ranked: &[&str], relevant: &[&str], k: usize) -> f64 {
-    // stub del test-write: da implementare in 01-11
-    let _ = (ranked, relevant, k);
-    todo!()
+    let rel: HashSet<&str> = relevant.iter().copied().collect();
+    if rel.is_empty() || k == 0 {
+        return 0.0;
+    }
+    // Un id ripetuto nel ranking guadagna una sola volta.
+    let mut seen: HashSet<&str> = HashSet::new();
+    let dcg: f64 = ranked
+        .iter()
+        .take(k)
+        .enumerate()
+        .filter(|(_, id)| rel.contains(**id) && seen.insert(**id))
+        .map(|(i, _)| discount(i))
+        .sum();
+    let ideal: f64 = (0..rel.len().min(k)).map(discount).sum();
+    dcg / ideal
+}
+
+/// Sconto della posizione `i` (0-based): 1 / log2(i + 2).
+fn discount(i: usize) -> f64 {
+    1.0 / ((i + 2) as f64).log2()
 }
 
 /// Frazione dei rilevanti presenti nelle prime `k` posizioni; 0 se non ci sono rilevanti.
 pub fn recall_at_k(ranked: &[&str], relevant: &[&str], k: usize) -> f64 {
-    // stub del test-write: da implementare in 01-11
-    let _ = (ranked, relevant, k);
-    todo!()
+    let rel: HashSet<&str> = relevant.iter().copied().collect();
+    if rel.is_empty() {
+        return 0.0;
+    }
+    let hit: HashSet<&str> = ranked
+        .iter()
+        .take(k)
+        .copied()
+        .filter(|id| rel.contains(id))
+        .collect();
+    hit.len() as f64 / rel.len() as f64
 }
 
 #[cfg(test)]

@@ -5,9 +5,68 @@
 //! Contratto (RESEARCH §7, openapi 0.2.0): `POST {base_url}/v1/systemone` con
 //! `Authorization: Bearer <chiave>`. La chiave non compare mai in `Debug`, errori o CSV.
 
-use crate::candidates::{Acl, Passage, Query};
+use crate::candidates::{Acl, Passage, Query, assert_visible};
+use anyhow::{Context, bail};
+use futures::StreamExt;
+use sha2::{Digest, Sha256};
 use std::fmt;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
+use tokio::time::Instant;
+
+/// Prezzo dell'input di `jev-1.13` e `jev-1.14`: 0,042 USD per milione di token.
+/// Fonte: https://docs.typesafe.ai/models (letta il 2026-10-18), riportata in
+/// 01-RICERCA-DISCUSSIONE.md Area D §1.5.
+pub const PRICE_INPUT_USD_PER_MTOK: f64 = 0.042;
+/// Output gratuito (stessa fonte).
+pub const PRICE_OUTPUT_USD_PER_MTOK: f64 = 0.0;
+
+/// Retry massimi su 429/529 per chiamata logica, sempre entro la deadline
+/// (default `max_retries` dell'SDK Python, RICERCA Area D §1.3).
+pub const MAX_RETRIES: u32 = 2;
+/// Attesa iniziale quando la risposta non porta `retry-after` (raddoppia, tetto 5 s).
+const BACKOFF_INITIAL: Duration = Duration::from_millis(500);
+const BACKOFF_MAX: Duration = Duration::from_secs(5);
+/// Timeout di connessione (piano 01-11, Task 1).
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+/// Timeout per richiesta di `new_from_env`; la deadline del rank resta il limite vero.
+const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+/// Soglia di un Noul per contare un segnale come «vero» (solo per i conteggi).
+pub const NOUL_TRUE: f64 = 0.5;
+
+/// Wording versionato delle tre forme (materiale di calibrazione).
+pub const FORM_A_JSON: &str = include_str!("../questions/form-a.json");
+pub const FORM_B_JSON: &str = include_str!("../questions/form-b.json");
+pub const FORM_C_JSON: &str = include_str!("../questions/form-c.json");
+
+/// Forma della chiamata `rank`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Form {
+    A,
+    B,
+    C,
+}
+
+impl Form {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Form::A => "a",
+            Form::B => "b",
+            Form::C => "c",
+        }
+    }
+
+    /// sha256 esadecimale del file `questions/form-<x>.json` compilato nel binario.
+    pub fn questions_sha256(self) -> String {
+        let text = match self {
+            Form::A => FORM_A_JSON,
+            Form::B => FORM_B_JSON,
+            Form::C => FORM_C_JSON,
+        };
+        hex::encode(Sha256::digest(text.as_bytes()))
+    }
+}
 
 /// Configurazione del client; chiave e URL base sono parametri (testabile senza env).
 pub struct ClientConfig {
@@ -18,16 +77,56 @@ pub struct ClientConfig {
     pub max_cost_usd: f64,
 }
 
+impl ClientConfig {
+    /// Legge URL, chiave, modello e budget dalla sezione `# s04` dell'ambiente.
+    /// Gli errori nominano la variabile, mai il valore.
+    pub fn from_env() -> anyhow::Result<ClientConfig> {
+        let base_url = common::env::required("JEV_API_URL")?;
+        let api_key = common::env::required("TYPESAFE_API_KEY")?;
+        let model = common::env::required("JEV_MODEL")?;
+        let max_cost_usd: f64 = common::env::required("S04_MAX_COST_USD")?
+            .parse()
+            .ok()
+            .filter(|v: &f64| v.is_finite() && *v > 0.0)
+            .context("S04_MAX_COST_USD non è un numero positivo")?;
+        Ok(ClientConfig {
+            base_url,
+            api_key,
+            model,
+            request_timeout: DEFAULT_REQUEST_TIMEOUT,
+            max_cost_usd,
+        })
+    }
+}
+
+impl fmt::Debug for ClientConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClientConfig")
+            .field("base_url", &self.base_url)
+            .field("api_key", &"<redatta>")
+            .field("model", &self.model)
+            .field("request_timeout", &self.request_timeout)
+            .field("max_cost_usd", &self.max_cost_usd)
+            .finish()
+    }
+}
+
 /// Metadati di una chiamata JEV arrivata a risposta.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CallMeta {
     pub model_resolved: Option<String>,
     pub input_tokens: Option<u64>,
     pub output_tokens: Option<u64>,
+    /// Status dell'ultima risposta (0 se nessuna risposta è arrivata).
     pub status: u16,
     pub latency_ms: u64,
     pub retry_after: Option<String>,
     pub retries: u32,
+    /// Risposte 429 e 529 viste dentro la chiamata logica (retry compresi).
+    pub throttled_429: u32,
+    pub throttled_529: u32,
+    /// Id della richiesta lato provider, se la risposta lo porta.
+    pub request_id: Option<String>,
 }
 
 /// Esito di un rank: `(passage_id, segnale)` più i metadati di ogni chiamata.
@@ -35,6 +134,22 @@ pub struct CallMeta {
 pub struct RankOutcome {
     pub relevance: Vec<(String, f64)>,
     pub calls: Vec<CallMeta>,
+}
+
+/// Segnali della forma A per un candidato.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FormAScores {
+    pub relevant: f64,
+    pub sufficient: Option<f64>,
+    pub instructs_model: Option<f64>,
+}
+
+/// Esito della forma A per un singolo candidato, anche in errore (per le misure).
+#[derive(Debug)]
+pub struct CandidateOutcome {
+    pub passage_id: String,
+    pub result: Result<FormAScores, JevError>,
+    pub meta: CallMeta,
 }
 
 /// Errori tipizzati: nessuno produce un segnale di rilevanza.
@@ -57,11 +172,48 @@ pub enum JevError {
     Other(String),
 }
 
+impl JevError {
+    /// Etichetta breve per i CSV (`status` di una riga non riuscita).
+    pub fn label(&self) -> String {
+        match self {
+            JevError::Unauthorized { .. } => "unauthorized".to_owned(),
+            JevError::RateLimited { status, .. } => status.to_string(),
+            JevError::Timeout => "timeout".to_owned(),
+            JevError::BudgetExceeded { .. } => "budget".to_owned(),
+            JevError::Http { status } => status.to_string(),
+            JevError::Other(_) => "error".to_owned(),
+        }
+    }
+}
+
 impl fmt::Display for JevError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // stub del test-write: da implementare in 01-11
-        let _ = f;
-        todo!()
+        match self {
+            JevError::Unauthorized { reason } => {
+                write!(
+                    f,
+                    "invio a JEV bloccato dalla guardia di visibilità: {reason}"
+                )
+            }
+            JevError::RateLimited {
+                status,
+                retry_after,
+            } => write!(
+                f,
+                "JEV ha risposto {status} e la deadline non consente il retry (retry-after: {})",
+                retry_after.as_deref().unwrap_or("assente")
+            ),
+            JevError::Timeout => write!(f, "deadline scaduta senza risposta da JEV"),
+            JevError::BudgetExceeded {
+                spent_usd,
+                budget_usd,
+            } => write!(
+                f,
+                "budget di sessione esaurito: spesi {spent_usd:.6} USD su {budget_usd:.6}"
+            ),
+            JevError::Http { status } => write!(f, "JEV ha risposto con status {status}"),
+            JevError::Other(msg) => write!(f, "errore JEV: {msg}"),
+        }
     }
 }
 
@@ -69,31 +221,319 @@ impl std::error::Error for JevError {}
 
 /// Costo in USD dei token riportati da `usage`.
 pub fn cost_usd(input_tokens: u64, output_tokens: u64) -> f64 {
-    // stub del test-write: da implementare in 01-11
-    let _ = (input_tokens, output_tokens);
-    todo!()
+    input_tokens as f64 * PRICE_INPUT_USD_PER_MTOK / 1_000_000.0
+        + output_tokens as f64 * PRICE_OUTPUT_USD_PER_MTOK / 1_000_000.0
+}
+
+/// Wording delle tre forme, letto dai file versionati.
+struct Wording {
+    a_questions: serde_json::Value,
+    b_question: String,
+    b_id: String,
+    c_question: serde_json::Value,
+    c_id: String,
+    c_criterion_id: String,
+    c_criterion: String,
+}
+
+impl Wording {
+    fn load() -> anyhow::Result<Wording> {
+        let a: serde_json::Value =
+            serde_json::from_str(FORM_A_JSON).context("questions/form-a.json non valido")?;
+        let b: serde_json::Value =
+            serde_json::from_str(FORM_B_JSON).context("questions/form-b.json non valido")?;
+        let c: serde_json::Value =
+            serde_json::from_str(FORM_C_JSON).context("questions/form-c.json non valido")?;
+        let a_questions = a["questions"].clone();
+        if !a_questions["relevant"].is_object() {
+            bail!("form-a.json: manca la domanda relevant");
+        }
+        let str_of = |v: &serde_json::Value, k: &str, file: &str| -> anyhow::Result<String> {
+            v[k].as_str()
+                .map(str::to_owned)
+                .with_context(|| format!("{file}: manca {k}"))
+        };
+        for (v, file) in [(&b, "form-b.json"), (&c, "form-c.json")] {
+            if v["placeholder"] != "{i}" {
+                bail!("{file}: segnaposto atteso {{i}}");
+            }
+        }
+        Ok(Wording {
+            a_questions,
+            b_question: serde_json::to_string(&b["question"]).context("form-b.json")?,
+            b_id: str_of(&b, "question_id", "form-b.json")?,
+            c_question: c["question"].clone(),
+            c_id: str_of(&c, "question_id", "form-c.json")?,
+            c_criterion_id: str_of(&c, "criterion_id", "form-c.json")?,
+            c_criterion: str_of(&c, "criterion", "form-c.json")?,
+        })
+    }
+}
+
+fn index_into(template: &str, i: usize) -> String {
+    template.replace("{i}", &i.to_string())
 }
 
 /// Client JEV.
+///
+/// Ogni rank passa da [`assert_visible`] sull'intero insieme prima del primo
+/// invio; in più, al momento dell'invio, il client riconta in modo
+/// indipendente i passaggi non visibili che stanno partendo
+/// ([`Client::unauthorized_sent`], hard gate = 0).
 pub struct Client {
-    // stub del test-write: da implementare in 01-11
-    _stub: (),
+    http: reqwest::Client,
+    base_url: String,
+    endpoint: String,
+    api_key: String,
+    model: String,
+    acl: Acl,
+    max_cost_usd: f64,
+    spent_usd: Mutex<f64>,
+    unauthorized: AtomicU64,
+    wording: Wording,
+}
+
+/// Esito grezzo di una chiamata logica (retry compresi).
+struct Sent {
+    result: Result<serde_json::Value, JevError>,
+    meta: CallMeta,
 }
 
 impl Client {
     /// Costruttore da configurazione; errore con modello vuoto, chiave vuota o
     /// URL non `https://` (ammesso `http://127.0.0.1` solo per i test locali).
     pub fn new(config: ClientConfig, acl: Acl) -> anyhow::Result<Self> {
-        // stub del test-write: da implementare in 01-11
-        let _ = (config, acl);
-        todo!()
+        let base_url = config.base_url.trim_end_matches('/').to_owned();
+        let loopback = base_url.starts_with("http://127.0.0.1:");
+        if !base_url.starts_with("https://") && !loopback {
+            bail!("JEV_API_URL deve usare https:// (ammesso http solo su 127.0.0.1)");
+        }
+        if config.api_key.trim().is_empty() {
+            bail!("chiave JEV vuota");
+        }
+        if config.model.trim().is_empty() {
+            bail!("modello JEV (JEV_MODEL) vuoto: nessun default implicito");
+        }
+        if !(config.max_cost_usd.is_finite() && config.max_cost_usd >= 0.0) {
+            bail!("budget S04_MAX_COST_USD non valido");
+        }
+        let http = reqwest::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(config.request_timeout)
+            .https_only(!loopback)
+            .build()
+            .context("costruzione del client HTTP verso JEV")?;
+        let endpoint = format!("{base_url}/v1/systemone");
+        Ok(Client {
+            http,
+            base_url,
+            endpoint,
+            api_key: config.api_key,
+            model: config.model,
+            acl,
+            max_cost_usd: config.max_cost_usd,
+            spent_usd: Mutex::new(0.0),
+            unauthorized: AtomicU64::new(0),
+            wording: Wording::load()?,
+        })
     }
 
-    /// Costruttore da `JEV_API_URL`, `TYPESAFE_API_KEY`, `JEV_MODEL`, `S04_MAX_COST_USD`.
+    /// Costruttore dall'ambiente (vedi [`ClientConfig::from_env`]).
     pub fn new_from_env(acl: Acl) -> anyhow::Result<Self> {
-        // stub del test-write: da implementare in 01-11
-        let _ = acl;
-        todo!()
+        Client::new(ClientConfig::from_env()?, acl)
+    }
+
+    /// Modello richiesto (pin o alias).
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+
+    fn guard(&self, query: &Query, passages: &[Passage]) -> Result<(), JevError> {
+        assert_visible(passages, &query.role_profile, &self.acl).map_err(|e| {
+            JevError::Unauthorized {
+                reason: format!("{e:#}"),
+            }
+        })
+    }
+
+    /// Conteggio indipendente, sul punto di invio, dei passaggi non visibili.
+    fn count_unauthorized(&self, role: &str, sent: &[&Passage]) {
+        let n = sent
+            .iter()
+            .filter(|p| !self.acl.is_visible(&p.doc_key, role))
+            .count() as u64;
+        if n > 0 {
+            self.unauthorized.fetch_add(n, Ordering::SeqCst);
+        }
+    }
+
+    fn check_budget(&self) -> Result<(), JevError> {
+        let spent = self.spent_usd();
+        if spent >= self.max_cost_usd {
+            return Err(JevError::BudgetExceeded {
+                spent_usd: spent,
+                budget_usd: self.max_cost_usd,
+            });
+        }
+        Ok(())
+    }
+
+    fn add_spent(&self, usd: f64) {
+        *self.spent_usd.lock().unwrap_or_else(|e| e.into_inner()) += usd;
+    }
+
+    /// Una chiamata logica: invio, retry su 429/529 solo se l'attesa sta
+    /// dentro la deadline, contatore di costo da `usage`.
+    async fn send(
+        &self,
+        role: &str,
+        sent: &[&Passage],
+        body: &serde_json::Value,
+        deadline: Instant,
+    ) -> Sent {
+        let started = Instant::now();
+        let mut meta = CallMeta {
+            model_resolved: None,
+            input_tokens: None,
+            output_tokens: None,
+            status: 0,
+            latency_ms: 0,
+            retry_after: None,
+            retries: 0,
+            throttled_429: 0,
+            throttled_529: 0,
+            request_id: None,
+        };
+        let result = self.send_inner(role, sent, body, deadline, &mut meta).await;
+        meta.latency_ms = started.elapsed().as_millis() as u64;
+        Sent { result, meta }
+    }
+
+    async fn send_inner(
+        &self,
+        role: &str,
+        sent: &[&Passage],
+        body: &serde_json::Value,
+        deadline: Instant,
+        meta: &mut CallMeta,
+    ) -> Result<serde_json::Value, JevError> {
+        loop {
+            self.check_budget()?;
+            self.count_unauthorized(role, sent);
+            let request = self
+                .http
+                .post(&self.endpoint)
+                .bearer_auth(&self.api_key)
+                .json(body)
+                .send();
+            let resp = match tokio::time::timeout_at(deadline, request).await {
+                Err(_) => return Err(JevError::Timeout),
+                Ok(Err(e)) if e.is_timeout() => return Err(JevError::Timeout),
+                Ok(Err(e)) => {
+                    return Err(JevError::Other(format!("trasporto: {}", e.without_url())));
+                }
+                Ok(Ok(r)) => r,
+            };
+            let status = resp.status().as_u16();
+            meta.status = status;
+            meta.retry_after = header(&resp, "retry-after");
+            meta.request_id = header(&resp, "x-request-id").or_else(|| header(&resp, "request-id"));
+
+            if status == 429 || status == 529 {
+                if status == 429 {
+                    meta.throttled_429 += 1;
+                } else {
+                    meta.throttled_529 += 1;
+                }
+                let wait = meta
+                    .retry_after
+                    .as_deref()
+                    .and_then(parse_retry_after)
+                    .unwrap_or_else(|| backoff(meta.retries));
+                let fits = Instant::now()
+                    .checked_add(wait)
+                    .is_some_and(|t| t < deadline);
+                if meta.retries < MAX_RETRIES && fits {
+                    drop(resp);
+                    tokio::time::sleep(wait).await;
+                    meta.retries += 1;
+                    continue;
+                }
+                return Err(JevError::RateLimited {
+                    status,
+                    retry_after: meta.retry_after.clone(),
+                });
+            }
+            if !resp.status().is_success() {
+                return Err(JevError::Http { status });
+            }
+            let json: serde_json::Value = match tokio::time::timeout_at(deadline, resp.json()).await
+            {
+                Err(_) => return Err(JevError::Timeout),
+                Ok(Err(_)) => return Err(JevError::Other("risposta non JSON".to_owned())),
+                Ok(Ok(v)) => v,
+            };
+            meta.model_resolved = json["model"].as_str().map(str::to_owned);
+            meta.input_tokens = json["usage"]["input_tokens"].as_u64();
+            meta.output_tokens = json["usage"]["output_tokens"].as_u64();
+            self.add_spent(cost_usd(
+                meta.input_tokens.unwrap_or(0),
+                meta.output_tokens.unwrap_or(0),
+            ));
+            return Ok(json);
+        }
+    }
+
+    fn body_a(&self, query: &Query, passage: &Passage) -> serde_json::Value {
+        serde_json::json!({
+            "model": self.model,
+            "state": {"query": query.text, "passage": passage.text},
+            "questions": self.wording.a_questions,
+        })
+    }
+
+    async fn one_a(&self, query: &Query, passage: &Passage, deadline: Instant) -> CandidateOutcome {
+        let body = self.body_a(query, passage);
+        let sent = self
+            .send(&query.role_profile, &[passage], &body, deadline)
+            .await;
+        let result = sent.result.and_then(|json| {
+            let noul = |k: &str| json["answers"][k]["noul"].as_f64();
+            let relevant = noul("relevant").ok_or_else(|| {
+                JevError::Other("risposta senza answers.relevant.noul".to_owned())
+            })?;
+            Ok(FormAScores {
+                relevant,
+                sufficient: noul("sufficient"),
+                instructs_model: noul("instructs_model"),
+            })
+        });
+        CandidateOutcome {
+            passage_id: passage.id.clone(),
+            result,
+            meta: sent.meta,
+        }
+    }
+
+    /// Forma A per candidato, con gli esiti singoli anche in errore (misure).
+    /// L'unico errore globale è la guardia di visibilità, prima di ogni invio.
+    pub async fn rank_form_a_each(
+        &self,
+        query: &Query,
+        passages: &[Passage],
+        concurrency: usize,
+        deadline: Duration,
+    ) -> Result<Vec<CandidateOutcome>, JevError> {
+        self.guard(query, passages)?;
+        let deadline = Instant::now() + deadline;
+        let outcomes =
+            futures::stream::iter(passages.iter().map(|p| self.one_a(query, p, deadline)))
+                .buffered(concurrency.max(1))
+                .collect::<Vec<_>>();
+        // Rete di sicurezza: ogni chiamata ha già il proprio `timeout_at`.
+        tokio::time::timeout_at(deadline + Duration::from_millis(50), outcomes)
+            .await
+            .map_err(|_| JevError::Timeout)
     }
 
     /// Forma A: una richiesta per candidato, al più `concurrency` in volo.
@@ -104,9 +544,31 @@ impl Client {
         concurrency: usize,
         deadline: Duration,
     ) -> Result<RankOutcome, JevError> {
-        // stub del test-write: da implementare in 01-11
-        let _ = (query, passages, concurrency, deadline);
-        todo!()
+        let outcomes = self
+            .rank_form_a_each(query, passages, concurrency, deadline)
+            .await?;
+        let mut relevance = Vec::with_capacity(outcomes.len());
+        let mut calls = Vec::with_capacity(outcomes.len());
+        for o in outcomes {
+            let scores = o.result?;
+            relevance.push((o.passage_id, scores.relevant));
+            calls.push(o.meta);
+        }
+        Ok(RankOutcome { relevance, calls })
+    }
+
+    fn body_multi(
+        &self,
+        query: &Query,
+        passages: &[Passage],
+        questions: serde_json::Value,
+    ) -> serde_json::Value {
+        let texts: Vec<&str> = passages.iter().map(|p| p.text.as_str()).collect();
+        serde_json::json!({
+            "model": self.model,
+            "state": {"query": query.text, "passages": texts},
+            "questions": questions,
+        })
     }
 
     /// Forma B: `state` unico con N domande Noul.
@@ -116,9 +578,31 @@ impl Client {
         passages: &[Passage],
         deadline: Duration,
     ) -> Result<RankOutcome, JevError> {
-        // stub del test-write: da implementare in 01-11
-        let _ = (query, passages, deadline);
-        todo!()
+        self.guard(query, passages)?;
+        let mut questions = serde_json::Map::new();
+        for i in 0..passages.len() {
+            let q: serde_json::Value =
+                serde_json::from_str(&index_into(&self.wording.b_question, i))
+                    .map_err(|_| JevError::Other("wording della forma B non valido".to_owned()))?;
+            questions.insert(index_into(&self.wording.b_id, i), q);
+        }
+        let body = self.body_multi(query, passages, questions.into());
+        let refs: Vec<&Passage> = passages.iter().collect();
+        let deadline = Instant::now() + deadline;
+        let sent = self.send(&query.role_profile, &refs, &body, deadline).await;
+        let json = sent.result?;
+        let mut relevance = Vec::with_capacity(passages.len());
+        for (i, p) in passages.iter().enumerate() {
+            let id = index_into(&self.wording.b_id, i);
+            let v = json["answers"][&id]["noul"]
+                .as_f64()
+                .ok_or_else(|| JevError::Other(format!("risposta senza answers.{id}.noul")))?;
+            relevance.push((p.id.clone(), v));
+        }
+        Ok(RankOutcome {
+            relevance,
+            calls: vec![sent.meta],
+        })
     }
 
     /// Forma C: una sola domanda Choice.
@@ -128,29 +612,84 @@ impl Client {
         passages: &[Passage],
         deadline: Duration,
     ) -> Result<RankOutcome, JevError> {
-        // stub del test-write: da implementare in 01-11
-        let _ = (query, passages, deadline);
-        todo!()
+        self.guard(query, passages)?;
+        if passages.is_empty() || passages.len() > 255 {
+            return Err(JevError::Other(
+                "la forma C accetta da 1 a 255 passaggi".to_owned(),
+            ));
+        }
+        let mut criteria = serde_json::Map::new();
+        for i in 0..passages.len() {
+            criteria.insert(
+                index_into(&self.wording.c_criterion_id, i),
+                index_into(&self.wording.c_criterion, i).into(),
+            );
+        }
+        let mut question = self.wording.c_question.clone();
+        question["criteria"] = criteria.into();
+        let mut questions = serde_json::Map::new();
+        questions.insert(self.wording.c_id.clone(), question);
+        let body = self.body_multi(query, passages, questions.into());
+        let refs: Vec<&Passage> = passages.iter().collect();
+        let deadline = Instant::now() + deadline;
+        let sent = self.send(&query.role_profile, &refs, &body, deadline).await;
+        let json = sent.result?;
+        let probs = &json["answers"][&self.wording.c_id]["probabilities"];
+        let mut relevance = Vec::with_capacity(passages.len());
+        for (i, p) in passages.iter().enumerate() {
+            let id = index_into(&self.wording.c_criterion_id, i);
+            let v = probs[&id]
+                .as_f64()
+                .ok_or_else(|| JevError::Other(format!("risposta senza probabilities.{id}")))?;
+            relevance.push((p.id.clone(), v));
+        }
+        Ok(RankOutcome {
+            relevance,
+            calls: vec![sent.meta],
+        })
     }
 
     /// Passaggi non visibili effettivamente inviati (hard gate: deve restare 0).
     pub fn unauthorized_sent(&self) -> u64 {
-        // stub del test-write: da implementare in 01-11
-        todo!()
+        self.unauthorized.load(Ordering::SeqCst)
     }
 
     /// Spesa cumulata della sessione in USD.
     pub fn spent_usd(&self) -> f64 {
-        // stub del test-write: da implementare in 01-11
-        todo!()
+        *self.spent_usd.lock().unwrap_or_else(|e| e.into_inner())
     }
+}
+
+fn header(resp: &reqwest::Response, name: &str) -> Option<String> {
+    resp.headers()
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned)
+}
+
+/// `retry-after` in secondi (intero o decimale); la forma HTTP-date non è
+/// interpretata e ricade sul backoff.
+fn parse_retry_after(v: &str) -> Option<Duration> {
+    let secs: f64 = v.trim().parse().ok()?;
+    (secs.is_finite() && secs >= 0.0).then(|| Duration::from_secs_f64(secs))
+}
+
+fn backoff(retries: u32) -> Duration {
+    BACKOFF_INITIAL
+        .saturating_mul(2u32.saturating_pow(retries))
+        .min(BACKOFF_MAX)
 }
 
 impl fmt::Debug for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // stub del test-write: da implementare in 01-11
-        let _ = f;
-        todo!()
+        f.debug_struct("Client")
+            .field("base_url", &self.base_url)
+            .field("model", &self.model)
+            .field("api_key", &"<redatta>")
+            .field("max_cost_usd", &self.max_cost_usd)
+            .field("spent_usd", &self.spent_usd())
+            .field("unauthorized_sent", &self.unauthorized_sent())
+            .finish_non_exhaustive()
     }
 }
 
