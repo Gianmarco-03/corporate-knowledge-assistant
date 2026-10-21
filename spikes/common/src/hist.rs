@@ -1,5 +1,7 @@
 //! Istogramma di latenze in microsecondi (hdrhistogram, 3 cifre significative).
 
+// Modifica: Claude (gsd-executor 01.2-01) · 2026-10-21 · record_us registra con record (auto-resize) invece di saturating_record; contatore rejected (gap-closure 1.2)
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Summary {
     pub n: u64,
@@ -30,6 +32,9 @@ impl Summary {
 
 pub struct Recorder {
     hist: Histogram<u64>,
+    // Valori che `Histogram::record` ha rifiutato; ciascuno è stato registrato
+    // comunque, saturato.
+    rejected: u64,
 }
 
 impl Recorder {
@@ -42,14 +47,39 @@ impl Recorder {
             Ok(h) => h,
             Err(e) => unreachable!("hdrhistogram con {SIGFIG} cifre significative: {e:?}"),
         };
-        Recorder { hist }
+        Recorder { hist, rejected: 0 }
     }
 
-    /// Registra una latenza in microsecondi. L'istogramma si ridimensiona da
-    /// solo; `saturating_record` non può fallire (un valore fuori scala viene
-    /// limitato al massimo rappresentabile).
+    /// Registra una latenza in microsecondi con `Histogram::record`: con un
+    /// istogramma creato da `Histogram::new` il ridimensionamento è automatico
+    /// e copre qualunque valore, anche `u64::MAX`. `saturating_record`, al
+    /// contrario, non ridimensiona e limitava ogni valore sopra 2047 µs al
+    /// massimo tracciabile iniziale (difetto corretto nella gap-closure 1.2).
+    ///
+    /// Un errore di `record` è irraggiungibile con auto-resize attivo e 3 cifre
+    /// (al più 56320 contatori, entro `usize` a 32 e 64 bit). Se capitasse, il
+    /// valore viene registrato saturato, `rejected()` lo conta e il primo
+    /// rifiuto viene segnalato su stderr.
     pub fn record_us(&mut self, v: u64) {
-        self.hist.saturating_record(v);
+        match self.hist.record(v) {
+            Ok(()) => {}
+            Err(e) => {
+                self.rejected = self.rejected.saturating_add(1);
+                self.hist.saturating_record(v);
+                if self.rejected == 1 {
+                    eprintln!(
+                        "common::hist: valore {v} us rifiutato da record ({e:?}), registrato saturato; rejected() conta i rifiuti"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Numero di valori rifiutati da `Histogram::record`. Ciascuno è stato
+    /// registrato saturato: se è diverso da 0 i percentili alti e il massimo
+    /// non sono affidabili.
+    pub fn rejected(&self) -> u64 {
+        self.rejected
     }
 
     pub fn summary(&self) -> Summary {
@@ -164,5 +194,40 @@ mod tests {
         let s = r.summary();
         assert_eq!(s.n, 2, "n = {}", s.n);
         assert_eq!(s.max_us, u64::MAX, "max_us = {}", s.max_us);
+    }
+
+    #[test]
+    fn hist_rejected_counter_stays_zero() {
+        // Il ramo `Err` è irraggiungibile su target a 32/64 bit con auto-resize
+        // attivo e 3 cifre (al più 56320 contatori, test upstream
+        // `tests/auto_resize.rs:6-19`): qui si verifica che i valori estremi
+        // non lo attivino.
+        let mut r = Recorder::new();
+        for v in [1_000u64, 60_000_000, u64::MAX] {
+            r.record_us(v);
+        }
+        assert_eq!(r.rejected(), 0);
+        assert_eq!(r.summary().n, 3);
+        assert_eq!(Recorder::default().rejected(), 0);
+    }
+
+    #[test]
+    fn hist_rejected_branch_counts_and_saturates() {
+        // Istogramma senza auto-resize (massimo 2047): `record(10_000)` dà
+        // `Err(ValueOutOfRangeResizeDisabled)`. Il modulo figlio vede i campi
+        // privati, quindi si costruisce il Recorder a mano.
+        let hist = match Histogram::<u64>::new_with_max(2047, SIGFIG) {
+            Ok(h) => h,
+            Err(e) => panic!("istogramma di prova non costruibile: {e:?}"),
+        };
+        let mut r = Recorder { hist, rejected: 0 };
+        for _ in 0..3 {
+            r.record_us(10_000);
+        }
+        r.record_us(1_000);
+        let s = r.summary();
+        assert_eq!(r.rejected(), 3);
+        assert_eq!(s.n, 4, "n = {}", s.n);
+        assert!(s.max_us <= 2047, "max_us = {}", s.max_us);
     }
 }
