@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Fase 1.1 chiusa; prossima onda 3 di fase 1 (01-05, 01-06)
-last_updated: "2026-10-21T13:59:36.783Z"
-last_activity: 2026-10-21 -- piano 01-06 completato (oracoli)
+stopped_at: Onda 3 completata; prossima onda 4 (o gap-closure 1.2 su hist.rs)
+last_updated: "2026-10-21T14:00:47.223Z"
+last_activity: 2026-10-21 -- onda 3 completata (01-05, 01-06)
 progress:
   total_phases: 16
   completed_phases: 1
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 4 of 18 in current phase
-Status: Executing — fase 1.1 verificata e chiusa; prossima onda 3 di fase 1
-Last activity: 2026-10-21 -- piano 01-06 completato (oracoli)
+Plan: 6 of 18 in current phase
+Status: Executing — onda 3 completata
+Last activity: 2026-10-21 -- onda 3 completata (01-05, 01-06)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -91,6 +91,10 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 1]: Derivatore degli oracoli = esecutore del piano: deviazione accettata dall'utente, TEST-10 non verde → `../spikes/data/corpus/oracles/ORACOLI.md#da-dove-vengono-i-valori`
 - [Phase 1]: TODO-01 P-006: «teneteli», restano riquadro WEB e didascalia nell'oracolo → `../spikes/data/corpus/oracles/ORACOLI.md#to-do-di-dominio`
 - [Phase 1]: TODO-02: resta la regola di complessità; Q-008/010/012/040/048/056 fuori dalle misure (GPT non CONFIRMED), reinviabili → `../spikes/data/corpus/oracles/ORACOLI.md#to-do-di-dominio`
+- [Phase 1]: Deadline globale tokio::time::Instant esplicita su ogni porta verso provider; cancellazione = drop del future → `../docs/adr/0010-deadline-cancellazione-http.md#decisione`
+- [Phase 1]: Fan-out: variante A timeout_at+buffer_unordered di default, B JoinSet+Semaphore solo per task indipendenti; HTTP/2 preferito → `../docs/adr/0010-deadline-cancellazione-http.md#decisione`
+- [Phase 1]: Addebito JEV dopo il drop non determinabile (console vuota 2026-10-21): cancellate contate come addebitate, lettura da ripetere → `../spikes/s05-cancel/RISULTATI.md#esito`
+- [Phase 1]: Difetto hist.rs (01-01): Recorder satura a 2047 µs; gap-closure riapre_perimetro [1], verificare s01-upload → `phases/01-spike-tecnici/01-05-SUMMARY.md#deviations-from-plan`
 
 ### Pending Todos
 
@@ -112,5 +116,5 @@ Recenti, rilevanti per il lavoro corrente:
 ## Session Continuity
 
 Last session: 2026-10-19T19:39:45.302Z
-Stopped at: Fase 1.1 chiusa; prossima onda 3 di fase 1 (01-05, 01-06)
+Stopped at: Onda 3 completata; prossima onda 4 (o gap-closure 1.2 su hist.rs)
 Resume file: None
