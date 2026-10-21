@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.2 chiusa; prossima onda 4 di fase 1 (01-07, 01-11)
-last_updated: "2026-10-21T14:49:30.792Z"
+last_updated: "2026-10-21T15:03:01.024Z"
 last_activity: 2026-10-21 -- fase 1.2 verificata (passed) e chiusa
 progress:
   total_phases: 17
@@ -100,6 +100,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01.2]: Il Recorder registra con record (auto-resize); il difetto reale saturava a 2 µs, non a 2047 → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#il-difetto-reale-più-grave-di-quello-del-context`
 - [Phase 01.2]: Rifiuto di record contato da rejected() (metodo additivo), ripiego saturato e avviso unico su stderr, firme invariate → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 - [Phase 01.2]: TEST-15/16 adottati su proposta del test design: ramo Err provato con new_with_max(2047, 3) dal mod tests → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
+- [Phase 01.1]: Hook pre-commit invariato: con evidenze solo .txt/.csv il RED entra nel commit della correzione, in sezione distinta (decisione utente) → `../.planning/ORCHESTRATOR-STATUS.md#decisioni-ratificate-in-corsa`
 
 ### Pending Todos
 

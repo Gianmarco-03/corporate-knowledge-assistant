@@ -9,7 +9,7 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 
 ## Prossima azione
 
-/execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati); pendenti utente: UAT 01.1 e 01.2, hook pre-commit (TODO).
+/execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati); UAT 01.1 e 01.2 in approfondimento.
 
 ## Findings
 
@@ -78,7 +78,6 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 - test_design_3, _6 (07 v2, 13 v2) senza risposta su AgentBridge: obsoleti, sostituiti da _8, _9.
 - D-27 Docling pagine-tabella: scelta dopo misura 01-08 → 01-CONTEXT Deferred Ideas.
 - interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012).
-- da decidere utente: hook pre-commit rifiuta commit di sole evidenze .txt/.csv (security-scope-empty rc=2) → commit RED separato impossibile (01-04, 01.1-01) → 01.1-01-SUMMARY.md#punti-aperti
 - gate/verify su spikes/: target cache condivisa fra worktree può lasciare un binario di test stale (falsi rossi in verify 01.2) → partire da `cargo clean -p <crate toccato>` nei gate d'onda e in verify
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 
@@ -86,6 +85,7 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 
 - strategia provider-first + insiemi file chiusi (U-04) · utente · 2026-10-18 → PROJECT.md
 - racconto didattico per slice · utente · 2026-10-18 → skills/execute/SKILL.md §bridge 3-bis
+- hook pre-commit invariato: evidenze solo .txt/.csv → RED nel commit della correzione, sezione distinta · utente · 2026-10-21 → 01.1-01-SUMMARY.md#punti-aperti
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · creazione (preflight discuss 1)
 **Modifica:** Claude (Anthropic) · 2026-10-18 · --discuss fase 01
@@ -102,3 +102,4 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.2
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: decisione utente sull'hook pre-commit
