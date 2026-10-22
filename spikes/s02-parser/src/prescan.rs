@@ -103,6 +103,37 @@ pub struct PrescanReport {
     pub total_decompressed_bytes: u64,
     /// Voci dell'archivio (DOCX).
     pub entries: usize,
+    // Schema unico dei sei campi (punto 5 di `<interfaces>` del piano, v6): `objstm_count`
+    // sopra più i cinque campi qui sotto. Stub del test-write: da riempire in 01-07.
+    /// Cifratura ammessa: `none` | `empty_password`.
+    pub encryption: Encryption,
+    /// Allegati incorporati trovati e ignorati.
+    pub embedded_files: u32,
+    /// Somma reale dei byte decompressi degli object stream (I1).
+    pub objstm_decompressed_bytes: u64,
+    /// Cross-reference stream contati a byte.
+    pub xref_streams: u32,
+    /// Lavoro cumulativo di decompressione (I2), mai sotto il valore reale.
+    pub decompress_work_bytes: u64,
+}
+
+/// Cifratura di un PDF ammesso (schema unico, campo `encryption`). Stub del test-write.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Encryption {
+    /// Nessun `/Encrypt` (anche ogni DOCX).
+    #[default]
+    None,
+    /// Cifrato, aperto con la password vuota (`empty_password`).
+    EmptyPassword,
+}
+
+/// Filtro di `LoadOptions` della prima passata del ramo non cifrato (punto 2 del Task 3):
+/// rinomina il `/Type` degli object stream perché lopdf non li espanda; ogni altro oggetto
+/// torna invariato. Stub del test-write: da implementare in 01-07.
+#[cfg_attr(not(test), allow(dead_code))]
+fn defer_objstm(id: (u32, u16), obj: &mut Object) -> Option<((u32, u16), Object)> {
+    let _ = (id, obj);
+    todo!("stub del test-write: defer_objstm da implementare in 01-07")
 }
 
 /// Rifiuto tipizzato del prescan.
@@ -807,16 +838,35 @@ pub fn check_docx(path: &Path, caps: &Caps) -> Result<PrescanReport, Rejection> 
 
 #[cfg(test)]
 mod tests {
-    //! TEST-7 e TEST-8: rifiuti del prescan prima di PDFium, con PDF e DOCX costruiti a mano.
+    //! Test del prescan (piano 01-07 v6, `test_design_11`): TEST-7 e TEST-8 secondo le regole
+    //! del ripasso del 2026-10-21, TEST-12 (invariante I1), TEST-13 (invariante I2), TEST-14
+    //! (caratterizzazione di lopdf 0.45.0, casi c1-c7) e la parte DOCX di TEST-15.
+    //!
+    //! PDF costruiti nel test (xref classica con `build`, xref in stream con `modern`); i PDF
+    //! cifrati li genera `qpdf` (runner: `session.sh oneshot`), che sull'host Windows manca.
+    //!
+    //! Convenzione dei test (dichiarata dal test-write, il piano non fissa il formato): il
+    //! detail di `DecompressionLimit`/`total_decompressed` porta i token `counted=<n>` (byte
+    //! contati da I1 all'arresto) e `work=<n>` (lavoro I2 a quel punto), es.
+    //! `total_decompressed counted=4210688 work=4210688`. Gli altri detail del piano
+    //! (`password_required`, `object_dropped`, `objstm_dropped`, `encrypt_state`) si
+    //! confrontano sul primo token. Un blocco di lettura del contatore vale al più 64 KiB.
     use super::*;
+    use std::collections::BTreeMap;
     use std::io::Write;
     use std::path::PathBuf;
+    use std::process::Command;
     use std::sync::atomic::{AtomicU32, Ordering};
 
     const MIB: u64 = 1024 * 1024;
     const KIB: u64 = 1024;
+    /// Tolleranza dell'arresto di I1: un blocco di lettura.
+    const READ_BLOCK: u64 = 64 * KIB;
+    /// Password dei PDF cifrati generati con `qpdf` (valori di prova, non segreti).
+    const OWNER_PW: &str = "proprietario-07";
+    const USER_PW: &str = "utente-07";
 
-    // ---- costruzione dei PDF ----------------------------------------------------------
+    // ---- costruzione dei PDF: xref classica ---------------------------------------------
 
     /// PDF con tabella xref classica; l'oggetto 1 è il Catalog.
     fn build(objs: &[(u32, Vec<u8>)], trailer_extra: &str) -> Vec<u8> {
@@ -860,16 +910,21 @@ mod tests {
         e.finish().unwrap()
     }
 
-    /// `n` byte a zero compressi in streaming (nessun buffer da `n` byte).
-    fn zlib_zeros(n: u64) -> Vec<u8> {
-        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-        let chunk = vec![0u8; 64 * 1024];
+    /// Scrive `n` copie di `byte` nel compressore, a blocchi (nessun buffer da `n` byte).
+    fn feed_repeat<W: Write>(w: &mut W, byte: u8, n: u64) {
+        let chunk = vec![byte; 64 * 1024];
         let mut left = n;
         while left > 0 {
             let k = left.min(chunk.len() as u64) as usize;
-            e.write_all(&chunk[..k]).unwrap();
+            w.write_all(&chunk[..k]).unwrap();
             left -= k as u64;
         }
+    }
+
+    /// `n` byte a zero compressi in streaming.
+    fn zlib_zeros(n: u64) -> Vec<u8> {
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        feed_repeat(&mut e, 0, n);
         e.finish().unwrap()
     }
 
@@ -949,7 +1004,43 @@ mod tests {
         )
     }
 
-    /// Object stream Flate che contiene gli oggetti `(numero, corpo)`.
+    /// Documento le cui `pages` pagine hanno ciascuna un contenuto Flate di `each` byte a zero
+    /// (oggetti 100..). Con `shared` tutte le pagine puntano allo stesso stream 100.
+    fn doc_flate_pages(pages: u32, each: u64, shared: bool, catalog_extra: &str) -> Vec<u8> {
+        let kids: Vec<String> = (0..pages).map(|i| format!("{} 0 R", 10 + i)).collect();
+        let mut objs = vec![
+            (
+                1,
+                dict(&format!(
+                    "<< /Type /Catalog /Pages 2 0 R {catalog_extra} >>"
+                )),
+            ),
+            (
+                2,
+                dict(&format!(
+                    "<< /Type /Pages /Kids [{}] /Count {pages} >>",
+                    kids.join(" ")
+                )),
+            ),
+        ];
+        let data = zlib_zeros(each);
+        for i in 0..pages {
+            let content = if shared { 100 } else { 100 + i };
+            objs.push((
+                10 + i,
+                dict(&format!(
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {content} 0 R >>"
+                )),
+            ));
+            if !shared || i == 0 {
+                objs.push((content, stream("/Filter /FlateDecode", &data)));
+            }
+        }
+        build(&objs, "")
+    }
+
+    /// Object stream Flate che contiene gli oggetti `(numero, corpo)` (xref classica: i membri
+    /// non compaiono nella tabella).
     fn objstm(objects: &[(u32, &[u8])]) -> Vec<u8> {
         let mut header = String::new();
         let mut body: Vec<u8> = Vec::new();
@@ -970,12 +1061,344 @@ mod tests {
         )
     }
 
+    // ---- costruzione dei PDF: xref in stream, object stream veri, revisioni -------------
+
+    /// Object stream di un PDF `modern`: membri `(numero, corpo)`, `pad` spazi in coda al
+    /// contenuto decompresso, nome del `/Type` scritto così com'è (escape `#xx` ammessi).
+    struct ObjStm {
+        num: u32,
+        type_name: &'static str,
+        members: Vec<(u32, Vec<u8>)>,
+        pad: u64,
+    }
+
+    impl ObjStm {
+        fn new(num: u32, members: Vec<(u32, Vec<u8>)>) -> ObjStm {
+            ObjStm {
+                num,
+                type_name: "ObjStm",
+                members,
+                pad: 0,
+            }
+        }
+
+        /// Corpo dell'oggetto (dizionario + stream) e byte del contenuto decompresso.
+        fn body(&self) -> (Vec<u8>, u64) {
+            let mut header = String::new();
+            let mut bodies: Vec<u8> = Vec::new();
+            for (n, b) in &self.members {
+                header.push_str(&format!("{n} {} ", bodies.len()));
+                bodies.extend_from_slice(b);
+                bodies.push(b' ');
+            }
+            let first = header.len();
+            let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(header.as_bytes()).unwrap();
+            e.write_all(&bodies).unwrap();
+            feed_repeat(&mut e, b' ', self.pad);
+            let data = e.finish().unwrap();
+            let plain = (first + bodies.len()) as u64 + self.pad;
+            let dict = format!(
+                "/Type /{} /N {} /First {first} /Filter /FlateDecode",
+                self.type_name,
+                self.members.len()
+            );
+            (stream(&dict, &data), plain)
+        }
+
+        fn plain_len(&self) -> u64 {
+            self.body().1
+        }
+    }
+
+    /// PDF con xref in stream: offset di `startxref` e `/Size`, per le revisioni.
+    struct Built {
+        bytes: Vec<u8>,
+        startxref: usize,
+        size: u32,
+    }
+
+    fn row_normal(off: usize) -> [u8; 7] {
+        let o = u32::try_from(off).unwrap().to_be_bytes();
+        [1, o[0], o[1], o[2], o[3], 0, 0]
+    }
+
+    fn row_compressed(container: u32, index: u16) -> [u8; 7] {
+        let c = container.to_be_bytes();
+        let i = index.to_be_bytes();
+        [2, c[0], c[1], c[2], c[3], i[0], i[1]]
+    }
+
+    fn row_free(next_gen: u16) -> [u8; 7] {
+        let g = next_gen.to_be_bytes();
+        [0, 0, 0, 0, 0, g[0], g[1]]
+    }
+
+    fn push_obj(out: &mut Vec<u8>, n: u32, body: &[u8]) {
+        out.extend_from_slice(format!("{n} 0 obj\n").as_bytes());
+        out.extend_from_slice(body);
+        out.extend_from_slice(b"\nendobj\n");
+    }
+
+    /// Cross-reference stream `/W [1 4 2]`, Flate, con `startxref` e `%%EOF`.
+    fn push_xref_stream(out: &mut Vec<u8>, num: u32, rows: &[[u8; 7]], dict_extra: &str) {
+        let data: Vec<u8> = rows.concat();
+        let body = stream(
+            &format!("/Type /XRef /W [1 4 2] {dict_extra} /Filter /FlateDecode"),
+            &zlib(&data),
+        );
+        let off = out.len();
+        push_obj(out, num, &body);
+        out.extend_from_slice(format!("startxref\n{off}\n%%EOF\n").as_bytes());
+    }
+
+    /// PDF 1.7 con oggetti normali, object stream veri (membri di tipo 2 nella xref) e una
+    /// cross-reference stream. L'oggetto 1 è il Catalog.
+    fn modern(normal: Vec<(u32, Vec<u8>)>, objstms: &[ObjStm]) -> Built {
+        let mut out: Vec<u8> = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
+        let mut all = normal;
+        let mut compressed: BTreeMap<u32, (u32, u16)> = BTreeMap::new();
+        for o in objstms {
+            all.push((o.num, o.body().0));
+            for (i, (m, _)) in o.members.iter().enumerate() {
+                compressed.insert(*m, (o.num, u16::try_from(i).unwrap()));
+            }
+        }
+        all.sort_by_key(|(n, _)| *n);
+        let mut offsets: BTreeMap<u32, usize> = BTreeMap::new();
+        for (n, body) in &all {
+            offsets.insert(*n, out.len());
+            push_obj(&mut out, *n, body);
+        }
+        let max = offsets
+            .keys()
+            .chain(compressed.keys())
+            .copied()
+            .max()
+            .unwrap_or(0);
+        let xnum = max + 1;
+        let size = xnum + 1;
+        let xoff = out.len();
+        let rows: Vec<[u8; 7]> = (0..size)
+            .map(|i| {
+                if i == xnum {
+                    row_normal(xoff)
+                } else if let Some(off) = offsets.get(&i) {
+                    row_normal(*off)
+                } else if let Some((c, idx)) = compressed.get(&i) {
+                    row_compressed(*c, *idx)
+                } else {
+                    row_free(if i == 0 { 65535 } else { 0 })
+                }
+            })
+            .collect();
+        push_xref_stream(&mut out, xnum, &rows, &format!("/Size {size} /Root 1 0 R"));
+        Built {
+            bytes: out,
+            startxref: xoff,
+            size,
+        }
+    }
+
+    /// Aggiornamento incrementale con una nuova cross-reference stream (`/Prev`, `/Index`):
+    /// oggetti `normal` aggiunti o sostituiti, `freed` liberati.
+    fn append_xref_revision(base: &Built, normal: Vec<(u32, Vec<u8>)>, freed: &[u32]) -> Built {
+        let mut out = base.bytes.clone();
+        let mut rows: BTreeMap<u32, [u8; 7]> = BTreeMap::new();
+        for (n, body) in normal {
+            rows.insert(n, row_normal(out.len()));
+            push_obj(&mut out, n, &body);
+        }
+        for f in freed {
+            rows.insert(*f, row_free(1));
+        }
+        let xnum = base.size;
+        let size = base.size + 1;
+        let xoff = out.len();
+        rows.insert(xnum, row_normal(xoff));
+        let index: Vec<String> = rows.keys().map(|k| format!("{k} 1")).collect();
+        let rows_v: Vec<[u8; 7]> = rows.values().copied().collect();
+        push_xref_stream(
+            &mut out,
+            xnum,
+            &rows_v,
+            &format!(
+                "/Size {size} /Root 1 0 R /Prev {} /Index [{}]",
+                base.startxref,
+                index.join(" ")
+            ),
+        );
+        Built {
+            bytes: out,
+            startxref: xoff,
+            size,
+        }
+    }
+
+    /// Catalog (1) con `catalog_extra`, Pages (2), una pagina (3) con il contenuto 4.
+    fn base_objects(catalog_extra: &str) -> Vec<(u32, Vec<u8>)> {
+        vec![
+            (
+                1,
+                dict(&format!(
+                    "<< /Type /Catalog /Pages 2 0 R {catalog_extra} >>"
+                )),
+            ),
+            (2, dict("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")),
+            (
+                3,
+                dict("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>"),
+            ),
+            (4, stream("", b"BT /F1 12 Tf 72 712 Td (Ciao) Tj ET")),
+        ]
+    }
+
+    /// `count` object stream piccoli (oggetti 5..) con un membro ciascuno (5 + count..).
+    /// Numeri bassi: `qpdf` ignora le voci della xref oltre un massimo legato alla lunghezza
+    /// del file (visto nel runner: un PDF da 1 KB con `/Size 1004` perde le voci da 1000).
+    fn small_objstms(count: u32) -> Vec<ObjStm> {
+        (0..count)
+            .map(|i| {
+                let member = (5 + count + i, dict(&format!("<< /K {i} >>")));
+                ObjStm::new(5 + i, vec![member])
+            })
+            .collect()
+    }
+
+    /// `/Extra [...]` con un riferimento a ogni membro (così `qpdf` non li scarta).
+    fn extra_refs(objstms: &[ObjStm]) -> String {
+        let refs: Vec<String> = objstms
+            .iter()
+            .flat_map(|o| o.members.iter().map(|(m, _)| format!("{m} 0 R")))
+            .collect();
+        format!("/Extra [{}]", refs.join(" "))
+    }
+
+    /// Dizionario con una stringa letterale di `n` byte `A` (contenuto grande dei membri).
+    fn pad_dict(n: usize) -> Vec<u8> {
+        let mut v = b"<< /Pad (".to_vec();
+        v.extend(std::iter::repeat_n(b'A', n));
+        v.extend_from_slice(b") >>");
+        v
+    }
+
+    // ---- qpdf e lopdf per le fixture cifrate --------------------------------------------
+
+    fn scratch(ext: &str) -> PathBuf {
+        static N: AtomicU32 = AtomicU32::new(0);
+        let dir = std::env::temp_dir().join(format!("s02-prescan-tw-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join(format!("d{}.{ext}", N.fetch_add(1, Ordering::SeqCst)))
+    }
+
+    /// `qpdf <opts> <in> <out>` (nel runner; exit 3 = solo avvisi).
+    fn qpdf(input: &[u8], opts: &[&str]) -> Vec<u8> {
+        let i = scratch("pdf");
+        let o = scratch("pdf");
+        std::fs::write(&i, input).unwrap();
+        let out = Command::new("qpdf")
+            .args(opts)
+            .arg(&i)
+            .arg(&o)
+            .output()
+            .unwrap_or_else(|e| panic!("qpdf non eseguibile (serve il runner): {e}"));
+        assert!(
+            matches!(out.status.code(), Some(0 | 3)),
+            "qpdf {opts:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        std::fs::read(&o).unwrap()
+    }
+
+    /// `qpdf --check` senza avvisi (fixture costruite a mano, revisioni comprese).
+    fn qpdf_check(pdf: &[u8]) {
+        let p = scratch("pdf");
+        std::fs::write(&p, pdf).unwrap();
+        let out = Command::new("qpdf")
+            .arg("--check")
+            .arg(&p)
+            .output()
+            .unwrap_or_else(|e| panic!("qpdf non eseguibile (serve il runner): {e}"));
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "fixture non valida per qpdf: {}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    /// Cifrato AES-256 con password utente vuota (`qpdf --encrypt "" <owner> 256`).
+    fn encrypt_empty_user(input: &[u8], objstm_mode: &str) -> Vec<u8> {
+        qpdf(
+            input,
+            &[objstm_mode, "--encrypt", "", OWNER_PW, "256", "--"],
+        )
+    }
+
+    /// Cifrato AES-256 con password utente non vuota.
+    fn encrypt_with_user(input: &[u8]) -> Vec<u8> {
+        qpdf(input, &["--encrypt", USER_PW, OWNER_PW, "256", "--"])
+    }
+
+    /// Documento caricato da lopdf senza opzioni (password vuota tentata da lopdf), solo per
+    /// leggere le fixture: mai usato come oracolo del prescan.
+    fn lopdf_doc(bytes: &[u8]) -> Document {
+        Document::load_mem_with_options(bytes, LoadOptions::default())
+            .unwrap_or_else(|e| panic!("fixture non caricabile da lopdf: {e}"))
+    }
+
+    /// Byte decompressi di uno stream Flate, contati senza trattenerli.
+    fn inflated_len(data: &[u8]) -> u64 {
+        std::io::copy(
+            &mut flate2::read::ZlibDecoder::new(data),
+            &mut std::io::sink(),
+        )
+        .unwrap_or_else(|e| panic!("fixture: object stream non decodificabile: {e}"))
+    }
+
+    /// Contenitori di object stream rimasti in `Document::objects` e somma reale dei loro byte
+    /// decompressi (fixture cifrate: i contenitori restano decifrati e compressi, vedi c3).
+    fn objstm_containers(doc: &Document) -> (u32, u64) {
+        let mut n = 0u32;
+        let mut sum = 0u64;
+        for o in doc.objects.values() {
+            if let Object::Stream(s) = o
+                && s.dict.has_type(b"ObjStm")
+            {
+                n += 1;
+                sum += inflated_len(&s.content);
+            }
+        }
+        (n, sum)
+    }
+
+    /// Offset (voce normale della xref) dell'oggetto `num`.
+    fn offset_of(doc: &Document, num: u32) -> usize {
+        match doc.reference_table.get(num) {
+            Some(lopdf::xref::XrefEntry::Normal { offset, .. }) => *offset as usize,
+            other => panic!("oggetto {num} senza voce normale: {other:?}"),
+        }
+    }
+
+    /// Inizio dei dati dello stream dell'oggetto all'offset dato.
+    fn stream_data_start(bytes: &[u8], offset: usize) -> usize {
+        let at = offset + find(&bytes[offset..], b"stream").expect("stream assente");
+        let mut i = at + b"stream".len();
+        if bytes[i] == b'\r' {
+            i += 1;
+        }
+        assert_eq!(bytes[i], b'\n', "EOL dopo stream");
+        i + 1
+    }
+
+    // ---- tetti, esiti e invarianti ------------------------------------------------------
+
     /// Tetti ridotti per i test; i campi non toccati sono le Soglie (`Caps::default`).
     fn caps() -> Caps {
         Caps {
             per_stream_bytes: MIB,
             total_bytes: 4 * MIB,
-            max_object_streams: 4,
             max_pages: 10,
             ..Caps::default()
         }
@@ -988,6 +1411,24 @@ mod tests {
         }
     }
 
+    fn failed_of(r: Result<PrescanReport, Rejection>) -> (Kind, String) {
+        match r {
+            Err(Rejection::Failed(k, d)) => (k, d),
+            other => panic!("atteso Failed, ottenuto {other:?}"),
+        }
+    }
+
+    /// `Failed(kind, detail)` con il primo token del detail uguale a `detail`.
+    fn assert_failed(r: Result<PrescanReport, Rejection>, kind: Kind, detail: &str) -> String {
+        let (k, d) = failed_of(r);
+        assert_eq!(
+            (k, d.split_whitespace().next()),
+            (kind, Some(detail)),
+            "detail {d:?}"
+        );
+        d
+    }
+
     fn reasons_of(r: Result<PrescanReport, Rejection>) -> Vec<String> {
         match r {
             Err(Rejection::Quarantined(r)) => r,
@@ -995,10 +1436,88 @@ mod tests {
         }
     }
 
-    fn assert_ok(r: Result<PrescanReport, Rejection>) {
-        if let Err(e) = r {
-            panic!("atteso Ok, ottenuto {e:?}");
+    fn assert_ok(r: Result<PrescanReport, Rejection>) -> PrescanReport {
+        match r {
+            Ok(rep) => rep,
+            Err(e) => panic!("atteso Ok, ottenuto {e:?}"),
         }
+    }
+
+    /// Valore del token `key=<n>` del detail (convenzione dei test, vedi testa del modulo).
+    fn token(detail: &str, key: &str) -> u64 {
+        detail
+            .split_whitespace()
+            .find_map(|t| t.strip_prefix(key)?.strip_prefix('='))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| panic!("detail {detail:?} senza {key}=<n>"))
+    }
+
+    /// Limite B di I2: 2 × totale + 2 × `xref_streams` × tetto per stream.
+    fn bound_b(c: &Caps, xref_streams: u32) -> u64 {
+        2 * c.total_bytes + 2 * u64::from(xref_streams) * c.per_stream_bytes
+    }
+
+    /// Quota per stream del ramo cifrato: min(tetto per stream, ⌊totale / object stream⌋).
+    fn encrypted_quota(c: &Caps, objstm: u32) -> u64 {
+        match objstm {
+            0 => c.per_stream_bytes,
+            n => c.per_stream_bytes.min(c.total_bytes / u64::from(n)),
+        }
+    }
+
+    /// I2 sul ramo non cifrato: al più B, mai sotto prescan + riespansione degli object
+    /// stream + due passate di caricamento delle xref stream.
+    fn assert_work_unencrypted(r: &PrescanReport, c: &Caps) {
+        let b = bound_b(c, r.xref_streams);
+        let floor =
+            2 * r.objstm_decompressed_bytes + 2 * u64::from(r.xref_streams) * c.per_stream_bytes;
+        assert!(
+            r.decompress_work_bytes <= b,
+            "I2: work {} oltre B {b}: {r:?}",
+            r.decompress_work_bytes
+        );
+        assert!(
+            r.decompress_work_bytes >= floor,
+            "I2: work {} sotto il minimo {floor} (stima più bassa del reale): {r:?}",
+            r.decompress_work_bytes
+        );
+    }
+
+    /// I2 sul ramo cifrato: al più B, mai sotto decodifica dopo il caricamento + limite
+    /// analitico n × quota + una passata delle xref stream.
+    fn assert_work_encrypted(r: &PrescanReport, c: &Caps) {
+        let b = bound_b(c, r.xref_streams);
+        let floor = r.objstm_decompressed_bytes
+            + u64::from(r.objstm_count) * encrypted_quota(c, r.objstm_count)
+            + u64::from(r.xref_streams) * c.per_stream_bytes;
+        assert!(
+            r.decompress_work_bytes <= b,
+            "I2: work {} oltre B {b}: {r:?}",
+            r.decompress_work_bytes
+        );
+        assert!(
+            r.decompress_work_bytes >= floor,
+            "I2: work {} sotto il minimo {floor}: {r:?}",
+            r.decompress_work_bytes
+        );
+    }
+
+    /// Arresto di I1 su `total_decompressed`: contati oltre il totale ma entro un blocco,
+    /// lavoro I2 entro B.
+    fn assert_total_stop(detail: &str, c: &Caps, xref_streams: u32) {
+        let counted = token(detail, "counted");
+        let work = token(detail, "work");
+        assert!(
+            counted > c.total_bytes && counted <= c.total_bytes + READ_BLOCK,
+            "I1: contati {counted}, attesi in ({}, {}]",
+            c.total_bytes,
+            c.total_bytes + READ_BLOCK
+        );
+        assert!(
+            work <= bound_b(c, xref_streams),
+            "I2: work {work} oltre B {}",
+            bound_b(c, xref_streams)
+        );
     }
 
     // ---- soglie (Task 1) ---------------------------------------------------------------
@@ -1020,11 +1539,18 @@ mod tests {
     // ---- PDF benigno -------------------------------------------------------------------
 
     #[test]
-    fn benign_pdf_passes() {
-        assert_ok(check_pdf(&doc(1, "", vec![], ""), &caps()));
+    fn benign_pdf_passes_with_unencrypted_schema() {
+        let r = assert_ok(check_pdf(&doc(1, "", vec![], ""), &caps()));
+        assert_eq!(r.pages, Some(1));
+        assert_eq!(r.encryption, Encryption::None);
+        assert_eq!(r.embedded_files, 0);
+        assert_eq!(r.objstm_count, 0);
+        assert_eq!(r.objstm_decompressed_bytes, 0);
+        assert_eq!(r.xref_streams, 0);
+        assert_work_unencrypted(&r, &caps());
     }
 
-    // ---- PDF: cifratura, prima del caricamento -----------------------------------------
+    // ---- TEST-7: cifratura (punto 3-bis) -----------------------------------------------
 
     fn encrypt_obj() -> (u32, Vec<u8>) {
         (
@@ -1033,33 +1559,73 @@ mod tests {
         )
     }
 
+    /// (k3) Cifrato solo per i permessi, password utente vuota: ammesso, analizzato sul
+    /// contenuto decifrato, `encryption = empty_password`.
     #[test]
-    fn encrypt_in_trailer_is_encrypted() {
+    fn empty_user_password_is_admitted_as_empty_password() {
+        let pdf = encrypt_empty_user(&doc(1, "", vec![], ""), "--object-streams=disable");
+        let r = assert_ok(check_pdf(&pdf, &caps()));
+        assert_eq!(r.encryption, Encryption::EmptyPassword);
+        assert_eq!(r.pages, Some(1));
+        assert_eq!(r.embedded_files, 0);
+    }
+
+    /// (k4) Password utente non vuota: `Encrypted`/`password_required`.
+    #[test]
+    fn user_password_is_encrypted_password_required() {
+        let pdf = encrypt_with_user(&doc(1, "", vec![], ""));
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::Encrypted,
+            "password_required",
+        );
+    }
+
+    /// Gestore standard con `/O` e `/U` che non autenticano la password vuota.
+    #[test]
+    fn standard_handler_without_empty_password_is_password_required() {
         let pdf = doc(
             1,
             "",
             vec![encrypt_obj()],
             "/Encrypt 50 0 R /ID [<01> <01>]",
         );
-        assert_eq!(kind_of(check_pdf(&pdf, &caps())), Kind::Encrypted);
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::Encrypted,
+            "password_required",
+        );
     }
 
+    /// Nome `/Encrypt` scritto con escape: mai `ok`; `Encrypted`/`password_required` se lopdf
+    /// lo vede, altrimenti `Corrupt`/`encrypt_state` (dichiarato a byte, non caricato).
     #[test]
-    fn encrypt_with_escaped_name_is_encrypted() {
+    fn escaped_encrypt_name_is_never_ok() {
         let pdf = doc(
             1,
             "",
             vec![encrypt_obj()],
             "/Encr#79pt 50 0 R /ID [<01> <01>]",
         );
-        assert_eq!(kind_of(check_pdf(&pdf, &caps())), Kind::Encrypted);
+        let (k, d) = failed_of(check_pdf(&pdf, &caps()));
+        let first = d.split_whitespace().next();
+        assert!(
+            matches!(
+                (k, first),
+                (Kind::Encrypted, Some("password_required"))
+                    | (Kind::Corrupt, Some("encrypt_state"))
+            ),
+            "{k:?} {d:?}"
+        );
     }
 
+    /// `/Encrypt` dichiarato con un corpo illeggibile: mai `ok`.
     #[test]
-    fn encrypt_is_detected_even_if_body_is_corrupt() {
+    fn encrypt_declared_with_corrupt_body_is_never_ok() {
         let pdf =
             b"%PDF-1.7\nnot an object at all\ntrailer\n<< /Root 1 0 R /Encrypt 5 0 R >>\n%%EOF\n";
-        assert_eq!(kind_of(check_pdf(pdf, &caps())), Kind::Encrypted);
+        let k = kind_of(check_pdf(pdf, &caps()));
+        assert!(matches!(k, Kind::Encrypted | Kind::Corrupt), "kind {k:?}");
     }
 
     #[test]
@@ -1070,66 +1636,127 @@ mod tests {
         );
     }
 
-    // ---- PDF: object stream e pagine (TEST-8) ------------------------------------------
+    // ---- TEST-7: allegati (punto 3-ter) ------------------------------------------------
 
-    fn garbage_objstm(name: &str) -> Vec<u8> {
-        stream(
-            &format!("/Type /{name} /N 1 /First 4 /Filter /FlateDecode"),
-            b"\x00\x01garbage",
-        )
+    fn attachment(data_filter: &str, data: &[u8]) -> Vec<(u32, Vec<u8>)> {
+        vec![
+            (
+                50,
+                dict("<< /Type /Filespec /F (a.exe) /UF (a.exe) /EF << /F 51 0 R >> >>"),
+            ),
+            (
+                51,
+                stream(&format!("/Type /EmbeddedFile {data_filter}"), data),
+            ),
+            (52, dict("<< /Names [(a.exe) 50 0 R] >>")),
+        ]
     }
 
+    /// (k5) Un allegato non causa quarantena: si conta in `embedded_files`.
     #[test]
-    fn objstm_count_over_cap_is_rejected_before_load() {
-        let extra = (0..3).map(|i| (60 + i, garbage_objstm("ObjStm"))).collect();
-        let c = Caps {
-            max_object_streams: 2,
-            ..caps()
-        };
+    fn embedded_file_is_counted_not_quarantined() {
+        let pdf = doc(
+            1,
+            "/Names << /EmbeddedFiles 52 0 R >>",
+            attachment("", b"MZ\x90\x00"),
+            "",
+        );
+        let r = assert_ok(check_pdf(&pdf, &caps()));
+        assert_eq!(r.embedded_files, 1, "{r:?}");
+    }
+
+    /// (k6) Stream dell'allegato oltre il tetto per stream: `DecompressionLimit`, nessuna
+    /// esenzione per `/Type /EmbeddedFile`.
+    #[test]
+    fn embedded_file_over_per_stream_cap_is_decompression_limit() {
+        let pdf = doc(
+            1,
+            "/Names << /EmbeddedFiles 52 0 R >>",
+            attachment("/Filter /FlateDecode", &zlib_zeros(MIB + 1)),
+            "",
+        );
+        assert_eq!(kind_of(check_pdf(&pdf, &caps())), Kind::DecompressionLimit);
+    }
+
+    /// `/Launch` che punta a un allegato resta in quarantena, con il solo motivo `launch`.
+    #[test]
+    fn launch_pointing_to_embedded_file_is_quarantined_as_launch() {
+        let mut extra = attachment("", b"MZ\x90\x00");
+        extra.push((53, dict("<< /S /Launch /F 50 0 R >>")));
+        let pdf = doc(
+            1,
+            "/Names << /EmbeddedFiles 52 0 R >> /OpenAction 53 0 R",
+            extra,
+            "",
+        );
         assert_eq!(
-            kind_of(check_pdf(&doc(1, "", extra, ""), &c)),
-            Kind::DecompressionLimit
+            reasons_of(check_pdf(&pdf, &caps())),
+            vec!["launch".to_owned()]
         );
     }
 
+    // ---- TEST-8: object stream (k1, k2, conteggio) --------------------------------------
+
+    /// (k1) Più di 64 object stream piccoli, somma reale sotto il totale: nessun rifiuto per
+    /// numero; `objstm_count` e la somma reale nel rapporto; I2 entro B.
+    #[test]
+    fn many_small_objstm_are_not_rejected_by_count() {
+        let osm = small_objstms(70);
+        let expected: u64 = osm.iter().map(ObjStm::plain_len).sum();
+        let pdf = modern(base_objects(&extra_refs(&osm)), &osm).bytes;
+        let c = caps();
+        let r = assert_ok(check_pdf(&pdf, &c));
+        assert_eq!(r.objstm_count, 70);
+        assert_eq!(r.objstm_decompressed_bytes, expected);
+        assert_eq!(r.xref_streams, 1);
+        assert_eq!(r.encryption, Encryption::None);
+        assert_work_unencrypted(&r, &c);
+    }
+
+    /// Conteggio con nomi normalizzati (`#xx`): tre object stream validi, nessun rifiuto.
     #[test]
     fn objstm_count_uses_normalized_names() {
-        let extra = vec![
-            (60, garbage_objstm("ObjStm")),
-            (61, garbage_objstm("Obj#53tm")),
-            (62, garbage_objstm("#4FbjStm")),
-        ];
-        let c = Caps {
-            max_object_streams: 2,
-            ..caps()
-        };
-        assert_eq!(
-            kind_of(check_pdf(&doc(1, "", extra, ""), &c)),
-            Kind::DecompressionLimit
-        );
+        let mut osm = small_objstms(3);
+        osm[1].type_name = "Obj#53tm";
+        osm[2].type_name = "#4FbjStm";
+        let pdf = modern(base_objects(&extra_refs(&osm)), &osm).bytes;
+        let r = assert_ok(check_pdf(&pdf, &caps()));
+        assert_eq!(r.objstm_count, 3);
     }
 
     #[test]
-    fn objstm_within_cap_passes() {
+    fn objstm_within_caps_passes() {
         let extra = vec![(60, objstm(&[(70, b"<< /Foo 1 >>")]))];
-        let c = Caps {
-            max_object_streams: 2,
-            ..caps()
-        };
-        assert_ok(check_pdf(&doc(1, "", extra, ""), &c));
+        assert_ok(check_pdf(&doc(1, "", extra, ""), &caps()));
     }
 
     #[test]
     fn objstm_expanding_over_per_stream_cap_is_decompression_limit() {
-        // Il tetto per stream deve agire già al caricamento (max_decompressed_size).
-        let mut big = b"<< /Pad (".to_vec();
-        big.extend(std::iter::repeat_n(b'A', 2 * MIB as usize));
-        big.extend_from_slice(b") >>");
+        // Il tetto per stream vale anche sugli object stream.
+        let big = pad_dict(2 * MIB as usize);
         let extra = vec![(60, objstm(&[(70, &big)]))];
         assert_eq!(
             kind_of(check_pdf(&doc(1, "", extra, ""), &caps())),
             Kind::DecompressionLimit
         );
+    }
+
+    /// (k2) Object stream ciascuno sotto il tetto per stream, somma reale oltre il totale:
+    /// `DecompressionLimit`/`total_decompressed`, contati ≤ totale + un blocco, lavoro ≤ B.
+    #[test]
+    fn objstm_sum_over_total_stops_at_total_plus_one_block() {
+        let mut osm = small_objstms(6);
+        for o in &mut osm {
+            o.pad = 900 * KIB;
+        }
+        let pdf = modern(base_objects(&extra_refs(&osm)), &osm).bytes;
+        let c = caps();
+        let d = assert_failed(
+            check_pdf(&pdf, &c),
+            Kind::DecompressionLimit,
+            "total_decompressed",
+        );
+        assert_total_stop(&d, &c, 1);
     }
 
     #[test]
@@ -1153,7 +1780,125 @@ mod tests {
         assert_ok(check_pdf(&doc(3, "", vec![], ""), &c));
     }
 
-    // ---- PDF: contenuti attivi (TEST-7) ------------------------------------------------
+    // ---- TEST-8: ramo cifrato (k1e, k2e) -------------------------------------------------
+
+    /// (k1e) Cifrato con password vuota, più di 64 object stream piccoli, somma sotto il
+    /// totale: nessun rifiuto, `encryption = empty_password`, I2 entro B.
+    #[test]
+    fn encrypted_many_small_objstm_are_admitted() {
+        let osm = small_objstms(70);
+        let plain = modern(base_objects(&extra_refs(&osm)), &osm).bytes;
+        let pdf = encrypt_empty_user(&plain, "--object-streams=preserve");
+        let (containers, real) = objstm_containers(&lopdf_doc(&pdf));
+        assert!(
+            containers > 64,
+            "fixture: {containers} object stream dopo qpdf"
+        );
+        let c = caps();
+        let r = assert_ok(check_pdf(&pdf, &c));
+        assert_eq!(r.encryption, Encryption::EmptyPassword);
+        assert!(r.objstm_count > 64, "{r:?}");
+        assert_eq!(r.objstm_decompressed_bytes, real);
+        assert!(r.xref_streams >= 1, "{r:?}");
+        assert_work_encrypted(&r, &c);
+    }
+
+    /// (k2e) Cifrato con password vuota, object stream sotto la quota del ramo cifrato e somma
+    /// reale oltre il totale (contenuti delle pagine): `total_decompressed`, contati ≤ totale
+    /// + un blocco, lavoro ≤ B.
+    #[test]
+    fn encrypted_sum_over_total_stops_at_total_plus_one_block() {
+        let plain = doc_flate_pages(6, 900 * KIB, false, "");
+        let pdf = encrypt_empty_user(&plain, "--object-streams=generate");
+        let c = caps();
+        let d = assert_failed(
+            check_pdf(&pdf, &c),
+            Kind::DecompressionLimit,
+            "total_decompressed",
+        );
+        assert_total_stop(&d, &c, 1);
+    }
+
+    // ---- TEST-12: I1, byte distinti contati una sola volta ------------------------------
+
+    fn roomy_caps() -> Caps {
+        Caps {
+            per_stream_bytes: 4 * MIB,
+            total_bytes: 5 * MIB,
+            ..caps()
+        }
+    }
+
+    /// Uno stream condiviso da due pagine si conta una volta: 3 MiB ≤ 5 MiB (contato due
+    /// volte sarebbe 6 MiB, oltre il totale).
+    #[test]
+    fn i1_shared_stream_is_counted_once() {
+        let pdf = doc_flate_pages(2, 3 * MIB, true, "");
+        assert_ok(check_pdf(&pdf, &roomy_caps()));
+    }
+
+    /// La riespansione degli object stream nel caricamento vero entra in I2, non in I1:
+    /// object stream da 2 MiB + contenuto da 2 MiB stanno sotto 5 MiB; `objstm_decompressed_bytes`
+    /// è la somma reale.
+    #[test]
+    fn i1_objstm_reexpansion_is_not_counted_twice() {
+        let mut osm = small_objstms(1);
+        osm[0].pad = 2 * MIB;
+        let expected = osm[0].plain_len();
+        let mut objs = base_objects(&extra_refs(&osm));
+        objs[3] = (4, stream("/Filter /FlateDecode", &zlib_zeros(2 * MIB)));
+        let pdf = modern(objs, &osm).bytes;
+        let c = roomy_caps();
+        let r = assert_ok(check_pdf(&pdf, &c));
+        assert_eq!(r.objstm_decompressed_bytes, expected);
+        assert_work_unencrypted(&r, &c);
+    }
+
+    /// Ramo cifrato: object stream da circa 2 MiB e contenuto da 2 MiB condiviso da due
+    /// pagine, contati una volta (≤ 5 MiB); `objstm_decompressed_bytes` è la somma reale.
+    #[test]
+    fn i1_encrypted_counts_distinct_streams_once() {
+        let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 100 0 R >>";
+        let plain = build(
+            &[
+                (1, dict("<< /Type /Catalog /Pages 2 0 R /Extra 5 0 R >>")),
+                (2, dict("<< /Type /Pages /Kids [10 0 R 11 0 R] /Count 2 >>")),
+                (5, pad_dict(2 * MIB as usize)),
+                (10, dict(page)),
+                (11, dict(page)),
+                (100, stream("/Filter /FlateDecode", &zlib_zeros(2 * MIB))),
+            ],
+            "",
+        );
+        let pdf = encrypt_empty_user(&plain, "--object-streams=generate");
+        let (containers, real) = objstm_containers(&lopdf_doc(&pdf));
+        assert!(
+            containers >= 1 && real >= 2 * MIB,
+            "fixture: {containers} {real}"
+        );
+        let c = roomy_caps();
+        let r = assert_ok(check_pdf(&pdf, &c));
+        assert_eq!(r.encryption, Encryption::EmptyPassword);
+        assert_eq!(r.objstm_decompressed_bytes, real);
+        assert_work_encrypted(&r, &c);
+    }
+
+    // ---- TEST-13: I2 con più cross-reference stream -------------------------------------
+
+    /// Due revisioni con xref stream: `xref_streams` = 2 e B cresce di conseguenza; il lavoro
+    /// non scende mai sotto le due passate di caricamento delle xref stream.
+    #[test]
+    fn i2_work_counts_every_xref_stream() {
+        let osm = small_objstms(3);
+        let base = modern(base_objects(&extra_refs(&osm)), &osm);
+        let rev = append_xref_revision(&base, vec![(4, stream("", b"BT ET"))], &[]);
+        let c = caps();
+        let r = assert_ok(check_pdf(&rev.bytes, &c));
+        assert_eq!(r.xref_streams, 2);
+        assert_work_unencrypted(&r, &c);
+    }
+
+    // ---- TEST-7: contenuti attivi ------------------------------------------------------
 
     #[test]
     fn javascript_hidden_in_compressed_objstm_is_quarantined() {
@@ -1165,6 +1910,25 @@ mod tests {
         );
         let r = reasons_of(check_pdf(&pdf, &caps()));
         assert!(r.contains(&"javascript".to_owned()), "motivi {r:?}");
+    }
+
+    /// Quarantena sul contenuto decifrato: JS nascosto in un object stream cifrato.
+    #[test]
+    fn javascript_hidden_in_encrypted_objstm_is_quarantined() {
+        let plain = doc(
+            1,
+            "/OpenAction 50 0 R",
+            vec![(50, dict("<< /S /JavaScript /JS (app.alert\\(1\\)) >>"))],
+            "",
+        );
+        let pdf = encrypt_empty_user(&plain, "--object-streams=generate");
+        assert!(
+            !pdf.windows(10).any(|w| w == b"JavaScript"),
+            "fixture: il JS deve stare solo nell'object stream cifrato"
+        );
+        let r = reasons_of(check_pdf(&pdf, &caps()));
+        assert!(r.contains(&"javascript".to_owned()), "motivi {r:?}");
+        assert!(r.contains(&"open_action_js".to_owned()), "motivi {r:?}");
     }
 
     #[test]
@@ -1206,25 +1970,7 @@ mod tests {
         assert!(r.contains(&"launch".to_owned()), "motivi {r:?}");
     }
 
-    #[test]
-    fn embedded_file_is_quarantined() {
-        let pdf = doc(
-            1,
-            "",
-            vec![
-                (
-                    50,
-                    dict("<< /Type /Filespec /F (a.exe) /EF << /F 51 0 R >> >>"),
-                ),
-                (51, stream("/Type /EmbeddedFile", b"MZ\x90\x00")),
-            ],
-            "",
-        );
-        let r = reasons_of(check_pdf(&pdf, &caps()));
-        assert!(r.contains(&"embedded_file".to_owned()), "motivi {r:?}");
-    }
-
-    // ---- PDF: catene di filtri (TEST-7) ------------------------------------------------
+    // ---- TEST-7: catene di filtri ------------------------------------------------------
 
     #[test]
     fn filter_chain_longer_than_two_is_rejected() {
@@ -1315,7 +2061,7 @@ mod tests {
         );
     }
 
-    // ---- PDF: tetti di decompressione Flate (TEST-7) -----------------------------------
+    // ---- TEST-7: tetti di decompressione Flate -----------------------------------------
 
     #[test]
     fn flate_stream_at_per_stream_cap_passes() {
@@ -1379,7 +2125,395 @@ mod tests {
         );
     }
 
-    // ---- DOCX (TEST-7) -----------------------------------------------------------------
+    // ---- TEST-14: caratterizzazione di lopdf 0.45.0 (c1-c7) ------------------------------
+
+    /// (c1) La versione risolta di lopdf è 0.45.0 (equivalente a `cargo tree -p s02-parser -i
+    /// lopdf` nel runner, letto dal `Cargo.lock` del workspace).
+    #[test]
+    fn c1_resolved_lopdf_is_0_45_0() {
+        let lock = include_str!("../../Cargo.lock");
+        let versions: Vec<&str> = lock
+            .split("[[package]]")
+            .filter(|p| p.contains("\nname = \"lopdf\"\n"))
+            .filter_map(|p| {
+                p.lines()
+                    .find_map(|l| l.strip_prefix("version = \""))
+                    .and_then(|v| v.strip_suffix('"'))
+            })
+            .collect();
+        assert_eq!(versions, vec!["0.45.0"]);
+    }
+
+    /// (c2) Ramo non cifrato con `defer_objstm`: i membri non entrano in `Document::objects`,
+    /// il contenitore resta compresso (il filtro agisce prima dell'espansione), gli oggetti
+    /// normali sono uguali al caricamento senza filtro.
+    #[test]
+    fn c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load() {
+        let member: &[u8] = b"<< /Foo 1 >>";
+        let pdf = doc(1, "", vec![(60, objstm(&[(70, member)]))], "");
+        let opts = LoadOptions {
+            filter: Some(defer_objstm),
+            ..LoadOptions::with_max_decompressed_size(MIB as usize)
+        };
+        let deferred = Document::load_mem_with_options(&pdf, opts).unwrap();
+        let full = lopdf_doc(&pdf);
+        assert!(
+            full.objects.contains_key(&(70, 0)),
+            "fixture: membro atteso"
+        );
+        assert!(
+            !deferred.objects.contains_key(&(70, 0)),
+            "membro espanso nonostante il filtro"
+        );
+        let Some(Object::Stream(container)) = deferred.objects.get(&(60, 0)) else {
+            panic!("contenitore 60 assente o non stream");
+        };
+        let Some(Object::Stream(original)) = full.objects.get(&(60, 0)) else {
+            panic!("fixture: contenitore 60");
+        };
+        assert_eq!(
+            container.content, original.content,
+            "contenitore non compresso"
+        );
+        assert!(matches!(
+            container.dict.get(b"Filter"),
+            Ok(Object::Name(n)) if n == b"FlateDecode"
+        ));
+        for id in [(1, 0), (2, 0), (10, 0), (100, 0)] {
+            assert_eq!(
+                deferred.objects.get(&id),
+                full.objects.get(&id),
+                "oggetto {id:?}"
+            );
+        }
+    }
+
+    /// (c2) Sugli oggetti che non sono object stream il filtro restituisce l'oggetto invariato.
+    #[test]
+    fn c2_defer_objstm_returns_other_objects_unchanged() {
+        let doc_ = lopdf_doc(&doc(1, "", vec![], ""));
+        for (id, obj) in &doc_.objects {
+            let mut o = obj.clone();
+            let back = defer_objstm(*id, &mut o).expect("oggetto scartato dal filtro");
+            assert_eq!(back, (*id, obj.clone()), "oggetto {id:?} cambiato");
+        }
+    }
+
+    /// (c3) Ramo cifrato con password vuota: lopdf ignora il filtro ed espande gli object
+    /// stream nel caricamento. Si registra (stderr) se i contenitori restano in
+    /// `Document::objects`, assunzione del prescan che deepsearch_6 non chiude.
+    #[test]
+    fn c3_encrypted_load_ignores_filter_and_expands_members() {
+        let osm = small_objstms(3);
+        let plain = modern(base_objects(&extra_refs(&osm)), &osm).bytes;
+        let pdf = encrypt_empty_user(&plain, "--object-streams=preserve");
+        let opts = LoadOptions {
+            filter: Some(defer_objstm),
+            ..LoadOptions::with_max_decompressed_size(MIB as usize)
+        };
+        let d = Document::load_mem_with_options(&pdf, opts).unwrap();
+        assert!(d.was_encrypted() && !d.is_encrypted());
+        let compressed: Vec<(u32, u32)> = d
+            .reference_table
+            .entries
+            .iter()
+            .filter_map(|(n, e)| match e {
+                lopdf::xref::XrefEntry::Compressed { container, .. } => Some((*n, *container)),
+                _ => None,
+            })
+            .collect();
+        assert!(!compressed.is_empty(), "fixture: nessun membro compresso");
+        for (member, _) in &compressed {
+            assert!(
+                d.objects.contains_key(&(*member, 0)),
+                "membro {member} non espanso"
+            );
+        }
+        let kept = compressed
+            .iter()
+            .filter(|(_, c)| d.objects.contains_key(&(*c, 0)))
+            .count();
+        eprintln!(
+            "c3: contenitori rimasti in Document::objects: {kept}/{} membri",
+            compressed.len()
+        );
+    }
+
+    /// (c3) Ramo cifrato: un object stream sopra la quota per stream (min(tetto,
+    /// ⌊totale/n⌋) = 512 KiB con 8 object stream) è `DecompressionLimit`/`objstm_dropped`.
+    #[test]
+    fn c3_encrypted_objstm_over_quota_is_objstm_dropped() {
+        let mut osm = small_objstms(8);
+        osm[7].members[0].1 = pad_dict(600 * KIB as usize);
+        let plain = modern(base_objects(&extra_refs(&osm)), &osm).bytes;
+        let pdf = encrypt_empty_user(&plain, "--object-streams=preserve");
+        let (containers, _) = objstm_containers(&lopdf_doc(&pdf));
+        assert_eq!(containers, 8, "fixture: object stream dopo qpdf");
+        assert_eq!(encrypted_quota(&caps(), 8), 512 * KIB);
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "objstm_dropped",
+        );
+    }
+
+    /// Ritocca l'ultimo trailer classico di un PDF di `qpdf` e aggiunge una revisione che
+    /// sostituisce l'oggetto `updated` (senza stringhe: la decifratura non lo cambia) e libera
+    /// `freed`.
+    fn append_classic_revision(base: &[u8], updated: u32, freed: u32) -> Vec<u8> {
+        let tpos = base
+            .windows(7)
+            .rposition(|w| w == b"trailer")
+            .expect("trailer classico");
+        let spos = tpos + find(&base[tpos..], b"startxref").unwrap();
+        let trailer = String::from_utf8_lossy(&base[tpos + 7..spos])
+            .trim()
+            .to_owned();
+        let prev: usize = String::from_utf8_lossy(&base[spos + 9..])
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let mut out = base.to_vec();
+        let off = out.len();
+        push_obj(&mut out, updated, b"<< /K 2 >>");
+        let xoff = out.len();
+        let mut subs = [
+            (updated, format!("{off:010} 00000 n \n")),
+            (freed, "0000000000 00001 f \n".to_owned()),
+        ];
+        subs.sort_by_key(|(n, _)| *n);
+        out.extend_from_slice(b"xref\n");
+        for (n, row) in subs {
+            out.extend_from_slice(format!("{n} 1\n{row}").as_bytes());
+        }
+        let trailer = trailer.replacen("<<", &format!("<< /Prev {prev}"), 1);
+        out.extend_from_slice(format!("trailer\n{trailer}\nstartxref\n{xoff}\n%%EOF\n").as_bytes());
+        out
+    }
+
+    /// (c4) xref in tabella, xref in stream e aggiornamento incrementale con due revisioni:
+    /// la riconciliazione del ramo cifrato considera solo le voci in uso dell'ultima
+    /// revisione (nessun falso `object_dropped`); `xref_streams` uguale al numero reale.
+    #[test]
+    fn c4_xref_forms_and_incremental_update_have_no_false_drops() {
+        let plain = doc(
+            1,
+            "/Extra 5 0 R /Extra2 6 0 R",
+            vec![(5, dict("<< /K 1 >>")), (6, dict("<< /K 9 >>"))],
+            "",
+        );
+        let c = caps();
+
+        // Fixture, verificate con lopdf prima del prescan.
+        let table = encrypt_empty_user(&plain, "--object-streams=disable");
+        let in_stream = encrypt_empty_user(&plain, "--object-streams=generate");
+        let d = lopdf_doc(&table);
+        let cat = d.catalog().unwrap();
+        let x = cat.get(b"Extra").unwrap().as_reference().unwrap().0;
+        let y = cat.get(b"Extra2").unwrap().as_reference().unwrap().0;
+        let two_revs = append_classic_revision(&table, x, y);
+        let d2 = lopdf_doc(&two_revs);
+        assert!(
+            d2.was_encrypted() && !d2.is_encrypted(),
+            "fixture: revisione 2"
+        );
+        // lopdf unisce le revisioni: si registra come vede la voce liberata (caratterizzazione).
+        eprintln!(
+            "c4: voce {y} liberata nella revisione 2, vista da lopdf: {:?}",
+            d2.reference_table.get(y)
+        );
+        qpdf_check(&two_revs);
+        assert_eq!(
+            d2.objects
+                .get(&(x, 0))
+                .and_then(|o| o.as_dict().ok())
+                .map(|o| o.get(b"K").ok().cloned()),
+            Some(Some(Object::Integer(2))),
+            "fixture: {x} sostituito dalla revisione 2"
+        );
+        let osm = small_objstms(2);
+        let base = modern(base_objects(&extra_refs(&osm)), &osm);
+        let (m0, m1) = (osm[0].members[0].0, osm[1].members[0].0);
+        let rev = append_xref_revision(&base, vec![(m0, dict("<< /K 7 >>"))], &[m1]);
+        qpdf_check(&rev.bytes);
+        let d3 = lopdf_doc(&rev.bytes);
+        assert!(
+            d3.objects.contains_key(&(m0, 0)),
+            "fixture: revisione xref stream"
+        );
+
+        let r = assert_ok(check_pdf(&table, &c));
+        assert_eq!(
+            (r.encryption, r.xref_streams),
+            (Encryption::EmptyPassword, 0)
+        );
+        let r = assert_ok(check_pdf(&in_stream, &c));
+        assert_eq!(
+            (r.encryption, r.xref_streams),
+            (Encryption::EmptyPassword, 1)
+        );
+        let r = assert_ok(check_pdf(&two_revs, &c));
+        assert_eq!(
+            (r.encryption, r.xref_streams),
+            (Encryption::EmptyPassword, 0)
+        );
+        // Non cifrato, due revisioni con xref stream: contate tutte e due.
+        let r = assert_ok(check_pdf(&rev.bytes, &c));
+        assert_eq!(r.xref_streams, 2);
+    }
+
+    /// (c5) Ramo cifrato, oggetto in uso illeggibile (lopdf lo scarta in silenzio):
+    /// `Corrupt`/`object_dropped`.
+    #[test]
+    fn c5_encrypted_unreadable_object_is_object_dropped() {
+        let mut pdf = encrypt_empty_user(&doc(1, "", vec![], ""), "--object-streams=disable");
+        let d = lopdf_doc(&pdf);
+        let page = *d.get_pages().values().next().expect("fixture: pagina");
+        let contents = d
+            .get_object(page)
+            .unwrap()
+            .as_dict()
+            .unwrap()
+            .get(b"Contents")
+            .unwrap()
+            .as_reference()
+            .unwrap();
+        let off = offset_of(&d, contents.0);
+        let kw = off + find(&pdf[off..], b" obj").expect("intestazione obj") + 1;
+        pdf[kw..kw + 3].copy_from_slice(b"obx");
+        // lopdf, sul ramo cifrato, scarta l'oggetto in silenzio e restituisce Ok.
+        let dropped = lopdf_doc(&pdf);
+        assert!(
+            !dropped.objects.contains_key(&contents),
+            "fixture: oggetto {contents:?} ancora caricato"
+        );
+        assert_failed(check_pdf(&pdf, &caps()), Kind::Corrupt, "object_dropped");
+    }
+
+    /// (c5) Ramo cifrato, object stream con Flate corrotto (blocchi AES del testo cifrato
+    /// alterati, padding intatto): `DecompressionLimit`/`objstm_dropped`.
+    #[test]
+    fn c5_encrypted_corrupt_objstm_is_objstm_dropped() {
+        let extra: Vec<(u32, Vec<u8>)> = (0..50)
+            .map(|i| {
+                let v = hex(&noise(32, 100 + i));
+                let mut body = b"<< /V <".to_vec();
+                body.extend_from_slice(&v[..v.len() - 1]);
+                body.extend_from_slice(b"> >>");
+                (200 + u32::try_from(i).unwrap(), body)
+            })
+            .collect();
+        let refs: Vec<String> = (200..250).map(|n| format!("{n} 0 R")).collect();
+        let plain = doc(1, &format!("/Extra [{}]", refs.join(" ")), extra, "");
+        let mut pdf = encrypt_empty_user(&plain, "--object-streams=generate");
+        let d = lopdf_doc(&pdf);
+        let container = d
+            .reference_table
+            .entries
+            .values()
+            .find_map(|e| match e {
+                lopdf::xref::XrefEntry::Compressed { container, .. } => Some(*container),
+                _ => None,
+            })
+            .expect("fixture: object stream");
+        let start = stream_data_start(&pdf, offset_of(&d, container));
+        let Some(Object::Stream(s)) = d.objects.get(&(container, 0)) else {
+            panic!("fixture: contenitore");
+        };
+        assert!(s.content.len() > 200, "fixture: object stream troppo corto");
+        for b in &mut pdf[start + 16..start + 80] {
+            *b ^= 0xFF;
+        }
+        // lopdf, sul ramo cifrato, perde in silenzio i membri dell'object stream.
+        let dropped = lopdf_doc(&pdf);
+        let lost = dropped
+            .reference_table
+            .entries
+            .iter()
+            .filter(|(n, e)| {
+                matches!(e, lopdf::xref::XrefEntry::Compressed { container: c, .. } if *c == container)
+                    && !dropped.objects.contains_key(&(**n, 0))
+            })
+            .count();
+        assert!(lost > 0, "fixture: nessun membro perso dopo la corruzione");
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "objstm_dropped",
+        );
+    }
+
+    /// (c6) Password utente non vuota: `load_mem_with_options` dà `Ok` o `Err` (registrato su
+    /// stderr) e l'esito è `Encrypted`/`password_required`, mai `Corrupt`/`object_dropped`.
+    #[test]
+    fn c6_user_password_is_password_required_never_object_dropped() {
+        let osm = small_objstms(3);
+        let plain = modern(base_objects(&extra_refs(&osm)), &osm).bytes;
+        let pdf = qpdf(
+            &plain,
+            &[
+                "--object-streams=preserve",
+                "--encrypt",
+                USER_PW,
+                OWNER_PW,
+                "256",
+                "--",
+            ],
+        );
+        let load = Document::load_mem_with_options(
+            &pdf,
+            LoadOptions::with_max_decompressed_size(MIB as usize),
+        );
+        eprintln!(
+            "c6: load_mem_with_options senza password -> {}",
+            match &load {
+                Ok(d) => format!(
+                    "Ok (is_encrypted={}, oggetti={})",
+                    d.is_encrypted(),
+                    d.objects.len()
+                ),
+                Err(e) => format!("Err({e})"),
+            }
+        );
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::Encrypted,
+            "password_required",
+        );
+    }
+
+    /// (c6) Gestore non standard (`/Adobe.PubSec`): `Encrypted`/`password_required`.
+    #[test]
+    fn c6_pubsec_handler_is_password_required() {
+        let pdf = doc(
+            1,
+            "",
+            vec![(
+                50,
+                dict(
+                    "<< /Filter /Adobe.PubSec /SubFilter /adbe.pkcs7.s4 /V 4 /R 4 /Recipients [<3082000A>] >>",
+                ),
+            )],
+            "/Encrypt 50 0 R /ID [<01> <01>]",
+        );
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::Encrypted,
+            "password_required",
+        );
+    }
+
+    /// (c7) Ramo non cifrato, stream Flate non decodificabile: `Corrupt`, nessuno stream
+    /// saltato.
+    #[test]
+    fn c7_undecodable_flate_stream_is_corrupt() {
+        let pdf = doc_with_content("/Filter /FlateDecode", b"this is not zlib data at all");
+        assert_eq!(kind_of(check_pdf(&pdf, &caps())), Kind::Corrupt);
+    }
+
+    // ---- DOCX (TEST-7, schema di TEST-15) -----------------------------------------------
     // Namespace OOXML sostituiti da URN segnaposto: il prescan non li valida e lo scanner
     // rifiuta gli URL in chiaro.
 
@@ -1412,13 +2546,6 @@ mod tests {
         ]
     }
 
-    fn scratch(ext: &str) -> PathBuf {
-        static N: AtomicU32 = AtomicU32::new(0);
-        let dir = std::env::temp_dir().join(format!("s02-prescan-tw-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir.join(format!("d{}.{ext}", N.fetch_add(1, Ordering::SeqCst)))
-    }
-
     fn write_docx(entries: &[(String, Vec<u8>)]) -> PathBuf {
         let path = scratch("docx");
         let mut z = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
@@ -1437,9 +2564,21 @@ mod tests {
         base
     }
 
+    /// DOCX benigno: i sei campi dello schema unico valgono `none` e 0.
     #[test]
-    fn benign_docx_passes() {
-        assert_ok(check_docx(&write_docx(&base_docx()), &caps()));
+    fn benign_docx_passes_with_none_and_zero_schema() {
+        let r = assert_ok(check_docx(&write_docx(&base_docx()), &caps()));
+        assert_eq!(r.encryption, Encryption::None);
+        assert_eq!(
+            (
+                r.embedded_files,
+                r.objstm_count,
+                r.objstm_decompressed_bytes,
+                r.xref_streams,
+                r.decompress_work_bytes
+            ),
+            (0, 0, 0, 0, 0)
+        );
     }
 
     #[test]

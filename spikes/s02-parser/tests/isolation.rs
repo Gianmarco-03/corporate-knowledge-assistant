@@ -1,5 +1,6 @@
 //! Test del lanciatore isolato (piano 01-07, Task 2): casi (a)-(h3) del piano e TEST-1..TEST-6,
-//! TEST-9 del design `test_design_8`.
+//! TEST-9 del design `test_design_8`; dal design `test_design_11` (piano v6) i casi (f2), (f3)
+//! di TEST-11 e `parse_child_data_schema` di TEST-15 (Task 3), in coda al file.
 //!
 //! Solo Linux, nel runner: `bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser
 //! --test isolation`. Il processo di test fa le veci di `parse-parent`: si dichiara
@@ -1239,4 +1240,388 @@ async fn successful_parse_keeps_out_dir_and_removes_job_dir() {
         b"ok"
     );
     assert!(!job_dir(id).exists());
+}
+
+// ---- TEST-11: vittima designata dell'OOM e riserva del padre (casi f2, f3) --------------
+
+/// (f2) Con un job `selftest sleep` in corso, `oom_score_adj` del figlio vale 1000 e quello
+/// del processo del test 0: all'OOM del cgroup la vittima designata è il figlio. Nel
+/// `RunReport` `oom_adj_set` = `true` (RISK-004 di risk_audit_19; l'OOM vero è di 01-18).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn child_is_the_designated_oom_victim() {
+    let id = "tw-oom-adj";
+    let s = spec(&selftest(id, "sleep", Some("2")));
+    let dir = job_dir(id);
+    let watch = async {
+        // Ultimo valore letto dal figlio: si attende il 1000 (la scrittura avviene fra
+        // `chdir` ed `exec`, una lettura troppo presto vede ancora il valore ereditato).
+        let mut last: Option<String> = None;
+        let end = Instant::now() + Duration::from_millis(1500);
+        while Instant::now() < end && last.as_deref() != Some("1000") {
+            for (pid, _, _) in procs_with_cwd(&dir) {
+                if let Ok(v) = fs::read_to_string(format!("/proc/{pid}/oom_score_adj")) {
+                    last = Some(v.trim().to_owned());
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        last
+    };
+    let (l, bb) = (limits(), big_budget());
+    let (r, child_adj) = tokio::join!(run_child(&s, &l, &bb), watch);
+    let r = r.unwrap();
+    assert_ok_report(&r, id);
+    assert!(r.oom_adj_set, "{r:?}");
+    assert_eq!(
+        child_adj.as_deref(),
+        Some("1000"),
+        "oom_score_adj del figlio"
+    );
+    let own = fs::read_to_string("/proc/self/oom_score_adj").unwrap();
+    assert_eq!(own.trim(), "0", "oom_score_adj del processo del test");
+}
+
+/// Bin `parse-parent` del runner (percorso letterale, come in
+/// `parse_parent_prints_job_error_and_exits_2`).
+const PARSE_PARENT: &str = "/target/debug/parse-parent";
+
+/// Budget fisso del padre nei test CLI (il runner non ha `memory.max`): variabili lette solo
+/// dal padre, come `S02_BIN_DIR`. Assunzione del test-write: il piano chiede `Budget::fixed`
+/// per (f3) senza fissare come lo riceve `parse-parent`.
+const BUDGET_TOTAL_VAR: &str = "S02_BUDGET_TOTAL_BYTES";
+const PARENT_RESERVE_VAR: &str = "S02_PARENT_RESERVE_BYTES";
+
+fn write_limits(name: &str, l: &Limits) -> PathBuf {
+    let p = env().base.join(name);
+    fs::write(&p, serde_json::to_vec(&json!({ "default": l })).unwrap()).unwrap();
+    p
+}
+
+/// `parse-parent <args>` con le radici dei test, la cartella dei bin data e le variabili in
+/// più; stdin nullo.
+fn run_parent(args: &[&str], bin: &Path, extra: &[(&str, String)]) -> std::process::Output {
+    assert_eq!(
+        env!("CARGO_BIN_EXE_parse-parent"),
+        PARSE_PARENT,
+        "test pensato per il runner (CARGO_TARGET_DIR=/target)"
+    );
+    let e = env();
+    let mut c = Command::new("/target/debug/parse-parent");
+    c.args(args)
+        .env("S02_BIN_DIR", bin)
+        .env("S02_WORK_ROOT", &e.work_root)
+        .env("S02_RESULTS_RAW", &e.raw)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (k, v) in extra {
+        c.env(k, v);
+    }
+    c.output().unwrap()
+}
+
+/// Righe JSON dello stdout di `parse-parent`.
+fn json_lines(stdout: &[u8]) -> Vec<Value> {
+    String::from_utf8_lossy(stdout)
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("riga {l:?}: {e}")))
+        .collect()
+}
+
+/// (f3) `batch` con `Budget::fixed` e una riserva del padre più piccola del suo `VmHWM`:
+/// rapporti dei job scritti, poi `parent_reserve_exceeded vm_hwm_kb=<n>` su stderr ed exit 3.
+/// Controllo: con una riserva ampia lo stesso batch esce 0 senza quella riga.
+#[test]
+fn batch_over_parent_reserve_exits_3_after_reports() {
+    let e = env();
+    let limits_path = write_limits("f3-limits.json", &limits());
+    let batch = |tag: &str, reserve: u64| {
+        let ids: Vec<String> = ["a", "b"]
+            .iter()
+            .map(|s| format!("tw-f3-{tag}-{s}"))
+            .collect();
+        let jobs = e.base.join(format!("f3-{tag}.jsonl"));
+        let lines: Vec<String> = ids
+            .iter()
+            .map(|id| String::from_utf8(selftest(id, "argv-echo", Some("x"))).unwrap())
+            .collect();
+        fs::write(&jobs, lines.join("\n")).unwrap();
+        let o = run_parent(
+            &[
+                "batch",
+                "--jobs",
+                jobs.to_str().unwrap(),
+                "--concurrency",
+                "2",
+                "--limits",
+                limits_path.to_str().unwrap(),
+            ],
+            &e.bin,
+            &[
+                (BUDGET_TOTAL_VAR, (1024 * MIB).to_string()),
+                (PARENT_RESERVE_VAR, reserve.to_string()),
+            ],
+        );
+        (ids, o)
+    };
+
+    let (ids, o) = batch("low", MIB);
+    let stderr = String::from_utf8_lossy(&o.stderr).into_owned();
+    assert_eq!(o.status.code(), Some(3), "stderr {stderr}");
+    let hwm: u64 = stderr
+        .lines()
+        .find_map(|l| l.strip_prefix("parent_reserve_exceeded vm_hwm_kb="))
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or_else(|| panic!("riga parent_reserve_exceeded assente: {stderr}"));
+    assert!(
+        hwm > 1024,
+        "VmHWM del padre {hwm} kB non oltre la riserva di 1 MiB"
+    );
+    let lines = json_lines(&o.stdout);
+    for id in &ids {
+        let rep = lines
+            .iter()
+            .find(|v| v["job_id"] == id.as_str() && v.get("outcome").is_some())
+            .unwrap_or_else(|| panic!("rapporto di {id} assente: {lines:?}"));
+        assert_eq!(rep["outcome"]["status"], "ok", "{rep}");
+    }
+
+    let (_, o) = batch("high", 256 * MIB);
+    let stderr = String::from_utf8_lossy(&o.stderr).into_owned();
+    assert_eq!(o.status.code(), Some(0), "stderr {stderr}");
+    assert!(!stderr.contains("parent_reserve_exceeded"), "{stderr}");
+}
+
+// ---- TEST-15: schema unico dei sei campi di `data` ---------------------------------------
+
+/// I sei campi dello schema unico (punto 5 di `<interfaces>` del piano v6).
+const SCHEMA_FIELDS: [&str; 6] = [
+    "encryption",
+    "embedded_files",
+    "objstm_count",
+    "objstm_decompressed_bytes",
+    "xref_streams",
+    "decompress_work_bytes",
+];
+
+/// Cartella dei bin con il `parse-child` vero (copia del bin del crate).
+fn real_bin_dir() -> PathBuf {
+    static DIR: OnceLock<PathBuf> = OnceLock::new();
+    DIR.get_or_init(|| {
+        let d = env().base.join("bin-real");
+        fs::create_dir_all(&d).unwrap();
+        fs::copy(env!("CARGO_BIN_EXE_parse-child"), d.join("parse-child")).unwrap();
+        d
+    })
+    .clone()
+}
+
+/// Cartella di `libpdfium.so` (build `chromium/8100` del worker): `S02_TEST_PDFIUM_DIR`,
+/// `PDFIUM_DIR`, `/opt/pdfium/lib` o `/src/target/pdfium/lib` (copia ignorata da git sotto
+/// `spikes/target`, perché l'immagine del runner non ha PDFium).
+fn pdfium_dir() -> PathBuf {
+    let mut candidates: Vec<PathBuf> = ["S02_TEST_PDFIUM_DIR", "PDFIUM_DIR"]
+        .iter()
+        .filter_map(|k| std::env::var_os(k).filter(|v| !v.is_empty()))
+        .map(PathBuf::from)
+        .collect();
+    candidates.push(PathBuf::from("/opt/pdfium/lib"));
+    candidates.push(PathBuf::from("/src/target/pdfium/lib"));
+    candidates
+        .iter()
+        .find(|d| d.join("libpdfium.so").is_file())
+        .cloned()
+        .unwrap_or_else(|| {
+            panic!(
+                "PDFium assente in {candidates:?}: estrarre pdfium-linux-x64.tgz di chromium/8100 \
+                 (sha256 di docker/worker.Dockerfile) in spikes/target/pdfium"
+            )
+        })
+}
+
+/// `parse-parent run` di un job `parse` col `parse-child` vero; ritorna `outcome.data`.
+fn parse_data(id: &str, input: &Path) -> Value {
+    let e = env();
+    let l = Limits {
+        address_space_bytes: 1536 * MIB,
+        cpu_seconds: 60,
+        wall_timeout: Duration::from_secs(60),
+        file_size_bytes: 64 * MIB,
+        out_quota_bytes: 64 * MIB,
+        ..limits()
+    };
+    let limits_path = write_limits(&format!("{id}-limits.json"), &l);
+    let job = e.base.join(format!("{id}.json"));
+    fs::write(
+        &job,
+        job_json(id, "parse", input, Some(&out_str("schema", id)), json!({})),
+    )
+    .unwrap();
+    let mut extra = vec![
+        (BUDGET_TOTAL_VAR, (2048 * MIB).to_string()),
+        (PARENT_RESERVE_VAR, (256 * MIB).to_string()),
+    ];
+    if input.extension().is_some_and(|x| x == "pdf") {
+        extra.push(("PDFIUM_DIR", pdfium_dir().to_string_lossy().into_owned()));
+    }
+    let o = run_parent(
+        &[
+            "run",
+            "--job",
+            job.to_str().unwrap(),
+            "--limits",
+            limits_path.to_str().unwrap(),
+        ],
+        &real_bin_dir(),
+        &extra,
+    );
+    let stderr = String::from_utf8_lossy(&o.stderr).into_owned();
+    assert_eq!(o.status.code(), Some(0), "stderr {stderr}");
+    let lines = json_lines(&o.stdout);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let outcome = &lines[0]["outcome"];
+    assert_eq!(outcome["status"], "ok", "{outcome}");
+    outcome["data"].clone()
+}
+
+/// I sei campi, tutti presenti e con questi nomi: `encryption` stringa, gli altri interi.
+fn six_fields(data: &Value) -> (String, [u64; 5]) {
+    for k in SCHEMA_FIELDS {
+        assert!(data.get(k).is_some(), "campo {k} assente in data: {data}");
+    }
+    let enc = data["encryption"]
+        .as_str()
+        .unwrap_or_else(|| panic!("encryption non stringa: {data}"))
+        .to_owned();
+    let n = |k: &str| {
+        data[k]
+            .as_u64()
+            .unwrap_or_else(|| panic!("{k} non intero: {data}"))
+    };
+    (
+        enc,
+        [
+            n("embedded_files"),
+            n("objstm_count"),
+            n("objstm_decompressed_bytes"),
+            n("xref_streams"),
+            n("decompress_work_bytes"),
+        ],
+    )
+}
+
+/// PDF `objstm-many`: 7.000 dizionari raggiungibili dal catalogo, che `qpdf
+/// --object-streams=generate` raccoglie in object stream da al più 100 oggetti (quindi più di
+/// 64) con una cross-reference stream.
+fn objstm_many_pdf(path: &Path) {
+    let n = 7000u32;
+    let mut out: Vec<u8> = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
+    let mut offsets: Vec<usize> = Vec::new();
+    let refs: Vec<String> = (0..n).map(|i| format!("{} 0 R", 5 + i)).collect();
+    let mut objs: Vec<(u32, String)> = vec![
+        (
+            1,
+            format!(
+                "<< /Type /Catalog /Pages 2 0 R /Extra [{}] >>",
+                refs.join(" ")
+            ),
+        ),
+        (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned()),
+        (
+            3,
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>".to_owned(),
+        ),
+        (
+            4,
+            "<< /Length 35 >>\nstream\nBT /F1 12 Tf 72 712 Td (Ciao) Tj ET\nendstream".to_owned(),
+        ),
+    ];
+    objs.extend((0..n).map(|i| (5 + i, format!("<< /K {i} >>"))));
+    for (num, body) in &objs {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{num} 0 obj\n{body}\nendobj\n").as_bytes());
+    }
+    let xref = out.len();
+    let size = objs.len() + 1;
+    out.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+    );
+    let plain = env().base.join("objstm-many-plain.pdf");
+    fs::write(&plain, out).unwrap();
+    let st = Command::new("qpdf")
+        .arg("--object-streams=generate")
+        .arg(&plain)
+        .arg(path)
+        .status()
+        .expect("qpdf nel runner");
+    assert!(matches!(st.code(), Some(0 | 3)), "qpdf: {st:?}");
+    let pdf = fs::read(path).unwrap();
+    let objstm = pdf.windows(7).filter(|w| w == b"/ObjStm").count();
+    assert!(objstm > 64, "fixture: {objstm} object stream");
+}
+
+/// DOCX minimo (namespace sostituiti da URN segnaposto, come nei test del prescan).
+fn minimal_docx(path: &Path) {
+    let mut z = zip::ZipWriter::new(fs::File::create(path).unwrap());
+    let parts: [(&str, &str); 3] = [
+        (
+            "[Content_Types].xml",
+            r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="urn:test:ooxml/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#,
+        ),
+        (
+            "_rels/.rels",
+            r#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="urn:test:ooxml/package/2006/relationships"><Relationship Id="rId1" Type="urn:test:ooxml/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#,
+        ),
+        (
+            "word/document.xml",
+            r#"<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="urn:test:ooxml/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Ciao</w:t></w:r></w:p></w:body></w:document>"#,
+        ),
+    ];
+    for (name, data) in parts {
+        z.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        z.write_all(data.as_bytes()).unwrap();
+    }
+    z.finish().unwrap();
+}
+
+/// TEST-15 (RISK-001 di risk_audit_21): `parse-parent run` con `op: parse` dà `ok` e in `data`
+/// tutti i sei campi dello schema unico. DOCX: `none` e 0. PDF `objstm-many`:
+/// `objstm_count` > 64, `xref_streams` ≥ 1, `objstm_decompressed_bytes` < 512 MiB,
+/// `decompress_work_bytes` ≤ B = 2 × 512 MiB + 2 × `xref_streams` × 64 MiB (e mai sotto la
+/// riespansione e le due passate delle xref stream del ramo non cifrato).
+#[test]
+fn parse_child_data_schema() {
+    // Fixture e PDFium prima di ogni lancio: un errore di fixture non si confonde con il rosso.
+    let docx = fixture("schema.docx");
+    minimal_docx(&docx);
+    let pdf = fixture("objstm-many.pdf");
+    objstm_many_pdf(&pdf);
+    let _ = pdfium_dir();
+
+    let (enc, nums) = six_fields(&parse_data("tw-schema-docx", &docx));
+    assert_eq!((enc.as_str(), nums), ("none", [0, 0, 0, 0, 0]));
+
+    let (enc, [embedded, objstm, objstm_bytes, xref, work]) =
+        six_fields(&parse_data("tw-schema-pdf", &pdf));
+    assert_eq!(enc, "none");
+    assert_eq!(embedded, 0);
+    assert!(objstm > 64, "objstm_count {objstm}");
+    assert!(xref >= 1, "xref_streams {xref}");
+    assert!(
+        objstm_bytes > 0 && objstm_bytes < 512 * MIB,
+        "objstm_decompressed_bytes {objstm_bytes}"
+    );
+    let b = 2 * 512 * MIB + 2 * xref * 64 * MIB;
+    assert!(work <= b, "decompress_work_bytes {work} oltre B {b}");
+    let floor = 2 * objstm_bytes + 2 * xref * 64 * MIB;
+    assert!(
+        work >= floor,
+        "decompress_work_bytes {work} sotto il minimo {floor}"
+    );
 }
