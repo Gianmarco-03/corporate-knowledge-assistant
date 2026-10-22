@@ -483,9 +483,11 @@ fn tune(i: &Inputs, features_json: &str, out: &Path) -> anyhow::Result<()> {
         let s = page.as_ref().map_or(0.0, |p| page_score(p, &f));
         scores.push(serde_json::json!({"item_id": item, "doc_id": doc, "score": s, "table": is_table, "extracted": page.is_some()}));
     }
+    // Le pagine senza job extract_pdf ok non hanno punteggio: restano nei punteggi di
+    // taratura (extracted=false) ma non fissano la banda.
     let min_true = scores
         .iter()
-        .filter(|s| s["table"] == true)
+        .filter(|s| s["table"] == true && s["extracted"] == true)
         .filter_map(|s| s["score"].as_f64())
         .fold(f64::INFINITY, f64::min);
     anyhow::ensure!(min_true.is_finite(), "nessuna pagina-tabella di taratura");

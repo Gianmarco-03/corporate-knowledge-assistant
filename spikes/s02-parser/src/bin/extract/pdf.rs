@@ -228,9 +228,12 @@ pub(crate) fn run_pdf(input: &Path, out: &Path, caps: &Caps, pdfium_dir: &Path) 
         n_chars += v["chars"].as_array().map_or(0, Vec::len) as u64;
         n_words += v["words"].as_array().map_or(0, Vec::len) as u64;
         let path = out.join(format!("page-{number:04}.json"));
-        let written = std::fs::File::create(&path).and_then(|mut f| {
-            serde_json::to_writer(&mut f, &v)?;
-            f.flush()
+        // Scrittura bufferizzata: senza buffer serde_json fa una chiamata di sistema per
+        // token, e sul bind mount di Docker Desktop ognuna costa millisecondi.
+        let written = std::fs::File::create(&path).and_then(|f| {
+            let mut w = std::io::BufWriter::new(f);
+            serde_json::to_writer(&mut w, &v)?;
+            w.flush()
         });
         if let Err(e) = written {
             return ChildOutcome::failed(Kind::ResourceLimit, format!("write: {e}"));
