@@ -1,0 +1,232 @@
+# S-02 — Isolamento del parser e casi ostili · RISULTATI
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · domanda e soglie M8-M11 scritte prima della misura (piano 01-18, Task 1)
+
+## Domanda e decisione da chiudere
+
+S-02, parte isolamento (piano 01-18, nato dalla divisione di 01-07 per decisione utente del 2026-10-19, D-30). La domanda è se il parsing in un processo figlio per job, lanciato dal lanciatore di 01-07 (job JSON, allowlist, `RLIMIT_AS`, timeout, `oom_score_adj` 1000, gruppo di processi raccolto, budget aggregato sul cgroup), contenga davvero i file ostili e regga i carichi reali, con quale overhead. Decisioni toccate: D-05 (file ostili, emendata dalla decisione utente del 2026-10-21) e D-08 (isolamento in processo separato). Questo documento porta le evidenze a 01-13, che scrive l'Esito complessivo di S-02 e l'ADR-0004. È anche il gate di validazione di 01-07 (`01-07-RISK-AUDIT-v3.md`, RISK-001 MEDIUM): la sezione «Validazione di 01-07» confronta ciò che si misura con il contratto di 01-07 plan_version 6.
+
+## Soglie (scritte PRIMA della misura)
+
+Queste soglie e gli esiti attesi di `spikes/data/hostile/manifest.json` si committano prima di qualsiasi CSV di misura e non si ritoccano sui risultati. Un esito diverso dall'atteso resta `pass=false` o `m10_pass=false` e il numero va nei Risultati.
+
+| Metrica | Soglia | Fonte |
+|---|---|---|
+| M8, contenimento dei casi ostili | 100% dei casi ostili con esito uguale a quello atteso nel manifest, processo padre vivo e `leftover_procs` = 0 dopo ogni caso; tempo al fallimento ≤ 5 s per ogni caso; picco RSS del figlio ≤ limite impostato | RICERCA M8, target README (fallimento visibile ≤ 5 s), D-05, D-08 |
+| M9, overhead del figlio per documento | overhead di spawn + init PDFium ≤ 10% del TTQ-parse del documento da 25 pagine | RICERCA M9 |
+| M10, protezione del parser reale | definizione sotto, per classe di lavoro (`benign`, `hostile`) e concorrenza richiesta N ∈ {1, 4, 8, 16} | RISK-001 HIGH di risk_audit_17; RISK-001 MEDIUM di risk_audit_25 |
+| M11, percorso OOM | esito tristato `verificato` / `fallito` / `non_esercitato`, definizione sotto | RISK-002 MEDIUM di risk_audit_17; rischio residuo dichiarato da 01-07 v4 |
+
+**Portata del selftest (scritta prima).** `budget.csv` (driver `budget`, job `selftest alloc`) prova solo la correttezza aritmetica del limiter: ammessi ≤ (totale − riserva) / prenotazione, padre vivo. Non prova che il budget protegga il parser reale, e da esso non si deduce alcuna concorrenza di produzione.
+
+**M10 (protezione del parser reale).** Per classe di lavoro `benign` e `hostile` e concorrenza richiesta N, un batch è conforme se valgono tutte: padre vivo ed exit di `parse-parent batch` 0; `oom_kill_delta` del cgroup = 0; nessun `job_error`; `leftover_procs` = 0 su ogni job; solo nella classe `benign`, rapporto prenotazione/`peak_rss_kb` ≥ 1 per ogni job ammesso. La prenotazione è quella della formula di 01-07 v4 sul profilo di `limits.json` usato per `parse`: `memory_reservation_bytes` × (1 + discendenti) + `out_quota_bytes`. Con 01-07 v4 la prenotazione è una stima con margine 3× sul `VmHWM` benigno e non più un tetto rigido: sui benigni il rapporto ≥ 1 verifica che quel margine regga. Nella classe `hostile` un job può superarla fino al proprio `RLIMIT_AS` (rischio residuo dichiarato da 01-07 v4): il rapporto si registra, i job con rapporto < 1 si contano qui e non decidono `m10_pass`. In entrambe le classi la prova di protezione è `oom_kill_delta` = 0 con exit 0 di `batch` a concorrenza effettiva pari al `max_admitted` misurato. Il margine `memory.max` − `memory.peak` e il delta dell'evento `max` di `memory.events` si registrano ma non sono soglia, perché `memory.peak` include page cache e tmpfs recuperabili o addebitati. I Risultati riportano il margine numerico per classe e concorrenza e dichiarano che la concorrenza pubblicata vale per i carichi misurati, non garantisce un margine uguale per input futuri, e che M10 va ripetuta se cambiano workload, memoria del worker o limiti (RISK-002 di risk_audit_23 e RISK-001 di risk_audit_25, accettati come limite dichiarato). Concorrenza massima per `parse` pubblicata per 01-13 = il più grande N con batch conforme in entrambe le classi, limitato dal `max_admitted` misurato; vale solo per `parse` (le classi OCR le misura 01-13 con lo stesso metodo).
+
+**M11 (percorso OOM, test controllato).** È il rischio residuo di 01-07 v4: un figlio ammesso con la sua prenotazione la supera e il cgroup va in OOM. Esito `verificato` solo se: il job è stato ammesso dal limiter con `memory_reservation_bytes` sotto `memory.max`; nel container di prova `oom_kill_delta` ≥ 1; esito del figlio `failed`/`ResourceLimit` con detail `cgroup_oom` ed `exit_signal` 9; processo padre (il test) vivo, con `oom_score_adj` 0 contro 1000 del figlio; `leftover_procs` = 0; nessun figlio non raccolto (`waitpid(-1, WNOHANG)` → `ECHILD`); cartella del job rimossa. `fallito` se l'OOM avviene ma un controllo non vale, incluso il padre ucciso. `non_esercitato` se l'OOM non avviene o l'ambiente non lo consente (`memory.max` illimitato o illeggibile, API non pubblica, test non scoperto). `non_esercitato` non si scrive mai come «verificato».
+
+**Esiti attesi dei casi ostili.** Stanno in `spikes/data/hostile/manifest.json` (`expected_status`, `expected_kind_or_reasons` come array di stringhe), decisi dalla costruzione del caso, da D-05 emendata il 2026-10-21 e dalle regole di 01-07 v4, mai dall'output del lanciatore. Per i nove casi della tabella «Contratto unico degli esiti» del Task 3 di 01-07 coincidono con quella tabella. Il detail atteso non entra nella regola di confronto del driver `hostile` (che guarda `status` e `kind`): si confronta nel controllo (e) della «Validazione di 01-07», con gli attesi fissati dal piano 01-18 (`encrypted-user` e `encrypted-pubsec` → `Encrypted`/`password_required`; `encrypted-object-dropped` → `Corrupt`/`object_dropped`; `objstm-sum-bomb` → `DecompressionLimit`/`total_decompressed`; `encrypted-objstm-quota` → `DecompressionLimit`/`objstm_dropped`; `encrypted-owner-only` → `ok` con `data.encryption` = `empty_password`; `objstm-many` → `ok` con `data.objstm_decompressed_bytes` < 512 MiB, `data.xref_streams` presente e `data.decompress_work_bytes` ≤ B).
+
+**Controllo d'ingresso (prima di `hostile` e `budget`, nella stessa sessione).** `git log main --grep='(01-07)'` contiene il SUMMARY di 01-07; il PLAN di 01-07 su `main` ha sha256 `5c9f942d1ca2ae16ed21792af7ee00868ba27b325561c04c911520b9df9fd5b9`; un job `parse` sul caso `objstm-many` (`val-schema-<tag 06>`) dà `ok` e `data` con tutti i sei campi dello schema unico (`encryption`, `embedded_files`, `objstm_count`, `objstm_decompressed_bytes`, `xref_streams`, `decompress_work_bytes`). Un campo mancante ferma la misura ed è una difformità di 01-07, mai un ritocco di questo documento o del manifest.
+
+### Soglie del lanciatore (riportate da 01-07)
+
+Riportate verbatim dal Task 1 di `01-07-PLAN.md` (plan_version 6, sha256 sopra). Si ridefiniscono solo in 01-07.
+
+- Formula dei limiti (vale anche per `calibrate --op` dei consumatori): `memory_reservation_bytes` = 3 × massimo `VmHWM` (memoria residente di picco) misurato sugli input benigni dell'operazione; `RLIMIT_AS` (`address_space_bytes`) = min(3 × massimo `VmPeak`, totale del budget − riserva del padre), solo tetto rigido di memoria virtuale del figlio, che non entra nella prenotazione; `out_quota_bytes` = 2 × massimo spazio scritto nella cartella del job; limite di pagine = 2.000 (Claude's Discretion, motivato in RISULTATI: oltre il documento più lungo del corpus e sotto il costo del caso da 10.000 pagine).
+- Tetti di decompressione (RESEARCH §4, deepsearch_3, deepsearch_6): per stream 64 MiB, applicato già al caricamento con `LoadOptions.max_decompressed_size` di lopdf 0.45.0 (limite per **singolo** stream, applicato in caricamento a object stream e cross-reference stream: verificato su docs.rs 0.45.0 il 2026-10-18 e sul sorgente del tag v0.45.0 da ChatGPT Deep Research, `01-07-DEEPSEARCH-6.md`; lopdf non ha un contatore aggregato, che resta applicativo); totale 512 MiB sulla somma **reale** dei byte decompressi, object stream compresi (espansione in caricamento e decodifica del prescan), contata durante la decodifica in streaming, che si ferma appena la somma supera 512 MiB (`DecompressionLimit`, detail `total_decompressed`); rapporto 100× oltre 16 MiB; il numero di object stream non è un criterio di rifiuto: si conta e si registra in calibrazione; catena di filtri ≤ 2 elementi tra `FlateDecode`, `ASCIIHexDecode`, `ASCII85Decode` (filtri che non espandono, più Flate contato); `LZWDecode`, `RunLengthDecode` e filtri ignoti sugli stream non immagine → `Unsupported` (nessuna quota verificabile senza nuove dipendenze); filtri immagine (`DCTDecode`, `JPXDecode`, `JBIG2Decode`, `CCITTFaxDecode`) ammessi solo su XObject `/Image` con `Width × Height × componenti` ≤ 64 MiB. Il massimo rapporto reale e il numero di stream con filtri rifiutati nel corpus benigno si confermano in calibrazione (Task 4): un PDF benigno rifiutato è un'anomalia da portare all'utente, non un ritocco della soglia.
+- Budget aggregato: totale = `memory.max` del cgroup del container (2 GiB; se vale `max` il padre rifiuta di partire); riserva del padre 256 MiB; prenotazione di un job = `memory_reservation_bytes` × (1 + discendenti ammessi dall'op) + `out_quota_bytes` (il tmpfs è memoria del cgroup); un job si ammette solo se la somma delle prenotazioni attive resta entro totale − riserva. La prenotazione stima la memoria residente con un margine 3× sul picco benigno e non è un tetto rigido per processo: un figlio ostile può superarla fino al proprio `RLIMIT_AS` (esito `ResourceLimit`/`rlimit_as`); se la somma reale supera il cgroup, `oom_score_adj` 1000 fa scegliere un figlio all'OOM killer, l'esito è `ResourceLimit`/`cgroup_oom` e il padre resta vivo; la riserva del padre si confronta col suo `VmHWM` misurato.
+- Invarianti della decompressione (revisione di risk_audit_19, RISK-002; la regola dei 512 MiB è dell'utente, qui si fissa solo che cosa si misura). Le passate che decomprimono sono tre: il caricamento lopdf, la decodifica degli object stream del prescan e la scansione degli stream del punto 3 del Task 3.
+  - **I1, somma reale (la regola dell'utente):** i byte decompressi **distinti** del documento, cioè ogni stream contato una sola volta, object stream compresi, li somma un contatore unico in streaming. Il contatore si ferma appena supera 512 MiB, quindi i byte contati non superano 512 MiB più un blocco di lettura (`DecompressionLimit`, detail `total_decompressed`). Si applica su entrambi i rami, con lo stesso contatore.
+  - **I2, lavoro cumulativo:** è la somma dei byte prodotti da **tutte** le passate, riespansioni comprese. Il limite B vale 2 × 512 MiB + 2 × `xref_streams` × 64 MiB. Sul ramo non cifrato pesano la decodifica del prescan, contata in I1, e la riespansione degli stessi stream nel caricamento vero, uguale ai byte già misurati. Sul ramo cifrato pesano l'espansione nel caricamento, al più n × quota ≤ 512 MiB, e la decodifica dopo il caricamento, contata in I1. Su entrambi i rami pesano i cross-reference stream, al più 64 MiB l'uno per passata di caricamento: sono due passate sul ramo non cifrato, una sul cifrato. Il caricamento vero del ramo non cifrato parte solo se I1 regge dopo la prima passata. Il figlio scrive in `decompress_work_bytes` i byte contati più il limite analitico delle espansioni del loader, che lopdf non espone, e mai una stima più bassa.
+  - **Restrizione dichiarata della garanzia:** i 512 MiB valgono per I1. Per I2 vale B, che si conta, non si ipotizza. Ciò che il loader espande senza contatore, i cross-reference stream e le espansioni interne, resta coperto dal tetto per stream e dal contenimento del figlio (`RLIMIT_AS`, CPU, timeout di parete); a misurarlo sono `decompress_work_bytes` e i test (k2), (k2e), che 01-18 riporta in RISULTATI.
+
+## Setup
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · setup, risultati, validazione di 01-07 ed esito parziale (piano 01-18, Task 2-4)
+
+- **Hardware e immagini.** `results/isolation/hw-measure.json` (sha256 `7a1d566459b588ad…`), scritto da `hw-manifest.sh` nella sessione di misura: i7-13700K (16 core, 24 thread), Docker Desktop 29.8.2 su WSL2 (kernel 6.6.87.2) con 16 CPU e 19,5 GiB, piano energetico «Bilanciato». È la stessa macchina di `hw.json` di 01-07 (sha256 `c1c266a3192be65f…`). Cambia l'immagine del worker: ricostruita da questo worktree, senza modifiche al Dockerfile, ha digest `sha256:ed8b274a…` invece di `sha256:cc54ac3f…` della calibrazione. Il codice di `s02-parser` è quello di `main` (01-07 fuso), quindi cambiano solo i layer di build. PDFium `chromium/8100`, Tesseract 5.5.0. Immagine runner del test OOM: `sha256:86a924ad…`.
+- **Limiti.** `results/isolation/limits.json` di 01-07 (sha256 `53487952f1a3c7d4…`), profilo `parse` (uguale a `default`): `memory_reservation_bytes` 820.961.280, `out_quota_bytes` 1.369.666, `address_space_bytes` 1.879.048.192, CPU 60 s, parete 120 s. Prenotazione di un job `parse` = 820.961.280 × (1 + 0) + 1.369.666 = 822.330.946 byte (803.057 KiB). Budget del worker: `memory.max` 2.147.483.648 byte, riserva del padre 256 MiB, quindi 1.792 MiB per i figli. `memory.oom.group` del worker vale 0.
+- **Sessione di misura.** `01-18-20261022t161736z-56bc`, run-tag `3dffa1` + progressivo (01 `hostile`, 02 `budget`, 03 `overhead`, 04 batch benigni, 05 batch ostili, 06 controlli di validazione). Prima delle misure: `docker ps` senza container di altri piani, `session.sh ps --assert-only worker` exit 0. Nella stessa sessione `id -u` nel worker stampa **10001**; `find /work -mindepth 1 -maxdepth 1 | wc -l` stampa **0** dopo i driver e i controlli di validazione e **0** dopo l'ultimo batch.
+- **Controllo d'ingresso** (nella stessa sessione, prima di `hostile` e `budget`): `git log main --grep='(01-07)'` contiene `6428995 docs(01-07): completato il piano 7`; sha256 di `git show main:.planning/phases/01-spike-tecnici/01-07-PLAN.md` = `5c9f942d1ca2ae16ed21792af7ee00868ba27b325561c04c911520b9df9fd5b9`, uguale al pin; il job `val-schema-3dffa106` su `objstm-many` dà `ok` con tutti e sei i campi in `data` (`encryption` `none`, `embedded_files` 0, `objstm_count` 80, `objstm_decompressed_bytes` 1.420, `xref_streams` 1, `decompress_work_bytes` 134.221.765). Prima della misura, le fixture coincidono con gli sha256 del manifest (26 su 26, `gen_hostile.py --verify-only`).
+- **Corpus.** `spikes/data/corpus/raw/` verificato da `fetch.sh` (10 PDF, tutti gli sha256 conformi). La classe `benign` usa i 10 PDF presenti in `raw/`; i DOCX del manifest di 01-03 stanno in `synthetic/` e non in `raw/`, quindi non entrano.
+- **Fixture ostili.** 26 casi generati da `hostile-gen/gen_hostile.py` nel runner con `docker run --network none` (Python 3.13.5, qpdf 12.2.0), sha256 in `spikes/data/hostile/manifest.json`. I PDF cifrati cambiano a ogni generazione, perché sale e chiavi di qpdf sono casuali: il manifest registra la generazione misurata.
+- **Container del test OOM.** `docker run --memory 256m --memory-swap 256m --pids-limit 256 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 10001:10001`, tmpfs `/work/tmp` da 16 MiB, `/target` del runner in sola lettura (`measure/run_oom.sh`, sessione `01-18-20261022t162706z-069a`).
+- **Comandi per rigenerare.** Generazione: il `docker run` del Task 1 del piano. Misure: dentro `bash spikes/tools/session.sh with 01-18 -- …`, i comandi `parse-parent hostile|budget|overhead` del Task 2 con `session.sh exec "$CKA_RUN_ID" worker`, poi per ogni classe e N `python spikes/s02-parser/measure/budget_real.py jobs …` e `bash spikes/s02-parser/measure/run_budget_real.sh <classe> <N> <tag>`, infine `budget_real.py summarize`. OOM: `bash spikes/s02-parser/measure/run_oom.sh spikes/s02-parser/results/isolation/oom.json`.
+
+## Risultati
+
+### Casi ostili (M8, `hostile.csv`)
+
+Tre ripetizioni per caso, concorrenza 1. Su tutte le 78 righe: `parent_alive` = `true`, `leftover_procs` = 0, `oom_kill_delta` = 0, `oom_adj_set` = `true`, nessun segnale. Il tempo al fallimento massimo è 238 ms (`objstm-sum-bomb`), il picco RSS massimo del figlio 45.952 KiB (`objstm-sum-bomb`). Il limite rigido è `RLIMIT_AS` = 1.835.008 KiB e la prenotazione 803.057 KiB.
+
+| caso | atteso | ottenuto (3 run) | pass | ms al fallimento (max) | picco RSS KiB (max) | `oom_kill_delta` |
+|---|---|---|---|---|---|---|
+| `encrypted-user` | failed/Encrypted | failed/Encrypted | 3/3 | 7 | 3.968 | 0 |
+| `encrypted-owner-only` | ok | ok | 3/3 | — | 7.936 | 0 |
+| `encrypted-pubsec` | failed/Encrypted | failed/Encrypted | 3/3 | 3 | 3.968 | 0 |
+| `encrypted-object-dropped` | failed/Corrupt | failed/Corrupt | 3/3 | 7 | 3.968 | 0 |
+| `encrypted-objstm-quota` | failed/DecompressionLimit | failed/DecompressionLimit | 3/3 | 37 | 41.616 | 0 |
+| `truncated` | failed/Corrupt | failed/Corrupt | 3/3 | 4 | 3.840 | 0 |
+| `flate-bomb` | failed/DecompressionLimit | failed/DecompressionLimit | 3/3 | 18 | 7.040 | 0 |
+| `objstm-bomb` | failed/DecompressionLimit | failed/DecompressionLimit | 3/3 | 10 | 4.736 | 0 |
+| `objstm-many` | ok | ok | 3/3 | — | 8.576 | 0 |
+| `objstm-sum-bomb` | failed/DecompressionLimit | failed/DecompressionLimit | 3/3 | 238 | 45.952 | 0 |
+| `filter-chain-bomb` | failed/DecompressionLimit | failed/DecompressionLimit | 3/3 | 7 | 4.224 | 0 |
+| `lzw-stream` | failed/Unsupported | failed/Unsupported | 3/3 | 4 | 3.968 | 0 |
+| `pages-10k` | failed/ResourceLimit | failed/ResourceLimit | 3/3 | 40 | 44.448 | 0 |
+| `deep-nesting` | failed/Corrupt\|Crashed | **ok** | **0/3** | — | 8.704 | 0 |
+| `jbig2-malformed` | failed/Corrupt\|Crashed | **ok** | **0/3** | — | 7.936 | 0 |
+| `docx-zip-bomb` | failed/DecompressionLimit | failed/DecompressionLimit | 3/3 | 41 | 3.792 | 0 |
+| `docx-xml-bomb` | failed/Corrupt | failed/Corrupt | 3/3 | 7 | 3.712 | 0 |
+| `docm-macro` | failed/Unsupported | failed/Unsupported | 3/3 | 8 | 3.456 | 0 |
+| `docx-external-link` | quarantined/external_link | quarantined/external_link | 3/3 | 10 | 3.712 | 0 |
+| `magic-mismatch` | failed/Unsupported | failed/Unsupported | 3/3 | 4 | 3.328 | 0 |
+| `pdf-javascript` | quarantined/javascript | quarantined/javascript | 3/3 | 5 | 4.096 | 0 |
+| `pdf-launch` | quarantined/launch | quarantined/launch | 3/3 | 5 | 4.096 | 0 |
+| `pdf-embedded-file` | ok | ok | 3/3 | — | 7.808 | 0 |
+| `pdf-embedded-launch` | quarantined/launch | quarantined/launch | 3/3 | 4 | 3.968 | 0 |
+| `pdf-embedded-bomb` | failed/DecompressionLimit | failed/DecompressionLimit | 3/3 | 7 | 4.736 | 0 |
+| `pdf-objstm-hidden-js` | quarantined/javascript | quarantined/javascript | 3/3 | 5 | 4.352 | 0 |
+
+**Esito di M8: non raggiunto.** 72 righe `pass` su 78 (92,3%), 24 casi su 26. Le 6 righe `pass=false` sono `deep-nesting` e `jbig2-malformed`: tutti e due danno `ok` dove il manifest attendeva `failed` (`Corrupt` o `Crashed`). Nessuna delle due è un guasto di contenimento: padre vivo, nessun processo residuo, nessun OOM, esito tipizzato in pochi millisecondi. La soglia era il 100% di esiti uguali all'atteso, quindi M8 resta non raggiunta: il numero si riporta così com'è e gli attesi non si ritoccano. Le parti di contenimento di M8 valgono invece su tutti i 26 casi: padre vivo, `leftover_procs` = 0, tempo al fallimento ≤ 5 s, picco RSS sotto il limite. Lettura dei due casi, da confermare (vedi Anomalie):
+- `jbig2-malformed`: l'op `parse` estrae solo il testo (`page.text()`) e PDFium non decodifica le immagini, quindi il flusso JBIG2 rotto non viene mai letto. Il prescan ammette il filtro immagine perché è su un XObject `/Image` di 100 × 100. Il decoder JBIG2 lo eserciterebbe una render, cioè l'op `ocr_render` di 01-13.
+- `deep-nesting`: l'array annidato a 100.000 livelli sta in un oggetto citato solo da `/Extra` del Catalog. Il job dà `ok` senza crash: lopdf lo carica senza esaurire lo stack, oppure lo scarta, e PDFium non lo visita. Quale delle due accada non è misurato qui.
+
+**Quota di decompressione e contenimento.** Le due cause si tengono separate. Da `DecompressionLimit`, cioè contatore e tetti del prescan, si fermano `flate-bomb`, `objstm-bomb`, `objstm-sum-bomb`, `filter-chain-bomb`, `encrypted-objstm-quota`, `pdf-embedded-bomb` e `docx-zip-bomb`: 7 casi, 21 righe. `ResourceLimit` compare solo per il limite di pagine (`pages-10k`, prescan). `Timeout` e `ResourceLimit` da contenimento del processo (`rlimit_as`, `cgroup_oom`) non compaiono in `hostile.csv`: nessun caso ostile ha superato i tetti del prescan arrivando a consumare memoria o tempo. Il percorso `cgroup_oom` è esercitato solo dal test OOM.
+
+### Limiter (selftest): sola correttezza aritmetica (`budget.csv`)
+
+Job `selftest alloc` con prenotazione e `RLIMIT_AS` pari a ¼ del budget dei figli (448 MiB ciascuno, allocazione di 224 MiB).
+
+| concorrenza richiesta | job | `max_admitted` | completati | `oom_kill_delta` | `VmHWM` del padre KiB | padre vivo |
+|---|---|---|---|---|---|---|
+| 1 | 16 | 1 | 16 | 0 | 5.632 | true |
+| 4 | 16 | 4 | 16 | 0 | 6.016 | true |
+| 8 | 16 | 4 | 16 | 0 | 6.016 | true |
+| 16 | 16 | 4 | 16 | 0 | 6.144 | true |
+
+Gli ammessi non superano mai ⌊1.792 / 448⌋ = 4 e il padre resta sotto la riserva di 256 MiB. Questa tabella prova solo l'aritmetica del limiter: non dà alcuna concorrenza di produzione.
+
+### Budget sui job `parse` reali (M10, `budget-real.csv`, `budget-real-jobs.csv`)
+
+Prenotazione per job 803.057 KiB (profilo `parse`); `memory.max` 2.097.152 KiB; worker riavviato prima di ogni batch.
+
+| classe | N | job | `max_admitted` | completati | `job_errors` | picco RSS max KiB | p95 KiB | rapporto pren./RSS min | `memory.peak` KiB | margine KiB | `oom_kill` Δ | evento `max` Δ | exit | `m10_pass` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| benign | 1 | 10 | 1 | 10 | 0 | 309.340 | 309.340 | 2,596 | 307.016 | 1.790.136 | 0 | 0 | 0 | true |
+| benign | 4 | 10 | 2 | 10 | 0 | 265.192 | 265.192 | 3,028 | 455.564 | 1.641.588 | 0 | 0 | 0 | true |
+| benign | 8 | 16 | 2 | 16 | 0 | 295.828 | 295.828 | 2,715 | 486.348 | 1.610.804 | 0 | 0 | 0 | true |
+| benign | 16 | 32 | 2 | 32 | 0 | 344.588 | 294.092 | 2,330 | 476.452 | 1.620.700 | 0 | 0 | 0 | true |
+| hostile | 1 | 26 | 1 | 26 | 0 | 47.488 | 41.756 | 16,911 | 48.616 | 2.048.536 | 0 | 0 | 0 | true |
+| hostile | 4 | 26 | 2 | 26 | 0 | 44.416 | 42.640 | 18,080 | 61.588 | 2.035.564 | 0 | 0 | 0 | true |
+| hostile | 8 | 26 | 2 | 26 | 0 | 45.952 | 42.008 | 17,476 | 59.904 | 2.037.248 | 0 | 0 | 0 | true |
+| hostile | 16 | 32 | 2 | 32 | 0 | 45.312 | 43.424 | 17,723 | 62.140 | 2.035.012 | 0 | 0 | 0 | true |
+
+Tutti gli 8 batch sono conformi a M10: padre vivo, exit 0, nessun OOM, nessun `job_error`, `leftover_procs` = 0 su tutti i 178 job, rapporto ≥ 1 su ogni job benigno. **Job ostili oltre la prenotazione: 0 su 110.** Il rapporto minimo fra gli ostili è 16,9: i casi ostili si fermano nel prescan prima di consumare memoria. Il `max_admitted` misurato è 2 per ogni N ≥ 4, in entrambe le classi: ⌊1.792 MiB / 784,2 MiB⌋ = 2. Per questo **la concorrenza massima per `parse` è 2** (N richiesto 4, 8 e 16 conformi, effettiva 2).
+
+**Margine del cgroup** (registrato, non soglia): da 1.610.804 a 1.790.136 KiB sui benigni e da 2.035.012 a 2.048.536 KiB sugli ostili. Il `memory.peak` massimo è 486.348 KiB (benigni, N = 8), cioè il 23% di `memory.max`. Il caso peggiore teorico ammesso dal limiter è 2 × 803.057 + 262.144 di riserva = 1.868.258 KiB, l'89% di `memory.max`. Il margine misurato non garantisce un margine uguale per input futuri: vale per questi carichi, cioè il corpus benigno di 01-03 e i 26 casi del manifest. **M10 va ripetuta se cambiano workload, memoria del worker o limiti** (RISK-001 di risk_audit_25).
+
+**Picco RSS benigno sopra la calibrazione.** `pub-it-01` arriva a 344.588 KiB nel batch benigno con N = 16 (fra 241.764 e 344.588 nelle 4 corse), contro 267.240 KiB della calibrazione di 01-07, cioè il 29% in più. Il margine 3× della prenotazione regge (rapporto minimo 2,33), ma è più stretto di quanto la calibrazione suggerisse: la variabilità del `VmHWM` fra corse va considerata nel dimensionamento.
+
+### Overhead (M9, `overhead.csv`)
+
+Documento derivato da 25 pagine (`der-it-01-relazione-annuale-2025-p1-25`), 16 documenti per ripetizione, 20 ripetizioni.
+
+| modo | concorrenza | ripetizioni | parete media ms | ms per documento | documenti/s | `spawn_init_ms` medio (max) |
+|---|---|---|---|---|---|---|
+| child-per-doc | 1 | 20 | 2.949 | 184,3 | 5,43 | 4,97 (5,5) |
+| child-per-doc | 4 | 20 | 1.580 | 98,7 | 10,13 | 5,13 (6,4) |
+| child-per-doc | 8 | 20 | 1.619 | 101,2 | 9,88 | 5,31 (8,1) |
+| in-process-mutex | 1 | 20 | 736 | 46,0 | 21,73 | — |
+| in-process-mutex | 4 | 20 | 760 | 47,5 | 21,04 | — |
+| in-process-mutex | 8 | **6** | 778 | 48,6 | 20,56 | — |
+
+**Esito di M9: conforme sulla metrica del driver, con riserva.** `spawn_init_ms` (parete del job meno `parse_ms` del figlio) vale in media 4,97 ms a concorrenza 1: il 2,7% del TTQ-parse del documento da 25 pagine nel figlio, che è 184,3 ms per documento. Lo stesso valore si legge sul job singolo `val-dup-3dffa106`: parete 161 ms, `parse_ms` 155 ms, quindi 6 ms (3,7%). La riserva riguarda cosa misura la colonna: `parse_ms` parte all'inizio del figlio e comprende il bind di PDFium, quindi `spawn_init_ms` misura spawn, exec e lavoro del padre, non «spawn + init PDFium» come dice M9. Il confronto di throughput col modo in-process (184,3 contro 46,0 ms per documento a c1, 4×) dà un tetto superiore della differenza complessiva, che però comprende anche prescan (lopdf e decodifica degli stream), bind di PDFium per processo e scrittura del testo: il modo in-process non fa nessuna di queste cose. A c4 e c8 il throughput del modo figlio si ferma a circa 10 documenti/s perché il budget ne ammette 2 insieme.
+
+**Il modo in-process si rompe sotto concorrenza.** A concorrenza 8 il modo `in-process-mutex` (PDFium nel padre, dietro il mutex di `thread_safe`) si è fermato alla 7ª ripetizione con `PdfiumLibraryInternalError(FormatError)` su un PDF valido. Il driver è uscito con 1 e ha lasciato 6 righe su 20. Una seconda esecuzione nella sessione `01-18-20261022t162810z-770a` (tag `ad080a07`, uscita in `results/raw/isolation-verify/`) ha ripetuto lo stesso errore dopo 16 ripetizioni. Ne segue che PDFium nello stesso processo con più thread fallisce in modo intermittente anche con il mutex: è un argomento in più per il figlio per documento (D-08).
+
+### Percorso OOM (M11, `oom.json`)
+
+**Esito: `verificato`.** In un container con `memory.max` di 268.435.456 byte (256 MiB) il test ha ammesso un job `selftest alloc` da 512 MiB con `memory_reservation_bytes` di 67.108.864 (64 MiB, sotto `memory.max`) e `Budget::fixed(4 × memory.max, 64 MiB)`. Il figlio ha superato la prenotazione e il cgroup è andato in OOM: `oom_kill` di `memory.events` è salito di 1 (`oom_kill_delta` = 1), con `memory.oom.group` = 0. La vittima è il figlio: esito `failed`/`ResourceLimit`, detail `cgroup_oom`, `exit_signal` 9, `oom_adj_set` = `true` (`oom_score_adj` 1000 nel figlio). Il processo del test, che fa da padre, è rimasto vivo con `oom_score_adj` 0 e ha scritto la riga del risultato; il container è uscito con 0. Dopo il job: `leftover_procs` = 0, `waitpid(-1, WNOHANG)` → `ECHILD` (0 figli non raccolti), cartella del job rimossa. La vittima si deduce dalla combinazione di `memory.events`, segnale e `oom_score_adj` del figlio e del padre, non dal solo SIGKILL.
+
+## Validazione di 01-07
+
+Confronto voce per voce fra il contratto di 01-07 plan_version 6 (`<interfaces>` e Task 2-3 di `01-07-PLAN.md`, sha256 `5c9f942d…`) e quanto misurato. Una voce non conforme non si corregge qui: si registra come difetto di un file chiuso di 01-07, da correggere in una fase decimale di gap-closure (`riapre_perimetro: [01-07]`).
+
+| voce | atteso da 01-07 | misurato | conforme |
+|---|---|---|---|
+| CLI di `hostile` | `--manifest --cases-dir --runs --run-tag --out` | eseguito con quelle opzioni, exit 0 | sì |
+| CLI di `budget` | `--concurrency <lista> --jobs <n> --reserve-fraction <f> --run-tag --out` | eseguito, exit 0 | sì |
+| CLI di `overhead` | `--input --runs --concurrency <lista> --run-tag --out` | eseguito; exit 1 per l'errore di PDFium in-process a c8 (riga sotto) | sì (CLI) |
+| header di `hostile.csv` | `case_id,run,expected,outcome,kind,extra_reasons,signal,peak_rss_kb,ms_to_fail,parent_alive,oom_kill_delta,leftover_procs,oom_adj_set,pass` | identico | sì |
+| header di `budget.csv` | `requested_concurrency,jobs,max_admitted,completed,oom_kill_delta,parent_vm_hwm_kb,parent_alive` | identico | sì |
+| header di `overhead.csv` | `mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s` | identico | sì |
+| `max_admitted` in `batch` | presente nell'output di `batch` (forma non fissata dal SUMMARY di 01-07) | ultima riga di stdout `{"status":"batch_summary","jobs","concurrency","max_admitted","job_errors","launch_errors"}`, letta in tutti gli 8 batch | sì |
+| formato `job_id` `hst-` | `hst-<case_id>-r<run>-<run-tag>`, ≤ 64 | 78 cartelle `hst-…-3dffa101`, lunghezza massima 40 | sì |
+| formato `job_id` `bud-` | `bud-c<N>-j<k>-<run-tag>` | job con `out_dir` nullo, nessuna cartella; nessun rifiuto del driver, che controlla i `job_id` prima dei job | sì |
+| formato `job_id` `ovh-cpd-` | `ovh-cpd-c<N>-r<run>-d<k>-<run-tag>` | 960 cartelle `ovh-cpd-c{1,4,8}-r{1..20}-d{0..15}-3dffa103` | sì |
+| (a) op ignota | exit 2, `job_error` `UnknownOp`, nessun lancio | exit 2, `{"code":"UnknownOp","detail":"op fuori allowlist",…,"status":"job_error"}`, `/work` 0 | sì |
+| (b) `out_dir` esclusivo | 1ª corsa exit 0; 2ª exit 2 `PathNotAllowed`/`out_dir_exists` | 1ª exit 0 (`ok`, 25 pagine); 2ª exit 2 `PathNotAllowed`/`out_dir_exists`; `/work` 0 | sì |
+| (c) manifest non valido | exit 2 prima di qualsiasi job, nessuna cartella `hst-…-<tag 06>` | exit 2, `caso truncated: expected_kind_or_reasons non è un array`; 0 cartelle `hst-…-3dffa106`; `/work` 0 | sì |
+| exit 3 di `budget`/`overhead` (`oom_adj_set=false`) | exit 3 se un job non ha `oom_score_adj` | non esercitato: `oom_adj_set` = `true` su tutti i job | non esercitato |
+| exit 3 di `batch` (`parent_reserve_exceeded`) | exit 3 dopo i rapporti se `VmHWM` del padre > riserva | non esercitato: 8 batch con exit 0 | non esercitato |
+| exit 2 `subreaper_unavailable` | exit 2 senza job | non esercitato: il subreaper si applica come uid 10001 nel worker | non esercitato |
+| campi additivi in `data` degli `ok` | `xref_streams` e `decompress_work_bytes` presenti, con gli altri quattro | presenti negli `ok` del controllo d'ingresso, di (b), (d) ed (e) | sì |
+| detail `encrypt_state`, `work_bound` | `Corrupt` su `/Encrypt` incoerente o lavoro oltre B | non esercitati (nessun caso li produce) | non esercitato |
+| `Kind` osservati | ⊆ `Encrypted\|DecompressionLimit\|Timeout\|ResourceLimit\|OutputLimit\|Crashed\|Corrupt\|Unsupported` | {`Encrypted`, `DecompressionLimit`, `ResourceLimit`, `Unsupported`, `Corrupt`} in `hostile.csv`, nei batch e in `oom.json` | sì |
+| motivi di quarantena | ⊆ {`javascript`, `launch`, `open_action_js`, `external_link`}, mai `embedded_file` | {`javascript`, `launch`, `external_link`}; `extra_reasons` vuota su tutte le righe | sì |
+| (e) cifratura | `encrypted-user`, `encrypted-pubsec` → `Encrypted`/`password_required`; `encrypted-object-dropped` → `Corrupt`/`object_dropped`; `encrypted-owner-only` → `ok`, `empty_password` | `password_required`; `password_required`; `object_dropped object=2 generation=0`; `ok` con `encryption` = `empty_password`; tutti exit 0, `/work` 0 | sì |
+| `pdfium_password` | caso limite proprietario vuota + utente non vuota (SUMMARY di 01-07) | non esercitato: nessun caso del manifest lo costruisce | non esercitato |
+| (d) allegati contati, non estratti | `pdf-embedded-file` → exit 0, `ok`, `embedded_files` = 1, marcatore assente dall'`out_dir` | exit 0, `ok`, `embedded_files` 1; `grep -rl CKA-EMBEDDED-MARKER` nell'`out_dir` → nessun file (exit 1) | sì |
+| (e) object stream sulla somma reale | `objstm-many` → `ok`; `objstm-sum-bomb` → `DecompressionLimit`/`total_decompressed`; `encrypted-objstm-quota` → `DecompressionLimit`/`objstm_dropped` | `ok` con 80 object stream, 1.420 byte, `xref_streams` 1, lavoro 134.221.765 ≤ B = 1.207.959.552; `total_decompressed counted=536885397 work=603994261`; `objstm_dropped object=33 container=32` | sì |
+| `limits.json` | `memory_reservation_bytes` = 3 × max `vm_hwm_kb`; `address_space_bytes` = min(3 × max `vm_peak_kb`, totale − riserva) | 3 × 267.240 KiB = 820.961.280 byte; min(3 × 756.876 KiB = 2.325.123.072, 1.879.048.192) = 1.879.048.192 | sì |
+| regola `hostile_verdict` | `pass` coerente con status, `kind`, motivi e `oom_adj_set` | ricalcolata su tutte le 78 righe: 0 verdetti incoerenti | sì |
+| cleanup | `leftover_procs` = 0, `/work` vuota, `out_dir` esclusivo | `leftover_procs` 0 su 78 + 178 righe e nel test OOM; `/work` 0 dopo driver, validazione e batch; (b) conforme | sì, salvo la riga sotto |
+| cleanup sul percorso d'errore del driver `budget` | nessun file residuo nella radice dei job | `budget … --out /dev/null` (comando della verifica del Task 2 del piano 01-18) esce 1 perché `common::csv::Writer` vuole un `hw.json` accanto al CSV, e lascia `/work/selftest-input-<tag>`: `find /work … \| wc -l` = 1. `selftest_input` crea il file prima del CSV, `remove_file` gira solo sul percorso riuscito (`parse-parent.rs:1049-1050`, `:1116`) | **no** (difetto minore, gap-closure di 01-07) |
+| driver `overhead`, modo `in-process-mutex` | 20 ripetizioni per concorrenza scritte nel CSV | a c8 un `FormatError` di PDFium interrompe il driver (`?` su `in_process_run`, `parse-parent.rs:1255`, exit 1): 6 righe su 20, 16 su 20 nella seconda esecuzione | **no** (robustezza del driver, gap-closure di 01-07; il dato su PDFium in-process resta un risultato) |
+| semantica di `spawn_init_ms` | M9: «spawn + init PDFium» | parete − `parse_ms`, con il bind di PDFium dentro `parse_ms` | nota (da portare al coordinatore: la colonna non isola l'init di PDFium) |
+| `oom_adj_set` e uid | `oom_score_adj` 1000 applicato come uid 10001 | `oom_adj_set` = `true` su tutti i job; `id -u` = 10001 | sì |
+| segnale 9 con `oom_delta` > 0 | `ResourceLimit`/`cgroup_oom` | `oom.json`: `failed`/`ResourceLimit`/`cgroup_oom`, segnale 9, `oom_kill_delta` 1 | sì |
+| API pubblica per il test OOM | `job::{parse, resolve}`, `isolate::{run_child, Limits, Budget::fixed}`, `RunReport` costruibili da fuori | usate senza modificare il crate; nessun ripiego `api_non_pubblica` | sì |
+
+**Esito della validazione.** Su tutte le voci esercitate il contratto di 01-07 v6 è conforme. Due difetti minori riguardano la robustezza dei driver di misura, non il lanciatore né il prescan: il cleanup del driver `budget` sul percorso d'errore e l'interruzione del driver `overhead` su un errore del modo in-process. Vanno a una gap-closure di 01-07. Una nota semantica riguarda `spawn_init_ms` rispetto a M9. Sei voci restano non esercitate: exit 3 di `budget`/`overhead`, exit 3 di `batch`, `subreaper_unavailable`, `encrypt_state`, `work_bound`, `pdfium_password`.
+
+## Anomalie e deviazioni
+
+- **Anomalie di calibrazione di 01-07** (dal SUMMARY): nessun PDF benigno rifiutato, 10 ok su 10; per categoria filtro 0, somma decompressa 0, quota per stream del ramo cifrato 0, password richiesta 0, oggetti scartati 0. Il corpus ha 10 PDF invece di 8, perché `fetch.sh` ha completato il report BIS e in `raw/` c'è il derivato da 25 pagine. 2 job `parse` insieme nel budget del worker: confermato qui dal `max_admitted` misurato.
+- **NV.** §11.4 (`memory.peak` su Docker Desktop/WSL2): chiuso, letto in tutti i batch. §11.5 (PDFium `chromium/8100` con ABI `pdfium_7881`, variante d'errore sui cifrati): chiuso da 01-07, ABI compatibile ed errore `PdfiumInternalError::PasswordError`. §11.9: «lopdf non decomprime al load» chiuso da 01-07 (lopdf espande object stream e xref stream al caricamento; il prescan rinvia gli object stream con `defer_objstm` sul ramo non cifrato e la variante d'errore del tetto per stream è `Error::Decompress(DecompressError::MemoryLimitExceeded)`, solo in strict); «PDFium senza tetto Flate» confermato per costruzione (PDFium vede solo PDF già passati dal prescan); `RLIMIT_DATA` contro mmap e delega del cgroup per figlio restano aperti, perché il ripasso ha scelto `RLIMIT_AS` più il budget sul cgroup condiviso.
+- **Garanzia «tetto prima del load».** Su `objstm-bomb` (object stream da 128 MiB) e `filter-chain-bomb` (Flate su Flate verso 1 GiB) il rifiuto è `DecompressionLimit` in 10 e 7 ms, con picco RSS sotto 5 MiB: la garanzia regge. `objstm-sum-bomb` (9 object stream da 60 MiB, rapporto circa 34, somma 540 MiB) si ferma su `total_decompressed` con 536.885.397 byte contati, cioè 512 MiB più 14.485 byte, entro un blocco di lettura di 64 KiB (I1). `encrypted-objstm-quota` (16 object stream, uno da 40 MiB contro la quota di 32 MiB del ramo cifrato) dà `objstm_dropped`.
+- **Invariante I2.** `decompress_work_bytes` misurato: 134.221.765 su `objstm-many` (il limite analitico di 2 passate × 64 MiB sull'unico xref stream più 1.420 byte contati), 603.994.261 su `objstm-sum-bomb`, 152.781.550 sul documento da 25 pagine. Tutti sotto B = 1.207.959.552 con `xref_streams` = 1. I test (k2) e (k2e) di 01-07 risultano verdi dal suo SUMMARY e anche nel gate di questo piano (lib 84 su 84).
+- **Caso limite PDFium** (dal SUMMARY di 01-07): con password del proprietario vuota e password utente non vuota, lopdf autentica la stringa vuota come password del proprietario, ma PDFium `chromium/8100` aperto senza password risponde `PasswordError`. L'esito è `failed`/`Encrypted`/`pdfium_password`, chiuso e mai `ok`, ma diverso da quanto assumeva il piano 01-07. La decisione spetta all'utente; il manifest di 01-18 non ha un caso così, quindi qui `pdfium_password` non è esercitato.
+- **Job ostili oltre la prenotazione** in `budget-real-jobs.csv`: 0 su 110 (rapporto minimo 16,9).
+- **Righe con `oom_kill_delta` > 0.** Nessuna in `hostile.csv`, `budget.csv` e `budget-real*.csv`; l'unico OOM è quello voluto del test, in `oom.json`.
+- **Percorso OOM:** `verificato` (sopra), con la vittima dedotta da `memory.events`, segnale e `oom_score_adj`.
+- **RISK-001 dell'audit v2 di 01-07.** `oom_adj_set` è risultato `true` su ogni job come uid 10001. Il reaping dopo l'OOM è verificato (0 figli non raccolti, gruppo vuoto). Un timeout non si è presentato: nessun caso ha raggiunto i 120 s di parete. Il percorso «impostazione non applicabile → job fallito, misura non isolata» non si è presentato e resta letto nel codice (01-07), non esercitato.
+- **`selftest` e `fake-child` nell'immagine di misura.** L'op `selftest` e il bin `fake-child` restano nell'allowlist e nell'immagine del worker. Accettato per lo spike; nell'immagine di produzione vanno tolti o messi dietro una feature di test (nota per l'ADR-0004).
+- **Residuo TOCTOU** fra il controllo `lstat` del padre e l'`open` del figlio: accettato con la motivazione del `<interfaces>` di 01-07. Le radici le scrivono solo figli dello stesso worker, `/data` è read-only e l'`out_dir` è nuovo ed esclusivo per job (controllo (b)).
+- **Limite di 2.000 pagine.** Il documento più lungo del corpus ha 228 pagine (`pub-it-01`), quindi il limite sta ben sopra ogni benigno. `pages-10k` è respinto dal prescan in 40 ms con 44 MiB di RSS, prima di PDFium.
+- **Deviazioni di esecuzione (livello a).**
+  1. Il `<verify>` del Task 2 lancia `parse-parent budget … --out /dev/null`, che non può riuscire: `common::csv::Writer` (01-01) rifiuta un CSV senza `hw.json` accanto. La verifica è stata ripetuta identica con `--out` in `results/raw/isolation-verify/budget.csv`, accanto a una copia dell'`hw.json` normalizzato di 01-07: `id -u` 10001, `budget` exit 0, `/work` 0. Il cleanup mancato sul percorso d'errore è nella Validazione.
+  2. I CSV dei driver si validano contro `results/isolation/hw.json` di 01-07, l'unico manifest che `common::csv::Writer` trova accanto. `hw-measure.json` è il manifest grezzo di `hw-manifest.sh` della sessione di misura. È lo stesso difetto `hw-manifest.sh` / `common::manifest` già registrato da 01-04, 01-05, 01-07, 01-11 e 01-12 (deviazione di livello b, file chiusi di 01-01 e 01-02).
+  3. `run_oom.sh` cercava la riga `OOM_RESULT` solo a inizio riga. libtest con `--nocapture` la stampa dopo `test oom_kills_child_not_parent ... ` e la prima corsa ha scritto `fallito`/`parent_killed_or_no_result` con il test in realtà `verificato`. Il parsing ora cerca il marcatore nella riga e vuole un'occorrenza sola. `oom.json` è stato rimosso e rigenerato dalla verifica del Task 3.
+  4. In `tests/oom.rs` ci sono, oltre al test di misura ignorato, 11 test puri non ignorati del classificatore, scritti dai test rossi (`4f4391c`). Il criterio «un solo test `#[ignore]`» vale; la scelta di tenerli è del coordinatore.
+
+## Esito parziale
+
+- **Isolamento in processo separato: confermato per il contenimento, M8 non raggiunta sugli esiti.** 26 casi su 26 sono contenuti: padre vivo su 78 righe su 78, `leftover_procs` = 0, tempo al fallimento ≤ 238 ms, picco RSS ≤ 46 MiB, nessun OOM. Gli esiti uguali all'atteso sono 24 casi su 26 (72 righe su 78). I due scarti, `deep-nesting` e `jbig2-malformed`, danno `ok` e non mostrano guasti di contenimento; la loro lettura è nelle Anomalie.
+- **Limiti calibrati** (da 01-07): prenotazione 803.057 KiB, `RLIMIT_AS` 1.835.008 KiB, quota 1.369.666 byte, pagine 2.000.
+- **Portata delle conclusioni sul budget.** Il selftest (`budget.csv`) prova solo la correttezza aritmetica del limiter. La protezione del parser reale si dichiara solo dai job reali (`budget-real.csv`, M10), solo per l'op `parse` e solo per il corpus e i casi misurati. La prova è `oom_kill_delta` = 0 con exit 0 di `batch` al `max_admitted` misurato, 2, in entrambe le classi. Il rapporto prenotazione/RSS ≥ 1 sui benigni (minimo 2,33) verifica il margine 3× sul `VmHWM` di 01-07 v4. La prenotazione non è un tetto rigido: i job ostili oltre la prenotazione sono 0 su 110, e il rischio residuo di un figlio che la supera è l'OOM del cgroup su quel figlio (`cgroup_oom`) con il padre vivo, provato solo da M11 (verificato). **Concorrenza massima per `parse` pubblicata per 01-13: 2 job insieme** nel worker da 2 GiB, da `budget-real.csv` e non da `budget.csv`, con un margine del cgroup misurato di almeno 1.610.804 KiB. Vale per i carichi misurati; M10 va ripetuta se cambiano workload, memoria del worker o limiti. Per le op OCR la concorrenza la misura 01-13 con lo stesso metodo (D-28).
+- **Percorso OOM (M11): verificato** nel container da 256 MiB. La vittima è il figlio con `oom_score_adj` 1000, il padre resta vivo con 0, gruppo raccolto, cartella rimossa. T-01-07-06 ha ora la sua prova di runtime.
+- **M9: conforme sulla metrica del driver con riserva** (2,7% contro la soglia del 10%; la colonna non isola l'init di PDFium). Il modo in-process di PDFium fallisce in modo intermittente a concorrenza 8 (`FormatError`), riprodotto due volte.
+- **Validazione di 01-07: conforme** sulle voci esercitate. Due difetti minori dei driver di misura (cleanup del `budget` sul percorso d'errore, interruzione dell'`overhead` su errore in-process) vanno a gap-closure di 01-07 con `riapre_perimetro: [01-07]`; sei voci non esercitate.
+- **Impatto sulle porte.** La porta `DocumentParser` riceve errori tipizzati: `Encrypted`, `DecompressionLimit`, `ResourceLimit`, `Unsupported`, `Corrupt` osservati, `Crashed`, `Timeout` e `OutputLimit` previsti; la quarantena porta motivi fissi. Nessun esito ostile arriva come `ok` con contenuto attivo. I due `ok` inattesi sono documenti senza contenuto attivo raggiunto dall'estrazione di testo.
+- **Impatto sul threat model** (`hostile.csv`). T-06 (tipo falso): `magic-mismatch` → `Unsupported`, `docm-macro` → `Unsupported`. T-07 (zip bomb e XML bomb): `docx-zip-bomb` → `DecompressionLimit`, `docx-xml-bomb` → `Corrupt`. T-09 (exploit del parser, loop, OOM): decompression bomb PDF in stream, object stream, catene di filtri e allegati → `DecompressionLimit`, `pages-10k` → `ResourceLimit`, contenimento del figlio su tutti i casi e OOM del cgroup sul figlio provato da M11; restano da coprire il decoder JBIG2 e l'annidamento profondo, non raggiunti dall'op `parse`. T-10 (PDF attivo): `/JavaScript` anche nascosto in un object stream compresso, `/Launch` anche verso un allegato → quarantena; allegati contati e mai estratti (controllo (d)).
+- **RISK-001 dell'audit v2 di 01-07.** `oom_adj_set` e reaping verificati come uid 10001, dopo l'OOM compreso. Nessun timeout si è presentato. Un'impostazione non applicabile conterebbe come job fallito e misura non «isolata» (`pass=false`, exit 3), ma qui non si è mai presentata.
+- **Windows Job Objects: fuori scope.** Il parser gira in un container Linux (cgroup v2, `RLIMIT_AS`, `oom_score_adj`, subreaper). La variante Windows con Job Object prevista da D-08 non si implementa né si misura. È una decisione vincolante, da riportare nell'ADR-0004.
+- L'Esito complessivo di S-02 e l'ADR-0004 li scrive 01-13, che riassume i quattro RISULTATI di S-02.
+
+### Decisioni dell'utente sull'esito (2026-10-22)
+
+- **M8 (D-34): resta «non raggiunta», 24 casi su 26.** `deep-nesting` e `jbig2-malformed` danno `ok` invece di `Corrupt`/`Crashed`, con contenimento intatto. Gli attesi del manifest non si ritoccano. Motivo dichiarato: l'op `parse` estrae solo il testo e non decodifica le immagini, quindi il decoder JBIG2 non viene esercitato. Il caso JBIG2 si riprova in 01-13, dove le pagine si rasterizzano per l'OCR.
+- **Difetti dei driver di 01-07 (D-35):** il cleanup di `budget` sul percorso d'errore e l'interruzione di `overhead` sugli errori del modo in-process si correggono nella gap-closure 1.4. Questa aggiunge a `overhead.csv` una colonna `status` e lo rimisura, aggiornando la sezione «Overhead» e la riga dell'header nella «Validazione di 01-07».
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · decisioni dell'utente D-34 e D-35 sull'esito

@@ -1,0 +1,20 @@
+{
+  "detail": "cgroup_oom",
+  "esito": "verificato",
+  "exit_signal": 9,
+  "job_dir_removed": true,
+  "kind": "ResourceLimit",
+  "leftover_procs": 0,
+  "memory_max_bytes": 268435456,
+  "memory_reservation_bytes": 67108864,
+  "motivo": "",
+  "oom_adj_set": true,
+  "oom_group": "0",
+  "oom_kill_delta": 1,
+  "outcome": "failed",
+  "parent_oom_score_adj": 0,
+  "unreaped_children": 0,
+  "container_memory": "256m",
+  "container_exit": 0,
+  "image": "sha256:86a924ad5599d1f010ca454e8c910704c662df46b1557b5343950e14ab91d298"
+}

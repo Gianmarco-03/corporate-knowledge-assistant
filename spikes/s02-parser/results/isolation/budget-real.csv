@@ -1,0 +1,9 @@
+class,requested_concurrency,jobs,max_admitted,completed,job_errors,reservation_kb,peak_rss_kb_max,peak_rss_kb_p95,reserve_peak_ratio_min,cgroup_memory_max_kb,cgroup_memory_peak_kb,margin_kb,oom_kill_delta,memory_max_events_delta,parent_exit,parent_alive,m10_pass
+benign,1,10,1,10,0,803057,309340,309340,2.596,2097152,307016,1790136,0,0,0,true,true
+benign,4,10,2,10,0,803057,265192,265192,3.028,2097152,455564,1641588,0,0,0,true,true
+benign,8,16,2,16,0,803057,295828,295828,2.715,2097152,486348,1610804,0,0,0,true,true
+benign,16,32,2,32,0,803057,344588,294092,2.330,2097152,476452,1620700,0,0,0,true,true
+hostile,1,26,1,26,0,803057,47488,41756,16.911,2097152,48616,2048536,0,0,0,true,true
+hostile,4,26,2,26,0,803057,44416,42640,18.080,2097152,61588,2035564,0,0,0,true,true
+hostile,8,26,2,26,0,803057,45952,42008,17.476,2097152,59904,2037248,0,0,0,true,true
+hostile,16,32,2,32,0,803057,45312,43424,17.723,2097152,62140,2035012,0,0,0,true,true
