@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-21T17:10:52.031Z"
-last_activity: 2026-10-21 -- fase 1.3 verificata (passed) e chiusa
+last_updated: "2026-10-22T14:16:20.719Z"
+last_activity: "2026-10-22 -- piano 01-12 completato (LLM: Sonnet su tutto, D-33); 01-07/01-18 in test design GPT"
 progress:
   total_phases: 18
   completed_phases: 3
   total_plans: 21
-  completed_plans: 10
+  completed_plans: 11
   percent: 17
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 7 of 18 in current phase
-Status: Executing — fasi 1.1-1.3 chiuse; 01-07 in ripasso di plan
-Last activity: 2026-10-21 -- fase 1.3 verificata (passed) e chiusa
+Plan: 8 of 18 in current phase
+Status: Executing — 01-12 chiuso; 01-07 v6 e 01-18 v5 approvati, test design GPT in attesa
+Last activity: 2026-10-22 -- piano 01-12 completato (LLM: Sonnet su tutto, D-33); 01-07/01-18 in test design GPT
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -133,6 +133,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01.3]: tmpfs /work del worker con uid/gid 10001 e mode=0700 in sintassi corta; scartati 1777, /work nell'immagine e sintassi lunga → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#decisions-made`
 - [Phase 01.3]: Docker monta il tmpfs con noexec/nosuid/nodev: per 01-07 nessun binario si esegue da /work → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#punti-aperti`
 - [Phase 01.3]: TEST-5 e TEST-13 del design 01.3-01 difettosi (regex non ancorata, conflitto su «nessun down -v»): da correggere se riusati → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#deviations-from-plan`
+- [Phase ?]: Fase 01: Sonnet 5.5 anche sulle query simple (D-33), dopo regola D-31 fallita e misura D-32 (1,00 vs 0,72) → `phases/01-spike-tecnici/01-12-SUMMARY.md#decisions-made`
 
 ### Pending Todos
 

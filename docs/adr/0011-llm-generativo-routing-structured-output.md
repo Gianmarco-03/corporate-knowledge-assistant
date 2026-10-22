@@ -2,7 +2,7 @@
 
 - Stato: Proposed
 - Data: 2026-10-22
-- Decisori: l'utente (scelta del modello per le query `simple` e ratifica nel consolidamento, piano 01-17); la proposta è di Claude (gsd-executor 01-12), dallo spike S-06/A-04
+- Decisori: l'utente (scelta del modello per le query `simple`, D-33 del 2026-10-22, e ratifica nel consolidamento, piano 01-17); la proposta è di Claude (gsd-executor 01-12), dallo spike S-06/A-04
 - Sostituisce: nessuno
 
 **Modifica:** Claude (gsd-executor 01-12) · 2026-10-22 · ADR proposto con le misure dello spike S-06/A-04; scelta per le `simple` aperta perché la regola di routing di D-31 è tornata all'utente
@@ -28,7 +28,7 @@ Le misure vengono da 30 query ratificate (13 `simple`, 12 `complex`, 5 `no_answe
    - Svantaggi: tasso di claim supportati 0,6852 sulle `complex` contro 0,7931 di Sonnet; p95 complessivo 3,74 s, sopra la soglia di 3 s; emette claim senza citazioni (11 su 83, 7 con testo vuoto).
 2. **Sonnet 5.5 su tutte le query.**
    - Vantaggi: tasso di claim supportati più alto sulle `complex` (0,7931); 1 solo claim senza citazioni su 58; p95 3,99 s, sotto la soglia di 8 s.
-   - Svantaggi: circa 0,0044 USD per risposta, 21 volte Haiku; non misurato sulle `simple` (D-31).
+   - Svantaggi: circa 0,0037-0,0044 USD per risposta, circa 20 volte Haiku. *Storia:* la prima stesura aggiungeva «non misurato sulle `simple` (D-31)»; la misura supplementare (D-32) l'ha misurato: 1,0000 (30/30) sulle `simple`.
 3. **Routing per complessità con JEV (D-18): `simple` → Haiku, `complex` → Sonnet.**
    - Vantaggi: la Choice `{simple, complex}` di JEV concorda con l'etichetta ratificata su 25/30 query (0,8333, soglia 0,80), con p95 205 ms; il costo segue la difficoltà della query.
    - Svantaggi: la regola di D-31 non conferma Haiku sulle `simple`: (a) 0,6852 contro 0,7931 − 0,05 = 0,7431, falsa; (b) 0,7241 contro 0,85, falsa.
@@ -54,12 +54,13 @@ Le misure vengono da 30 query ratificate (13 `simple`, 12 `complex`, 5 `no_answe
   - fallback: 15/15 generati con Sonnet e `degraded`, 0 `validated`;
   - costo: 0,4482 USD per l'intera matrice (T-24).
 - Negative:
-  - l'ADR non chiude da solo «sono scelti LLM generativo» del criterio 4: manca la scelta per le `simple`;
+  - con un solo modello il costo per risposta è circa 20 volte quello di Haiku anche sulle domande semplici (in assoluto ≈ 0,004 USD); la latenza p95 sulle `simple` sale da 2,61 a 4,48 s;
   - lo structured output non impone citazioni non vuote, quindi lo scarto dei claim senza citazioni o con testo vuoto va fatto in codice;
   - la metrica «valore atteso trovato» (Haiku 14/50, Sonnet 2/24) è poco informativa con il confronto stretto, perché i modelli riformulano e traducono i valori;
-  - il routing manda a Sonnet 3 `simple` su 18 e a Haiku 2 `complex` su 12.
+  - il routing per complessità misurato (3 `simple` su 18 a Sonnet, 2 `complex` su 12 a Haiku) oggi non cambia il modello, quindi i suoi errori non costano fedeltà; conta solo se il routing di modello si riapre.
 - Follow-up:
-  - l'utente sceglie il modello delle `simple`; con la scelta, 01-17 porta la riga «Generative LLM» di `DEPENDENCIES.md` da Aperta a Decisa e ratifica questo ADR;
+  - 01-17 porta la riga «Generative LLM» di `DEPENDENCIES.md` da Aperta a Decisa (Sonnet 5.5, D-33) e ratifica questo ADR; *Storia:* la prima stesura diceva «l'utente sceglie il modello delle `simple`», scelta fatta con D-33;
+  - Haiku sulle `simple` si riapre solo con una misura nuova, che includa lo scarto deterministico dei claim senza citazioni;
   - 01-16 trascrive in S-07 `AnswerGenerator::generate` → `StructuredAnswer`, `DecisionEngine::validate_query` → `QueryDecision { complexity }` e la validazione claim–citazione come operazione separata, con errori tipizzati;
   - ogni risposta registra la versione del modello risolta (`response.model`) e l'`usage`;
   - una richiesta di warm-up per modello all'avvio (compilazione dello schema, cache di 24 ore);
@@ -72,7 +73,7 @@ Le misure vengono da 30 query ratificate (13 `simple`, 12 `complex`, 5 `no_answe
 - [`spikes/s06-llm/results/llm.csv`](../../spikes/s06-llm/results/llm.csv), [`routing.csv`](../../spikes/s06-llm/results/routing.csv), [`fallback.csv`](../../spikes/s06-llm/results/fallback.csv), [`injection.csv`](../../spikes/s06-llm/results/injection.csv).
 - [`spikes/s06-llm/schema/answer.schema.json`](../../spikes/s06-llm/schema/answer.schema.json): schema della risposta.
 - [`spikes/data/s06/selection.json`](../../spikes/data/s06/selection.json): selezione a seme delle 30 query e dei 15 `fallback_ids`.
-- [`spikes/s06-llm/results/llm-simple-sonnet.csv`](../../spikes/s06-llm/results/llm-simple-sonnet.csv) e la sezione «Misura supplementare (D-32)» di [`RISULTATI.md`](../../spikes/s06-llm/RISULTATI.md): Sonnet sulle stesse 13 query `simple` di Haiku, chiesta dall'utente con D-32 prima della scelta per le `simple`. Tasso di claim supportati Haiku 0,7241 (21/29; 0,8750 senza i claim non citati, dato diagnostico) contro Sonnet 1,0000 (30/30); p95 2,61 s contro 4,48 s; 0,000191 contro 0,003720 USD per risposta; spesa della sessione 0,5980 USD su 2. La decisione per le `simple` resta aperta e spetta all'utente.
+- [`spikes/s06-llm/results/llm-simple-sonnet.csv`](../../spikes/s06-llm/results/llm-simple-sonnet.csv) e la sezione «Misura supplementare (D-32)» di [`RISULTATI.md`](../../spikes/s06-llm/RISULTATI.md): Sonnet sulle stesse 13 query `simple` di Haiku, chiesta dall'utente con D-32 prima della scelta per le `simple`. Tasso di claim supportati Haiku 0,7241 (21/29; 0,8750 senza i claim non citati, dato diagnostico) contro Sonnet 1,0000 (30/30); p95 2,61 s contro 4,48 s; 0,000191 contro 0,003720 USD per risposta; spesa della sessione 0,5980 USD su 2. Su questi numeri l'utente ha scelto Sonnet anche sulle `simple` (D-33).
 
 **Modifica:** Claude (gsd-executor 01-12) · 2026-10-22 · Evidenze: misura supplementare di Sonnet sulle `simple` (D-32); Stato e Decisione invariati
-**Modifica:** Claude (Anthropic) · 2026-10-22 · Decisione: Sonnet anche sulle `simple` (D-33, decisione utente sui numeri della misura supplementare); Stato invariato, `Proposed` fino alla ratifica di 01-17
+**Modifica:** Claude (Anthropic) · 2026-10-22 · Decisione, Opzioni, Conseguenze, Follow-up ed Evidenze allineati a D-33 (Sonnet anche sulle `simple`); Stato invariato, `Proposed` fino alla ratifica di 01-17

@@ -34,6 +34,8 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · 01-11 fuso prima di 01-07 contro 01-ONDE (decisione utente: 01-07 fermo su tre blocchi esterni) → `phases/01-spike-tecnici/01-11-SUMMARY.md#integrazione-fuori-ordine`
 - 2026-10-21 · instructs_model misurato solo sui falsi positivi (0/1.800): il rilevamento sul testo ostile va a 01-12 o a un oracolo nuovo → `phases/01-spike-tecnici/01-11-SUMMARY.md#issues-encountered`
 
+- 2026-10-22 · Sonnet 5.5 anche sulle query simple (D-33): regola D-31 fallita, misura D-32 Sonnet 1,00 contro Haiku 0,72 → `phases/01-spike-tecnici/01-12-SUMMARY.md#decisions-made`
+
 ## Fase 1.1 — Gap-closure di session.sh
 
 - 2026-10-21 · dc() toglie con env -u, dal solo processo compose, le variabili dell'host omonime (in maiuscolo) delle chiavi di spikes.env; la shell non cambia → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#decisions-made`
