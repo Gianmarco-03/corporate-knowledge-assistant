@@ -1,0 +1,58 @@
+{
+  "timestamp_utc": "2026-10-22T19:56:29Z",
+  "git_rev": "bc3e0abf29786804d2d003b39d6f936c4528c48e",
+  "cpu": "13th Gen Intel(R) Core(TM) i7-13700K (16 core, 24 thread)",
+  "ram_total": "34112217088",
+  "gpu": "NVIDIA GeForce RTX 3050, 610.88, 6144 MiB",
+  "cuda_driver": "13.3",
+  "wsl_version": "Versione WSL: 2.6.3.0\nVersione kernel: 6.6.87.2-1\nVersione WSLg: 1.0.71\nVersione MSRDC: 1.2.6353\nVersione Direct3D: 1.611.1-81528511\nVersione DXCore: 10.0.26100.1-240331-1435.ge-release\nVersione di Windows: 10.0.26300.9711",
+  "docker_version": "29.8.2",
+  "docker_desktop_resources": "{\"ncpu\":16,\"mem_total_bytes\":20971708416}",
+  "images": {
+    "pgvector/pgvector:0.8.7-pg18-trixie": "pgvector/pgvector@sha256:9d9c930220cb9bf2f956d10a8f909cf9973d9672ca0278aef2c1e6facccad2e0",
+    "ghcr.io/huggingface/text-embeddings-inference:86-1.9.4": "ghcr.io/huggingface/text-embeddings-inference@sha256:bee0bdb887096229add91b6fdfcf95258c12eb9180e90dc86f3b4b25b86fc613"
+  },
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "tools": {
+    "tei": "1.9.4",
+    "pdftotext": "pdftotext version 25.03.0"
+  },
+  "power_plan": "GUID combinazione risparmio energia: 381b4222-f694-41f0-9685-ff5bb260df2e  (Bilanciato)",
+  "run_id": "01-10-20261022t195602z-b9ee",
+  "compose_project": "cka-spikes",
+  "containers": [
+    {
+      "name": "cka-spikes-postgres-1",
+      "service": "postgres",
+      "image": "pgvector/pgvector:0.8.7-pg18-trixie",
+      "image_id": "sha256:9d9c930220cb9bf2f956d10a8f909cf9973d9672ca0278aef2c1e6facccad2e0"
+    },
+    {
+      "name": "cka-spikes-tei-embed-1",
+      "service": "tei-embed",
+      "image": "ghcr.io/huggingface/text-embeddings-inference:86-1.9.4",
+      "image_id": "sha256:bee0bdb887096229add91b6fdfcf95258c12eb9180e90dc86f3b4b25b86fc613"
+    }
+  ],
+  "cpu_detail": {
+    "model": "13th Gen Intel(R) Core(TM) i7-13700K",
+    "cores": 16,
+    "threads": 24
+  },
+  "ram_total_bytes": 34112217088,
+  "docker_desktop_resources_detail": {
+    "ncpu": 16,
+    "mem_total_bytes": 20971708416
+  },
+  "images_detail": [
+    {
+      "ref": "pgvector/pgvector:0.8.7-pg18-trixie",
+      "digest": "pgvector/pgvector@sha256:9d9c930220cb9bf2f956d10a8f909cf9973d9672ca0278aef2c1e6facccad2e0"
+    },
+    {
+      "ref": "ghcr.io/huggingface/text-embeddings-inference:86-1.9.4",
+      "digest": "ghcr.io/huggingface/text-embeddings-inference@sha256:bee0bdb887096229add91b6fdfcf95258c12eb9180e90dc86f3b4b25b86fc613"
+    }
+  ],
+  "normalized_by": "driver di 01-10 (scratch, non versionato), stessa normalizzazione di 01-04, 01-07, 01-08 e 01-11 (schema di common::manifest; originale in spikes/s03-pgvector/results/raw/embedding-hw-raw.json)"
+}
