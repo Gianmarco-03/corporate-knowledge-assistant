@@ -1,0 +1,11 @@
+doc_id,pages,vm_peak_kb,vm_hwm_kb,out_bytes,max_flate_ratio,max_stream_bytes,total_decompressed_bytes,objstm_count,objstm_decompressed_bytes,rejected_filter_streams,encryption,embedded_files
+der-it-01-relazione-annuale-2025,25,756876,228044,54514,312.61,2548687,9824468,160,8739354,0,none,0
+pub-en-01-berkshire-annual-repor,154,623380,47736,569024,29.60,842301,50877469,4,50390,0,none,1
+pub-en-02-federal-reserve-annual,214,616064,28280,517931,8.23,185403,6639460,220,188252,0,none,0
+pub-en-03-bank-of-england-annual,220,669384,134748,361508,84.37,2850120,10168263,164,3261362,0,empty_password,0
+pub-en-04-bis-annual-economic-re,126,625720,134420,381266,901.68,8630718,42209432,0,0,0,none,0
+pub-it-01-bdi-relazione-annuale,228,697460,267240,684833,321.12,12381481,29056463,312,9085282,0,none,0
+pub-it-02-bdi-bilancio-esercizio,105,618368,100956,234686,834.09,3483851,12368134,139,2232559,0,none,0
+pub-it-03-bdi-sintesi-relazione,36,618304,44536,59015,104.65,85443,4137599,12,254436,0,none,0
+pub-it-04-bdi-bollettino-economi,42,616420,40388,141231,171.39,493338,3280050,29,491824,0,none,0
+pub-it-05-bdi-relazione-gestione,212,691904,199700,600461,295.46,9462534,86106042,79,6868734,0,none,0
