@@ -211,6 +211,35 @@ pub fn sonnet_jobs(queries: &[OracleQuery], ids: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// Record di `llm-simple-sonnet.csv` previsto da `generate-simple-sonnet` (D-32).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SimpleSonnetRecord {
+    pub model: String,
+    pub query_id: String,
+    pub rep: u32,
+}
+
+/// Query di `ids` su cui gira `generate-simple-sonnet` (D-32): solo le
+/// `simple` senza `no_answer`, le stesse di Haiku in `llm.csv`. Ordine di `ids`.
+#[allow(dead_code)]
+pub fn simple_sonnet_jobs(queries: &[OracleQuery], ids: &[String]) -> Vec<String> {
+    let _ = (queries, ids);
+    todo!("Task 3 (D-32): selezione delle simple non no_answer")
+}
+
+/// Record scritti da `generate-simple-sonnet`: modello Sonnet, ripetizioni 2..=3
+/// (la 1 è lo scarto e non entra nel CSV), per ogni query di `simple_sonnet_jobs`.
+#[allow(dead_code)]
+pub fn simple_sonnet_records(
+    queries: &[OracleQuery],
+    ids: &[String],
+    sonnet_model: &str,
+) -> Vec<SimpleSonnetRecord> {
+    let _ = (queries, ids, sonnet_model);
+    todo!("Task 3 (D-32): record di Sonnet sulle simple, ripetizioni 2-3")
+}
+
 /// Tasso aggregato sui claim; `None` con denominatore nullo.
 fn claim_rate<'a>(rows: impl Iterator<Item = &'a RuleRow>) -> Option<f64> {
     let (s, n) = rows.fold((0u64, 0u64), |(s, n), r| {
@@ -585,6 +614,25 @@ fn write_ledger(raw: &Path, spent_usd: f64) -> anyhow::Result<()> {
         serde_json::to_string_pretty(&SpendLedger { spent_usd })?,
     )?;
     Ok(())
+}
+
+/// Residuo per `generate-simple-sonnet` (D-32): `cap_raw` validato come
+/// `S06_MAX_COST_USD` (solo 2 USD), residuo = tetto − spesa del registro
+/// `raw/spend.json`. Errore, prima di ogni richiesta (warm-up compreso), se il
+/// registro manca o è illeggibile (mai residuo = tetto per default), se la
+/// spesa registrata è ≥ tetto o se la stima supera il residuo.
+#[allow(dead_code)]
+pub fn simple_sonnet_residual(raw: &Path, cap_raw: &str, estimate_usd: f64) -> anyhow::Result<f64> {
+    let _ = (raw, cap_raw, estimate_usd);
+    todo!("Task 3 (D-32): stima sul residuo del registro spend.json")
+}
+
+/// Somma `delta_usd` alla spesa di `raw/spend.json` senza sovrascriverla;
+/// restituisce il nuovo totale. Registro assente o illeggibile → errore.
+#[allow(dead_code)]
+pub fn add_to_ledger(raw: &Path, delta_usd: f64) -> anyhow::Result<f64> {
+    let _ = (raw, delta_usd);
+    todo!("Task 3 (D-32): spesa del Task 3 sommata al registro")
 }
 
 fn jev_config(base_url: String) -> anyhow::Result<jev::ClientConfig> {
@@ -1662,6 +1710,154 @@ mod tests {
             sonnet_jobs(&queries, &ids),
             vec!["Q-C1".to_owned(), "Q-NA".to_owned()]
         );
+    }
+
+    fn ids_of(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    // TEST-24 (RISK-16)
+    #[test]
+    fn simple_sonnet_selects_only_simple_non_no_answer() {
+        let queries = vec![
+            oracle("Q-S1", "guest", "simple", false, &[]),
+            oracle("Q-S2", "guest", "simple", false, &[]),
+            oracle("Q-C1", "guest", "complex", false, &[]),
+            oracle("Q-SNA", "guest", "simple", true, &[]),
+            oracle("Q-CNA", "guest", "complex", true, &[]),
+        ];
+        // Ordine di selection.json, volutamente non alfabetico.
+        let ids = ids_of(&["Q-S2", "Q-C1", "Q-SNA", "Q-S1", "Q-CNA"]);
+        assert_eq!(
+            simple_sonnet_jobs(&queries, &ids),
+            ids_of(&["Q-S2", "Q-S1"]),
+            "solo le simple senza no_answer, nell'ordine di ids"
+        );
+
+        let records = simple_sonnet_records(&queries, &ids, SONNET);
+        let got: Vec<(&str, &str, u32)> = records
+            .iter()
+            .map(|r| (r.model.as_str(), r.query_id.as_str(), r.rep))
+            .collect();
+        assert_eq!(got.len(), 4, "2 query × ripetizioni 2 e 3: {got:?}");
+        assert!(
+            records.iter().all(|r| r.model == SONNET),
+            "il modello dei job è Sonnet: {got:?}"
+        );
+        assert!(
+            records.iter().all(|r| r.rep == 2 || r.rep == 3),
+            "la ripetizione 1 è lo scarto e non entra nei record: {got:?}"
+        );
+        let pairs: BTreeSet<(&str, u32)> = got.iter().map(|(_, q, r)| (*q, *r)).collect();
+        let expected: BTreeSet<(&str, u32)> = [("Q-S1", 2), ("Q-S1", 3), ("Q-S2", 2), ("Q-S2", 3)]
+            .into_iter()
+            .collect();
+        assert_eq!(pairs, expected, "nessun duplicato (query_id, rep)");
+
+        // ids senza simple: lista vuota, nessun record e quindi nessuna richiesta.
+        let no_simple = ids_of(&["Q-C1", "Q-SNA", "Q-CNA"]);
+        assert!(simple_sonnet_jobs(&queries, &no_simple).is_empty());
+        assert!(simple_sonnet_records(&queries, &no_simple, SONNET).is_empty());
+    }
+
+    // TEST-24, secondo caso: sulla selezione reale l'insieme coincide con le
+    // query che `generate` misura solo con Haiku (ids meno sonnet_jobs).
+    #[test]
+    fn simple_sonnet_matches_haiku_only_set_of_generate() {
+        let raw = queries_json();
+        let pool = ratified_queries(&raw).expect("oracoli ratificati");
+        let sel = select(&raw, 42, 7).expect("selezione");
+        let sonnet_d31: BTreeSet<String> = sonnet_jobs(&pool, &sel.ids).into_iter().collect();
+        let haiku_only: Vec<String> = sel
+            .ids
+            .iter()
+            .filter(|id| !sonnet_d31.contains(*id))
+            .cloned()
+            .collect();
+        let jobs = simple_sonnet_jobs(&pool, &sel.ids);
+        assert_eq!(jobs, haiku_only, "stesso insieme e stesso ordine di Haiku");
+        assert!(jobs.len() >= 12, "almeno 12 simple con risposta");
+    }
+
+    /// Cartella `raw/` di prova, unica per test.
+    fn scratch_raw(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("s06-llm-{tag}-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn ledger_with(tag: &str, spent: f64) -> PathBuf {
+        let dir = scratch_raw(tag);
+        write_ledger(&dir, spent).unwrap();
+        dir
+    }
+
+    // TEST-25 (RISK-17)
+    #[test]
+    fn simple_sonnet_estimate_uses_residual_of_spend_json() {
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
+
+        // Spesa 1,20: residuo 0,80; stima 0,79 procede.
+        let dir = ledger_with("ok", 1.20);
+        let residual = simple_sonnet_residual(&dir, "2", 0.79).expect("stima entro il residuo");
+        assert!(
+            close(residual, 0.80),
+            "residuo = 2 − spesa registrata: {residual}"
+        );
+
+        // Stima 0,81: sotto il tetto di 2 ma oltre il residuo → stop.
+        let err = simple_sonnet_residual(&dir, "2", 0.81).expect_err("stima oltre il residuo");
+        assert!(!format!("{err:#}").is_empty());
+
+        // Spesa registrata ≥ tetto: stop immediato anche con stima nulla.
+        for spent in [2.00, 2.50] {
+            let d = ledger_with("full", spent);
+            assert!(
+                simple_sonnet_residual(&d, "2", 0.0).is_err(),
+                "spesa {spent} ≥ tetto: stop"
+            );
+            let _ = std::fs::remove_dir_all(d);
+        }
+
+        // Registro assente: stop con messaggio, mai residuo = 2 per default.
+        let missing = scratch_raw("missing");
+        let err = simple_sonnet_residual(&missing, "2", 0.01).expect_err("registro assente");
+        assert!(format!("{err:#}").contains("spend.json"), "{err:#}");
+
+        // Registro illeggibile: stesso esito.
+        let broken = scratch_raw("broken");
+        std::fs::write(broken.join("spend.json"), "non json").unwrap();
+        let err = simple_sonnet_residual(&broken, "2", 0.01).expect_err("registro illeggibile");
+        assert!(format!("{err:#}").contains("spend.json"), "{err:#}");
+
+        // Tetto di TEST-22 (1): solo S06_MAX_COST_USD = 2.
+        for cap in ["3", "1.5", "abc"] {
+            assert!(
+                simple_sonnet_residual(&dir, cap, 0.01).is_err(),
+                "tetto {cap} rifiutato"
+            );
+        }
+
+        // Esecuzione simulata: la spesa del Task 3 si somma al registro.
+        let total = add_to_ledger(&dir, 0.35).expect("somma al registro");
+        assert!(close(total, 1.55), "{total}");
+        assert!(
+            close(read_ledger(&dir).unwrap(), 1.55),
+            "registro non sovrascritto"
+        );
+        assert!(
+            add_to_ledger(&missing, 0.10).is_err(),
+            "registro assente: errore"
+        );
+
+        for d in [dir, missing, broken] {
+            let _ = std::fs::remove_dir_all(d);
+        }
     }
 
     fn rows(model: Model, qid: &str, label: jev::Complexity, n: u64, s: u64) -> Vec<RuleRow> {
