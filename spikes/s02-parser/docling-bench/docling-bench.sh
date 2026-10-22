@@ -91,7 +91,7 @@ check_sha() {
 client() {
   bash "$TOOLS"/session.sh oneshot "$RID" -- "$CLIENT" \
     --extract-runs "$RUNS" --extract-jobs "$JOBS" \
-    --data-root /src/data --results-raw /src/s02-parser/results/raw "$@" 2>/dev/null | tail -n 1
+    --data-root /src/data --results-raw /src/s02-parser/results/raw "$@" 2>/dev/null </dev/null | tail -n 1
   return "${PIPESTATUS[0]}"
 }
 
@@ -209,7 +209,9 @@ cmd_measure() {
       sampler=$!
     fi
     rows=""
-    while IFS=$'\t' read -r doc in2 page; do
+    # Il file delle pagine si legge dal descrittore 3: compose run legge lo stdin e
+    # altrimenti consumerebbe le righe successive.
+    while IFS=$'\t' read -r doc in2 page <&3; do
       [[ $in2 == "$input" ]] || continue
       for run in $(seq 1 "$REPS"); do
         exit_code=0
@@ -223,7 +225,7 @@ cmd_measure() {
           restart "$device" >/dev/null
         fi
       done
-    done < "$pages"
+    done 3< "$pages"
     local peak=""
     if [[ -n $sampler ]]; then
       kill "$sampler" 2>/dev/null || true
