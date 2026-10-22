@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 04 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01 onda 4 parziale, 01-11 fuso, 01-07 fermo su 3 blocchi) · aggiornato: 2026-10-21T16:57Z
+fase 01 / onda 4-bis / slice 01-12 / plan completato (ripasso 01-12 v2; 01-07 v5 e 01-18 v4 in audit GPT) · aggiornato: 2026-10-22T10:47Z
 
 ## Prossima azione
 
-Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s05-cancel), poi ripasso /plan di 01-07 (soglie prescan nuove, audit+test design GPT), poi ripresa execute 01-07 dal Task 3 (patch in TEMP/cka-0107-wip); bridge 01-11 in corso; traccia discuss: /discuss 5 (plan 2/3/4 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
+/execute 1 --piano 01-12 (anticipato, D-31); al rientro di risk_audit_21 (01-07 v5) e risk_audit_23 (01-18 v4) READ+ACK, poi test-design GPT o revisione; poi ripresa execute 01-07 dal Task 3 (patch .planning/tmp/task3-uncommitted.patch); traccia discuss: /discuss 5.
 
 ## Findings
 
@@ -70,6 +70,7 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 - 04 snapshot OpenAPI JEV sha256 ee599512…; forma A rank + guardia ACL (ADR-0008); inference_geo global, nessun dato utente (D-11..D-13) · fonte Area B/D
 - 04 AuditSink PG append-only per servizio (identity/document/rag), evento tipizzato, IdempotencyConflict; hash chain contro raccomandazione, testa FOR UPDATE, no ancoraggio, verify_chain → 11 (D-14..D-19) · fonte Area F
 - 04 NoOpCache + fake con scope (fase 10); replay wiremock CI + gate locale 0,50 USD; no-leak a sentinelle, OTel senza contenuti (D-20..D-23) · fonte Area G/H/I
+- 01-12 v2 ripasso D-31: Sonnet solo complex/no_answer, fallback 15 fallback_ids, tetto 2 USD (locale portato 5→2); routing = Haiku ≥ Sonnet−0,05 su complex + Haiku ≥ 0,85 su simple, altrimenti utente; gate giro 9 verdi; test design Claude RISK-13/14, TEST-20..23; anticipato da onda 7 · utente 2026-10-22 → 01-CONTEXT D-31, 01-GATE.md, bdc3d8f
 
 ## Limiti trovati
 
