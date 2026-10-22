@@ -3,7 +3,7 @@
 ```yaml
 reviewed_plan:
   path: .planning/phases/01-spike-tecnici/01-12-PLAN.md
-  sha256: 68fc315e5a6e2bed94a2f2f4dddda2bf7914170196b5f92c8f220fdedb2eb263
+  sha256: f3f8f2f1c432b99e89aa21d37f0b9e8d2465e882ca941a8e17906c71bd7337b1
 risks:
   - id: RISK-1
     severity: CRITICAL
@@ -61,6 +61,26 @@ risks:
     severity: MEDIUM
     title: Matrice di D-31 violata (Sonnet generato su simple, fallback fuori da fallback_ids o non deterministico dal seme)
     source: Task 2 action e acceptance «Matrice di D-31 rispettata»; Task 1 acceptance su selection.json
+  - id: RISK-15
+    severity: HIGH
+    title: CSV dei Task 1-2 (llm, routing, fallback, injection) o sezione Soglie alterati dal Task 3 (rigenerati, ritoccati, righe aggiunte)
+    source: Task 3 action «restano immutati»; acceptance; CONTEXT D-32
+  - id: RISK-16
+    severity: HIGH
+    title: llm-simple-sonnet.csv contiene righe Sonnet su query non simple o no_answer, oppure copre un insieme diverso da quello di Haiku in llm.csv, o include rep 1
+    source: Task 3 action e acceptance «solo query simple senza no_answer, ripetizioni 2-3»
+  - id: RISK-17
+    severity: MEDIUM
+    title: Tetto non rispettato sul residuo di spend.json (stima confrontata con 2 USD pieni invece che con 2 meno la spesa registrata, registro non aggiornato o riscritto, spesa totale oltre 2)
+    source: Task 3 action «spesa residua»; acceptance «spesa di sessione ≤ 2 USD»; T-01-12-06
+  - id: RISK-18
+    severity: HIGH
+    title: L'esecutore sceglie il modello delle simple (RISULTATI «Esito», ADR-0011 non più Proposed, rapporto che nomina un vincitore) invece di lasciarlo all'utente
+    source: Task 3 action «Nessuna scelta di modello»; acceptance; CONTEXT D-32
+  - id: RISK-19
+    severity: HIGH
+    title: Tasso Sonnet sulle simple calcolato su insiemi o con formula diversi da quelli di Haiku (media per query, rep 1, righe json_valid false, query diverse), oppure la variante diagnostica senza claim non citati presentata come dato principale
+    source: Task 3 action «stesso calcolo di D-31»
 tests:
   - {id: TEST-1, title: context_rejects_invisible_passage_before_prompt, type: cargo-unit, priority: P0, catches: [RISK-1]}
   - {id: TEST-2, title: jev_calls_guarded_by_assert_visible, type: cargo-integration-locale, priority: P0, catches: [RISK-1]}
@@ -85,6 +105,13 @@ tests:
   - {id: TEST-21, title: fallback_ids sottoinsieme di ids e deterministici dal seme, type: check-evidenze, priority: P1, catches: [RISK-14, RISK-12]}
   - {id: TEST-22, title: Stop sulla stima oltre 2 USD e sul valore locale diverso da 2 senza scrivere il file segreti, type: cargo-unit+check, priority: P1, catches: [RISK-9]}
   - {id: TEST-23, title: Regola di routing ricalcolata da llm.csv, entrambi i rami compreso il ritorno all'utente, type: check-evidenze+fixture, priority: P0, catches: [RISK-13]}
+  - {id: TEST-24, title: simple_sonnet_selects_only_simple_non_no_answer, type: cargo-unit, priority: P0, catches: [RISK-16]}
+  - {id: TEST-25, title: simple_sonnet_estimate_uses_residual_of_spend_json, type: cargo-unit, priority: P1, catches: [RISK-17]}
+  - {id: TEST-26, title: CSV dei Task 1-2 e Soglie byte-identici a edb8335 dopo il Task 3, type: check-git, priority: P0, catches: [RISK-15, RISK-7]}
+  - {id: TEST-27, title: Contenuto di llm-simple-sonnet.csv (modello, insieme, rep, hard gate), type: check-evidenze, priority: P0, catches: [RISK-16, RISK-1]}
+  - {id: TEST-28, title: Tasso Haiku/Sonnet sulle simple ricalcolato sullo stesso insieme, type: check-evidenze+fixture, priority: P1, catches: [RISK-19]}
+  - {id: TEST-29, title: Spesa cumulata su spend.json ≤ 2 USD e coerente con i cost_usd, type: check-evidenze, priority: P1, catches: [RISK-17, RISK-9]}
+  - {id: TEST-30, title: Nessuna scelta di modello per le simple; ADR-0011 Proposed, type: check-evidenze, priority: P0, catches: [RISK-18]}
 uncovered: []
 ```
 
@@ -148,6 +175,30 @@ I due CRITICAL sono coperti a livello di funzione, di percorso e di evidenza: RI
 
 Dopo D-31 si aggiungono RISK-13 (HIGH) e RISK-14 (MEDIUM). RISK-13 è HIGH perché una regola calcolata su insiemi diversi, o una scelta presa dall'esecutore quando deve tornare all'utente, produce una decisione d'architettura (ADR-0011) non fondata sulle misure: lo copre TEST-23 con fixture su entrambi i rami, e TEST-14 fissa il testo della regola prima delle misure. RISK-14 è coperto da TEST-19, 20, 21; RISK-9 da TEST-16 e 22. Tre punti del piano restano impliciti e vanno fissati dall'esecutore nelle Soglie prima delle misure, perché i test li assumono: «entro 0,05 da Sonnet» si legge come `Haiku ≥ Sonnet − 0,05` (Haiku migliore di Sonnet non fa fallire la condizione); il tasso è aggregato sui claim (somma su somma), non media per query; le no_answer non entrano nel confronto (a). Se le Soglie scelgono altrimenti, TEST-23 segue le Soglie. La procedura di selezione a seme non ha un file proprio nel `files_modified`: perché TEST-21 sia eseguibile deve stare in `main.rs` (sottocomando o funzione) o essere descritta in RISULTATI §Setup in modo riproducibile.
 
+## Task 3 — misura supplementare di Sonnet sulle simple (D-32)
+
+Il Task 3 aggiunge un sottocomando e un CSV, ma la sua natura è di misura, non di funzionalità: i rischi veri sono due. Il primo è che la misura contamini ciò che è già stato fatto (RISK-15, RISK-16): CSV e Soglie dei Task 1-2 devono restare identici, e il nuovo CSV deve contenere solo Sonnet sulle `simple` non `no_answer`, cioè lo stesso insieme su cui Haiku è misurato in `llm.csv`. Il secondo è che il confronto venga letto o deciso male (RISK-18, RISK-19): l'esecutore deve fornire i numeri e fermarsi, la scelta è dell'utente. Il tetto residuo (RISK-17) è MEDIUM come RISK-9, ma qui il rischio è più concreto perché la spesa si somma a quella già registrata. L'hard gate `unauthorized_in_prompt = 0` (RISK-1, CRITICAL) vale anche per il nuovo CSV: stesso contesto e stesso `assert_visible`, ma un nuovo percorso di chiamata; lo copre TEST-27.
+
+Coerenza con i test esistenti: TEST-19 e TEST-20 («nessun Sonnet su simple non no_answer») si applicano a `llm.csv` e restano veri, perché il Task 3 non lo modifica. Le righe Sonnet sulle `simple` stanno solo in `llm-simple-sonnet.csv`; i join di TEST-20 non devono leggere il nuovo file, altrimenti falliscono per costruzione. TEST-14 e TEST-23 continuano a valere sulle Soglie e su `llm.csv`: la regola di D-31 non si ricalcola con il nuovo CSV, che è un dato aggiuntivo e informativo.
+
+**TEST-24 — `simple_sonnet_selects_only_simple_non_no_answer`** (unit, in `main.rs`, accanto a `sonnet_matrix_excludes_simple`). Manifest di prova con 2 `simple`, 1 `complex`, 1 `simple` + `no_answer` e 1 `complex` + `no_answer`: la lista dei job di `generate-simple-sonnet` contiene esattamente le 2 `simple` non `no_answer`, nell'ordine di `selection.json`, per le sole ripetizioni 2 e 3 (la 1 è lo scarto e non entra nei record). Il modello dei job è Sonnet. Con `ids` senza `simple` la lista è vuota e il comando termina con 0 richieste, senza errore silenzioso. Un secondo caso verifica che l'insieme dei `query_id` sia uguale a quello che seleziona `generate` per Haiku.
+
+**TEST-25 — `simple_sonnet_estimate_uses_residual_of_spend_json`** (unit, in `anthropic.rs` o `main.rs`). Residuo = 2 meno la spesa letta da un `spend.json` di prova. Casi: spesa registrata 1,20 e stima 0,79 procede; stima 0,81 si ferma con 0 richieste (warm-up compreso) anche se la stima è sotto 2; spesa registrata 2,00 o più, stop immediato; `spend.json` assente o illeggibile, stop con messaggio, mai residuo = 2 per default. Dopo una esecuzione simulata la spesa del Task 3 si somma al registro senza sovrascriverlo. Il tetto resta `S06_MAX_COST_USD` = 2: il controllo di TEST-22 (1) vale anche per questo sottocomando.
+
+**TEST-26 — CSV dei Task 1-2 e Soglie invariati.** È il `git diff --quiet edb8335 -- ...` del verify portato a controllo esplicito: `llm.csv`, `routing.csv`, `fallback.csv`, `injection.csv` hanno diff vuoto rispetto a `edb8335`; la sezione «## Soglie (scritte PRIMA della misura)» di `RISULTATI.md` è identica fra `edb8335` e HEAD (estratta fra il suo titolo e il titolo successivo); la sezione «Esito» dei Task 1-2 non è riscritta, si aggiunge soltanto la nuova sezione. `spikes/.env.example` e `$CKA_SPIKES_ENV` restano invariati come in TEST-22 (3). Il verify del piano non copre la sezione Soglie, solo i CSV: questo test la aggiunge.
+
+**TEST-27 — Contenuto di `llm-simple-sonnet.csv`.** Header identico a quello di `llm.csv` (17 colonne, stringa del verify). Join con `queries.json` per `query_id`: ogni riga ha `model` Sonnet (identificativo di `hw.json` `tools.llm_complex`), `complexity = simple` e `no_answer = false`; `complexity_label` coincide con l'oracolo; l'insieme dei `query_id` coincide con quello delle righe Haiku di `llm.csv` con le stesse caratteristiche (nessuna query mancante o in più); `rep` ∈ {2, 3}, nessuna `rep = 1`; nessun duplicato `(query_id, rep)`; `awk -F, 'NR>1 && $17!=0' spikes/s06-llm/results/llm-simple-sonnet.csv` non stampa nulla (hard gate). Un CSV con la sola intestazione fallisce il test: misura non fatta.
+
+**TEST-28 — Tasso ricalcolato sullo stesso insieme.** Lo script di TEST-23 si estende (o se ne affianca uno), in sola lettura: calcola il tasso Haiku sulle `simple` non `no_answer` da `llm.csv` e il tasso Sonnet da `llm-simple-sonnet.csv`, entrambi su rep 2..3 con `json_valid = true` come somma di `claims_supported` / somma di `claims_n`, sull'intersezione dei `query_id`. I valori in RISULTATI «Misura supplementare (D-32)» coincidono con quelli ricalcolati (4 decimali). Il tasso di Haiku coincide con 0,7241 di CONTEXT D-32: uno scarto indica un insieme diverso da quello di D-31. La variante «escludendo i claim senza citazioni» è etichettata nella sezione come diagnostica e non compare nell'«Esito»; il numero informativo della regola originaria (Haiku entro 0,05 da Sonnet sulle `simple`) coincide con la differenza ricalcolata. Fixture: (i) due CSV con gli stessi insiemi, tassi attesi; (ii) Sonnet con una query in più, esclusa o errore, mai inclusa in silenzio; (iii) riga `json_valid = false` o `rep = 1`, esclusa; (iv) nessun claim su un insieme, divisione per zero segnalata, mai 0 o 1.
+
+**TEST-29 — Spesa totale.** Dal registro `spikes/s06-llm/results/raw/spend.json`: la spesa finale è ≤ 2,00 USD; la differenza fra spesa finale e iniziale coincide, entro l'arrotondamento, con la somma di `cost_usd` di `llm-simple-sonnet.csv` più gli scarti dichiarati. RISULTATI riporta la stima prima della misura e la spesa dopo, e la stima era ≤ residuo. Se `raw/` non è tracciato, il controllo usa i valori riportati in RISULTATI e la somma dei CSV, e lo dichiara.
+
+**TEST-30 — Nessuna scelta.** Grep sulla sezione «Misura supplementare (D-32)» e sull'«Esito»: nessuna frase che assegni un modello alle `simple` («si usa Haiku», «Sonnet per le simple», «scelto»); l'«Esito» contiene una formula equivalente a «la scelta per le simple resta all'utente». In ADR-0011 la riga di stato resta `Proposed` (come a `edb8335`), non compare `Accepted`, la decisione per le `simple` è marcata aperta e la sezione Evidenze cita la nuova misura. Il rapporto dell'esecutore chiede la scelta all'utente.
+
+### Copertura del Task 3
+
+RISK-15 da TEST-26. RISK-16 da TEST-24 e 27 (più TEST-20 su `llm.csv`). RISK-17 da TEST-25 e 29 (e TEST-22 per il valore del tetto). RISK-18 da TEST-30. RISK-19 da TEST-28. RISK-1 esteso al nuovo CSV da TEST-27. Tutti i HIGH e il CRITICAL hanno un test; `uncovered` resta vuoto. Punti che l'esecutore deve fissare in RISULTATI prima della misura, perché i test li assumono: formato del registro `spend.json` (TEST-25, 29) e scarto della ripetizione 1 senza scriverla nel CSV (come per D-31). Il Task 3 non dichiara una soglia di pass/fail sul tasso di Sonnet: non esiste un test sulla qualità del modello, solo sulla correttezza della misura. È voluto: la qualità la giudica l'utente.
+
 **Modifica:** Claude (test designer, Anthropic) · 2026-10-18 · test design 01-12
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · reviewed_plan.sha256 aggiornato da 578ebb4592dc… a 6a057b3aa9a3… per la revisione del piano: key_link allineato agli id c01..c08 dell'action. Il design non è stato rigenerato: va riletto contro la revisione.
@@ -156,3 +207,4 @@ Dopo D-31 si aggiungono RISK-13 (HIGH) e RISK-14 (MEDIUM). RISK-13 è HIGH perch
 
 **Modifica:** Claude (test designer) · 2026-10-22 · allineamento al piano 01-12 v2 (D-31): reviewed_plan.sha256 da b5dbcb5c4600… a b56cb92805f7…; TEST-5, 6, 14, 16, 17, 19 aggiornati; nuovi RISK-13, RISK-14 e TEST-20..23 (matrice, fallback_ids, stop sul budget, regola di routing)
 **Modifica:** Claude (Anthropic) · 2026-10-22 · reviewed_plan.sha256 a 68fc315e5a6e… dopo la chiusura nel PLAN dei dubbi 1, 2, 3 e 6 (definizione di «entro 0,05», tasso aggregato, no_answer escluse da (a), sottocomando `select`, ripetizione scartata fuori dal CSV)
+**Modifica:** Claude (test designer) · 2026-10-22 · Task 3 del piano 01-12 v3 (D-32)
