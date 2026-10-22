@@ -1,25 +1,255 @@
 //! Sottocomando `pdf` del bin `extract`: figlio di `op: extract_pdf` (piano 01-08).
 //!
-//! STUB di `test-write`. Contratto fissato dai test:
+//! Gira solo come figlio isolato lanciato da `parse-parent` con l'argv costruito da
+//! `job::resolve` di 01-07. Contratto:
 //! - `check_pdf(&bytes, caps)` prima di PDFium; un rifiuto è `failed`/`quarantined` e non
 //!   scrive nulla in `out` (PDFium mai legato in quei casi);
-//! - con `Ok(_)`: un JSON per pagina in `out` (`*.json`) con `page` (1-based), `width`,
-//!   `height`, `rotation` (gradi), `chars` e `words`, ciascuno `{"text": …, "bbox": [x0, y0,
-//!   x1, y1]}` in punti PDF, origine in basso a sinistra; esito `ok` con `pages`,
-//!   `output` = `out` e `data` con i conteggi `chars` e `words`.
+//! - con `Ok(_)`: un JSON per pagina in `out` (`page-NNNN.json`) con `page` (1-based),
+//!   `width`, `height` (pagina ruotata), `rotation` (gradi), `media_box`, `crop_box`,
+//!   `crop_differs`, `text` (testo di PDFium), `chars`, `words` e `lines`, ciascuno
+//!   `{"text": …, "bbox": [x0, y0, x1, y1]}` in punti PDF, origine in basso a sinistra, nello
+//!   spazio della pagina dopo `/Rotate`; esito `ok` con `pages`, `output` = `out` e `data` con
+//!   i conteggi `chars` e `words`, `vm_peak_kb`/`vm_hwm_kb` per `calibrate` e i campi del
+//!   rapporto di prescan.
+use std::io::Write as _;
 use std::path::Path;
+use std::time::Instant;
 
-use s02_parser::prescan::Caps;
-use s02_parser::protocol::ChildOutcome;
+use pdfium_render::prelude::{
+    PdfPageRenderRotation, PdfRect, Pdfium, PdfiumError, PdfiumInternalError,
+};
+use s02_parser::prescan::{self, Caps, PrescanReport, Rejection};
+use s02_parser::protocol::{ChildOutcome, Kind, vm_hwm_kb, vm_peak_kb};
+use serde_json::{Value, json};
+
+/// Cifre decimali dei bbox nel JSON di pagina (0,01 pt).
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
+fn rejection(r: Rejection) -> ChildOutcome {
+    match r {
+        Rejection::Failed(kind, detail) => ChildOutcome::Failed { kind, detail },
+        Rejection::Quarantined(reasons) => ChildOutcome::Quarantined { reasons },
+    }
+}
+
+/// Campi del rapporto di prescan in `data` (come `parse-child`), letti da `calibrate`.
+fn stats(r: &PrescanReport) -> Value {
+    json!({
+        "encryption": r.encryption.as_str(),
+        "embedded_files": r.embedded_files,
+        "objstm_count": r.objstm_count,
+        "objstm_decompressed_bytes": r.objstm_decompressed_bytes,
+        "xref_streams": r.xref_streams,
+        "decompress_work_bytes": r.decompress_work_bytes,
+        "max_flate_ratio": r.max_flate_ratio,
+        "max_stream_bytes": r.max_stream_bytes,
+        "total_decompressed_bytes": r.total_decompressed_bytes,
+        "entries": r.entries,
+    })
+}
+
+/// Trasformazione dallo spazio utente allo spazio della pagina ruotata (Contratti).
+#[derive(Debug, Clone, Copy)]
+struct Frame {
+    media: [f64; 4],
+    rotation: u32,
+}
+
+impl Frame {
+    fn point(&self, x: f64, y: f64) -> (f64, f64) {
+        let [x0, y0, x1, y1] = self.media;
+        match self.rotation {
+            90 => (y - y0, x1 - x),
+            180 => (x1 - x, y1 - y),
+            270 => (y1 - y, x - x0),
+            _ => (x - x0, y - y0),
+        }
+    }
+
+    fn rect(&self, r: &PdfRect) -> [f64; 4] {
+        let (ax, ay) = self.point(r.left().value as f64, r.bottom().value as f64);
+        let (bx, by) = self.point(r.right().value as f64, r.top().value as f64);
+        [
+            round2(ax.min(bx)),
+            round2(ay.min(by)),
+            round2(ax.max(bx)),
+            round2(ay.max(by)),
+        ]
+    }
+}
+
+fn rect4(r: &PdfRect) -> [f64; 4] {
+    [
+        r.left().value as f64,
+        r.bottom().value as f64,
+        r.right().value as f64,
+        r.top().value as f64,
+    ]
+}
+
+fn unite(acc: &mut Option<[f64; 4]>, b: [f64; 4]) {
+    *acc = Some(match *acc {
+        None => b,
+        Some(a) => [
+            a[0].min(b[0]),
+            a[1].min(b[1]),
+            a[2].max(b[2]),
+            a[3].max(b[3]),
+        ],
+    });
+}
+
+/// Accumulatore di una sequenza di caratteri (parola o riga).
+#[derive(Default)]
+struct Run {
+    text: String,
+    bbox: Option<[f64; 4]>,
+}
+
+impl Run {
+    fn push(&mut self, s: &str, b: Option<[f64; 4]>) {
+        self.text.push_str(s);
+        if let Some(b) = b {
+            unite(&mut self.bbox, b);
+        }
+    }
+
+    /// Chiude la sequenza in `out` (solo se ha testo non bianco e un bbox).
+    fn flush(&mut self, out: &mut Vec<Value>) {
+        let r = std::mem::take(self);
+        let text = r.text.trim();
+        if let (false, Some(b)) = (text.is_empty(), r.bbox) {
+            out.push(json!({"text": text, "bbox": b}));
+        }
+    }
+}
+
+fn page_json(page: &pdfium_render::prelude::PdfPage, number: u32) -> Result<Value, ChildOutcome> {
+    let corrupt = |what: &str, e: PdfiumError| {
+        ChildOutcome::failed(Kind::Corrupt, format!("pdfium_{what}: {e}"))
+    };
+    let rotation = match page.rotation().map_err(|e| corrupt("rotation", e))? {
+        PdfPageRenderRotation::None => 0,
+        PdfPageRenderRotation::Degrees90 => 90,
+        PdfPageRenderRotation::Degrees180 => 180,
+        PdfPageRenderRotation::Degrees270 => 270,
+    };
+    let media = page
+        .boundaries()
+        .media()
+        .map(|b| rect4(&b.bounds))
+        .unwrap_or([
+            0.0,
+            0.0,
+            page.width().value as f64,
+            page.height().value as f64,
+        ]);
+    let crop = page.boundaries().crop().map(|b| rect4(&b.bounds)).ok();
+    let crop_differs = crop.is_some_and(|c| c.iter().zip(media).any(|(a, b)| (a - b).abs() > 0.01));
+    let frame = Frame { media, rotation };
+    let text = page.text().map_err(|e| corrupt("text", e))?;
+    let all = text.all();
+
+    let mut chars = Vec::new();
+    let mut words = Vec::new();
+    let mut lines = Vec::new();
+    let (mut word, mut line) = (Run::default(), Run::default());
+    for ch in text.chars().iter() {
+        let s = ch.unicode_string().unwrap_or_default();
+        if s == "\r" || s == "\n" {
+            word.flush(&mut words);
+            line.flush(&mut lines);
+            continue;
+        }
+        if s.chars().all(char::is_whitespace) {
+            word.flush(&mut words);
+            line.push(" ", None);
+            continue;
+        }
+        let b = ch.loose_bounds().ok().map(|r| frame.rect(&r));
+        if let Some(b) = b {
+            chars.push(json!({"text": s, "bbox": b}));
+        }
+        word.push(&s, b);
+        line.push(&s, b);
+    }
+    word.flush(&mut words);
+    line.flush(&mut lines);
+
+    Ok(json!({
+        "page": number,
+        "width": round2(page.width().value as f64),
+        "height": round2(page.height().value as f64),
+        "rotation": rotation,
+        "media_box": media,
+        "crop_box": crop,
+        "crop_differs": crop_differs,
+        "text": all,
+        "chars": chars,
+        "words": words,
+        "lines": lines,
+    }))
+}
 
 /// Estrazione di testo e bbox di `input` in `out` (già creata dal padre).
-pub(crate) fn run_pdf(
-    _input: &Path,
-    _out: &Path,
-    _caps: &Caps,
-    _pdfium_dir: &Path,
-) -> ChildOutcome {
-    todo!("01-08: prescan + PDFium per pagina")
+pub(crate) fn run_pdf(input: &Path, out: &Path, caps: &Caps, pdfium_dir: &Path) -> ChildOutcome {
+    let t0 = Instant::now();
+    let bytes = match std::fs::read(input) {
+        Ok(b) => b,
+        Err(e) => return ChildOutcome::failed(Kind::Corrupt, format!("read: {e}")),
+    };
+    // Prescan prima di qualunque contatto con PDFium: un rifiuto non scrive nulla.
+    let report = match prescan::check_pdf(&bytes, caps) {
+        Ok(r) => r,
+        Err(r) => return rejection(r),
+    };
+    let bindings =
+        match Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(pdfium_dir)) {
+            Ok(b) => b,
+            Err(e) => return ChildOutcome::failed(Kind::Crashed, format!("pdfium_bind: {e}")),
+        };
+    let pdfium = Pdfium::new(bindings);
+    let doc = match pdfium.load_pdf_from_byte_slice(&bytes, None) {
+        Ok(d) => d,
+        Err(PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError)) => {
+            return ChildOutcome::failed(Kind::Encrypted, "pdfium_password");
+        }
+        Err(e) => return ChildOutcome::failed(Kind::Corrupt, format!("pdfium_load: {e}")),
+    };
+    let (mut pages, mut n_chars, mut n_words) = (0u64, 0u64, 0u64);
+    for (i, page) in doc.pages().iter().enumerate() {
+        let number = i as u32 + 1;
+        let v = match page_json(&page, number) {
+            Ok(v) => v,
+            Err(o) => return o,
+        };
+        n_chars += v["chars"].as_array().map_or(0, Vec::len) as u64;
+        n_words += v["words"].as_array().map_or(0, Vec::len) as u64;
+        let path = out.join(format!("page-{number:04}.json"));
+        let written = std::fs::File::create(&path).and_then(|mut f| {
+            serde_json::to_writer(&mut f, &v)?;
+            f.flush()
+        });
+        if let Err(e) = written {
+            return ChildOutcome::failed(Kind::ResourceLimit, format!("write: {e}"));
+        }
+        pages += 1;
+    }
+    let mut data = stats(&report);
+    data["format"] = json!("pdf");
+    data["pages"] = json!(pages);
+    data["chars"] = json!(n_chars);
+    data["words"] = json!(n_words);
+    data["parse_ms"] = json!(t0.elapsed().as_millis() as u64);
+    data["vm_peak_kb"] = json!(vm_peak_kb());
+    data["vm_hwm_kb"] = json!(vm_hwm_kb());
+    ChildOutcome::Ok {
+        pages: Some(pages),
+        output: Some(out.to_string_lossy().into_owned()),
+        data: Some(data),
+    }
 }
 
 #[cfg(test)]
