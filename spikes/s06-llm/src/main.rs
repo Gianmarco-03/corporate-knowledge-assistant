@@ -212,7 +212,6 @@ pub fn sonnet_jobs(queries: &[OracleQuery], ids: &[String]) -> Vec<String> {
 }
 
 /// Record di `llm-simple-sonnet.csv` previsto da `generate-simple-sonnet` (D-32).
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimpleSonnetRecord {
     pub model: String,
@@ -222,22 +221,35 @@ pub struct SimpleSonnetRecord {
 
 /// Query di `ids` su cui gira `generate-simple-sonnet` (D-32): solo le
 /// `simple` senza `no_answer`, le stesse di Haiku in `llm.csv`. Ordine di `ids`.
-#[allow(dead_code)]
 pub fn simple_sonnet_jobs(queries: &[OracleQuery], ids: &[String]) -> Vec<String> {
-    let _ = (queries, ids);
-    todo!("Task 3 (D-32): selezione delle simple non no_answer")
+    ids.iter()
+        .filter(|id| {
+            queries
+                .iter()
+                .any(|q| &q.oracle_id == *id && q.complexity == "simple" && !q.no_answer)
+        })
+        .cloned()
+        .collect()
 }
 
 /// Record scritti da `generate-simple-sonnet`: modello Sonnet, ripetizioni 2..=3
 /// (la 1 è lo scarto e non entra nel CSV), per ogni query di `simple_sonnet_jobs`.
-#[allow(dead_code)]
+/// Ordine di scrittura: ripetizione, poi query nell'ordine di `ids`.
 pub fn simple_sonnet_records(
     queries: &[OracleQuery],
     ids: &[String],
     sonnet_model: &str,
 ) -> Vec<SimpleSonnetRecord> {
-    let _ = (queries, ids, sonnet_model);
-    todo!("Task 3 (D-32): record di Sonnet sulle simple, ripetizioni 2-3")
+    let jobs = simple_sonnet_jobs(queries, ids);
+    (2..=REPS)
+        .flat_map(|rep| {
+            jobs.iter().map(move |id| SimpleSonnetRecord {
+                model: sonnet_model.to_owned(),
+                query_id: id.clone(),
+                rep,
+            })
+        })
+        .collect()
 }
 
 /// Tasso aggregato sui claim; `None` con denominatore nullo.
@@ -542,8 +554,14 @@ enum Cmd {
     Fallback,
     /// `injection.csv`: passaggi ostili di syn-07 e syn-08 nel contesto.
     Injection,
-    /// Tabelle di RISULTATI e regola di routing ricalcolate dai CSV.
+    /// Tabelle di RISULTATI e regola di routing ricalcolate dai CSV; con
+    /// `llm-simple-sonnet.csv` anche il confronto supplementare di D-32.
     Report,
+    /// Stima della misura supplementare di D-32, senza richieste.
+    EstimateSimpleSonnet,
+    /// `llm-simple-sonnet.csv` (D-32): Sonnet sulle sole `simple` senza
+    /// `no_answer`; stima sul residuo di `spend.json` prima di ogni richiesta.
+    GenerateSimpleSonnet,
 }
 
 /// Ripetizioni per query; la prima è scartata.
@@ -616,23 +634,52 @@ fn write_ledger(raw: &Path, spent_usd: f64) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Lettura stretta del registro per D-32: `raw/spend.json` deve esistere ed
+/// essere `{"spent_usd": <numero finito ≥ 0>}`. A differenza di `read_ledger`,
+/// un registro assente è un errore: mai residuo = tetto per default.
+fn read_ledger_strict(raw: &Path) -> anyhow::Result<f64> {
+    let p = raw.join("spend.json");
+    let text = std::fs::read_to_string(&p).with_context(|| {
+        format!(
+            "registro spend.json assente o illeggibile ({}): senza la spesa registrata              il residuo non è calcolabile",
+            p.display()
+        )
+    })?;
+    let l: SpendLedger = serde_json::from_str(&text).context("registro spend.json non valido")?;
+    if !(l.spent_usd.is_finite() && l.spent_usd >= 0.0) {
+        bail!("registro spend.json con spesa non valida");
+    }
+    Ok(l.spent_usd)
+}
+
 /// Residuo per `generate-simple-sonnet` (D-32): `cap_raw` validato come
 /// `S06_MAX_COST_USD` (solo 2 USD), residuo = tetto − spesa del registro
 /// `raw/spend.json`. Errore, prima di ogni richiesta (warm-up compreso), se il
 /// registro manca o è illeggibile (mai residuo = tetto per default), se la
 /// spesa registrata è ≥ tetto o se la stima supera il residuo.
-#[allow(dead_code)]
 pub fn simple_sonnet_residual(raw: &Path, cap_raw: &str, estimate_usd: f64) -> anyhow::Result<f64> {
-    let _ = (raw, cap_raw, estimate_usd);
-    todo!("Task 3 (D-32): stima sul residuo del registro spend.json")
+    let cap = anthropic::check_budget_cap(cap_raw)?;
+    let spent = read_ledger_strict(raw)?;
+    let residual = cap - spent;
+    if residual <= 0.0 {
+        bail!(
+            "tetto S06_MAX_COST_USD esaurito: spesa registrata in spend.json {spent:.4} USD              su {cap:.2}; nessuna richiesta"
+        );
+    }
+    anthropic::ensure_estimate_within_cap(estimate_usd, residual)
+        .context("stima oltre il residuo del registro spend.json")?;
+    Ok(residual)
 }
 
 /// Somma `delta_usd` alla spesa di `raw/spend.json` senza sovrascriverla;
 /// restituisce il nuovo totale. Registro assente o illeggibile → errore.
-#[allow(dead_code)]
 pub fn add_to_ledger(raw: &Path, delta_usd: f64) -> anyhow::Result<f64> {
-    let _ = (raw, delta_usd);
-    todo!("Task 3 (D-32): spesa del Task 3 sommata al registro")
+    if !(delta_usd.is_finite() && delta_usd >= 0.0) {
+        bail!("spesa da registrare non valida: {delta_usd}");
+    }
+    let total = read_ledger_strict(raw)? + delta_usd;
+    write_ledger(raw, total)?;
+    Ok(total)
 }
 
 fn jev_config(base_url: String) -> anyhow::Result<jev::ClientConfig> {
@@ -834,6 +881,89 @@ fn log_raw(
     Ok(())
 }
 
+/// Esito di una richiesta fallita senza risposta (rete, HTTP, schema): riga
+/// con `json_valid = false` e costo nullo.
+fn failed_outcome(e: &anthropic::AnthropicError) -> Outcome {
+    Outcome {
+        latency_ms: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        stop_reason: e.label(),
+        json_valid: false,
+        claims_n: 0,
+        claims_unknown_id: 0,
+        claims_supported: 0,
+        refusal_present: false,
+        cost_usd: 0.0,
+        unauthorized_in_prompt: 0,
+        status: Status::Refused,
+        model_resolved: None,
+        visible_text: String::new(),
+        unknown_ids_after_mapping: 0,
+        raw_text: None,
+    }
+}
+
+/// Riga di `llm.csv` (o di `llm-simple-sonnet.csv`, stesso header).
+fn write_llm_row(
+    csv: &mut common::csv::Writer,
+    model: &str,
+    id: &str,
+    rep: u32,
+    q: &OracleQuery,
+    out: &Outcome,
+) -> anyhow::Result<()> {
+    csv.write_row(&[
+        model,
+        "low",
+        id,
+        &rep.to_string(),
+        &q.complexity,
+        &out.latency_ms.to_string(),
+        &out.input_tokens.to_string(),
+        &out.output_tokens.to_string(),
+        &out.stop_reason,
+        b(out.json_valid),
+        &out.claims_n.to_string(),
+        &out.claims_unknown_id.to_string(),
+        &out.claims_supported.to_string(),
+        b(out.refusal_present),
+        &expected_field(q, out),
+        &format!("{:.6}", out.cost_usd),
+        &out.unauthorized_in_prompt.to_string(),
+    ])
+}
+
+/// Una generazione completa per `(model, query)`: `answer` con il contesto
+/// autorizzato della query; un errore di budget ferma la sessione, gli altri
+/// errori diventano una riga non valida.
+async fn generate_one(
+    s: &Session,
+    model: &str,
+    q: &OracleQuery,
+    rep: u32,
+) -> anyhow::Result<Outcome> {
+    let passages = context::passages_for(q, &s.pool, &s.acl);
+    match answer(
+        &s.llm,
+        model,
+        &s.jev,
+        &s.acl,
+        &q.role_profile,
+        &q.text,
+        &passages,
+    )
+    .await
+    {
+        Ok(o) => Ok(o),
+        Err(e @ anthropic::AnthropicError::BudgetExceeded { .. }) => Err(e.into()),
+        Err(e) => {
+            eprintln!("{model} {} rep {rep}: {e}", q.oracle_id);
+            Ok(failed_outcome(&e))
+        }
+    }
+}
+
 async fn generate(s: &Session, which: ModelArg) -> anyhow::Result<()> {
     let mut csv = common::csv::Writer::create(&s.paths.results.join("llm.csv"), &LLM_HEADER)?;
     let mut raw = s.raw_log("generate.jsonl")?;
@@ -841,66 +971,16 @@ async fn generate(s: &Session, which: ModelArg) -> anyhow::Result<()> {
     for rep in 1..=REPS {
         for (model, id) in &jobs {
             let q = s.query(id)?;
-            let passages = context::passages_for(q, &s.pool, &s.acl);
-            let res = answer(
-                &s.llm,
-                model,
-                &s.jev,
-                &s.acl,
-                &q.role_profile,
-                &q.text,
-                &passages,
-            )
-            .await;
-            let out = match res {
+            let out = match generate_one(s, model, q, rep).await {
                 Ok(o) => o,
-                Err(e @ anthropic::AnthropicError::BudgetExceeded { .. }) => {
-                    s.checkpoint()?;
-                    return Err(e.into());
-                }
                 Err(e) => {
-                    eprintln!("{model} {id} rep {rep}: {e}");
-                    Outcome {
-                        latency_ms: 0,
-                        input_tokens: 0,
-                        output_tokens: 0,
-                        stop_reason: e.label(),
-                        json_valid: false,
-                        claims_n: 0,
-                        claims_unknown_id: 0,
-                        claims_supported: 0,
-                        refusal_present: false,
-                        cost_usd: 0.0,
-                        unauthorized_in_prompt: 0,
-                        status: Status::Refused,
-                        model_resolved: None,
-                        visible_text: String::new(),
-                        unknown_ids_after_mapping: 0,
-                        raw_text: None,
-                    }
+                    s.checkpoint()?;
+                    return Err(e);
                 }
             };
             log_raw(&mut raw, "generate", model, id, rep, &out)?;
             if rep >= 2 {
-                csv.write_row(&[
-                    model,
-                    "low",
-                    id,
-                    &rep.to_string(),
-                    &q.complexity,
-                    &out.latency_ms.to_string(),
-                    &out.input_tokens.to_string(),
-                    &out.output_tokens.to_string(),
-                    &out.stop_reason,
-                    b(out.json_valid),
-                    &out.claims_n.to_string(),
-                    &out.claims_unknown_id.to_string(),
-                    &out.claims_supported.to_string(),
-                    b(out.refusal_present),
-                    &expected_field(q, &out),
-                    &format!("{:.6}", out.cost_usd),
-                    &out.unauthorized_in_prompt.to_string(),
-                ])?;
+                write_llm_row(&mut csv, model, id, rep, q, &out)?;
             }
             s.checkpoint()?;
         }
@@ -908,6 +988,90 @@ async fn generate(s: &Session, which: ModelArg) -> anyhow::Result<()> {
             "generate: ripetizione {rep} completata, spesa {:.4} USD",
             s.spent()
         );
+    }
+    Ok(())
+}
+
+/// Spesa della sessione D-32 non ancora sommata al registro: la somma con
+/// `add_to_ledger` (mai una riscrittura del totale) e ferma oltre il tetto.
+fn record_spend(s: &Session, recorded: &mut f64) -> anyhow::Result<f64> {
+    let session = s.llm.spent_usd() + s.jev.spent_usd();
+    let total = add_to_ledger(&s.paths.raw, session - *recorded)?;
+    *recorded = session;
+    if total >= s.cap_usd {
+        bail!(
+            "tetto di spesa raggiunto: {total:.4} USD su {:.2}; sessione fermata",
+            s.cap_usd
+        );
+    }
+    Ok(total)
+}
+
+/// `llm-simple-sonnet.csv` (D-32): Sonnet sulle sole `simple` senza
+/// `no_answer` della selezione, stesse query di Haiku in `llm.csv`; warm-up di
+/// Sonnet, 3 ripetizioni con la prima scartata, stessi contesto, schema,
+/// `effort`, validazione e conteggio JEV di `generate`. `llm.csv` non si tocca.
+async fn generate_simple_sonnet(s: &Session) -> anyhow::Result<()> {
+    let jobs = simple_sonnet_jobs(&s.pool, &s.selection.ids);
+    if jobs.is_empty() {
+        bail!("nessuna query simple senza no_answer nella selezione: nessuna richiesta");
+    }
+    let expected = simple_sonnet_records(&s.pool, &s.selection.ids, &s.model_complex);
+    let mut recorded = 0.0;
+    // Warm-up dello schema per Sonnet sulla prima query dei job (scartato).
+    {
+        let q = s.query(&jobs[0])?;
+        let passages = context::passages_for(q, &s.pool, &s.acl);
+        let ctx = context::build(&s.acl, &q.text, &q.role_profile, &passages)?;
+        let r = s
+            .llm
+            .generate(&s.model_complex, &ctx.system, &ctx.user)
+            .await?;
+        eprintln!(
+            "warm-up {}: {} ms, stop_reason {}, {:.6} USD",
+            s.model_complex, r.latency_ms, r.extracted.stop_reason, r.cost_usd
+        );
+        record_spend(s, &mut recorded)?;
+    }
+    let mut csv =
+        common::csv::Writer::create(&s.paths.results.join("llm-simple-sonnet.csv"), &LLM_HEADER)?;
+    let mut raw = s.raw_log("generate-simple-sonnet.jsonl")?;
+    let mut written = Vec::with_capacity(expected.len());
+    for rep in 1..=REPS {
+        for id in &jobs {
+            let q = s.query(id)?;
+            let out = match generate_one(s, &s.model_complex, q, rep).await {
+                Ok(o) => o,
+                Err(e) => {
+                    record_spend(s, &mut recorded)?;
+                    return Err(e);
+                }
+            };
+            log_raw(
+                &mut raw,
+                "generate-simple-sonnet",
+                &s.model_complex,
+                id,
+                rep,
+                &out,
+            )?;
+            if rep >= 2 {
+                write_llm_row(&mut csv, &s.model_complex, id, rep, q, &out)?;
+                written.push(SimpleSonnetRecord {
+                    model: s.model_complex.clone(),
+                    query_id: id.clone(),
+                    rep,
+                });
+            }
+            record_spend(s, &mut recorded)?;
+        }
+        eprintln!(
+            "generate-simple-sonnet: ripetizione {rep} completata, spesa della sessione {:.4} USD",
+            recorded
+        );
+    }
+    if written != expected {
+        bail!("righe scritte diverse dai record previsti da simple_sonnet_records");
     }
     Ok(())
 }
@@ -1227,6 +1391,52 @@ fn estimate(spikes: &Path) -> anyhow::Result<(f64, Vec<anthropic::ModelCalls>)> 
     Ok((anthropic::estimate_usd(&calls)?, calls))
 }
 
+/// Stima della misura supplementare di D-32 dai prompt reali delle query di
+/// `simple_sonnet_jobs`, con le stesse assunzioni di `estimate` (token ≈
+/// caratteri / 3 + 1.000; 1.000 token di output): warm-up + job × 3.
+fn estimate_simple_sonnet(spikes: &Path) -> anyhow::Result<(f64, anthropic::ModelCalls)> {
+    let paths = Paths::new(spikes);
+    let acl = Acl::load(&paths.corpus)?;
+    let pool = load_pool(&paths)?;
+    let sel = load_selection(&paths)?;
+    let complex = std::env::var("LLM_MODEL_COMPLEX").unwrap_or_else(|_| "claude-sonnet-5-5".into());
+    let jobs = simple_sonnet_jobs(&pool, &sel.ids);
+    if jobs.is_empty() {
+        bail!("nessuna query simple senza no_answer nella selezione");
+    }
+    let mut chars_total = 0u64;
+    for id in &jobs {
+        let q = pool
+            .iter()
+            .find(|q| &q.oracle_id == id)
+            .context("id assente")?;
+        let ctx = context::build(
+            &acl,
+            &q.text,
+            &q.role_profile,
+            &context::passages_for(q, &pool, &acl),
+        )?;
+        chars_total += (ctx.system.chars().count() + ctx.user.chars().count()) as u64;
+    }
+    let calls = anthropic::ModelCalls {
+        model: complex,
+        calls: 1 + jobs.len() as u64 * u64::from(REPS),
+        avg_input_tokens: chars_total / jobs.len() as u64 / 3 + EST_INPUT_OVERHEAD,
+        avg_output_tokens: EST_OUTPUT_TOKENS,
+    };
+    let usd = anthropic::estimate_usd(std::slice::from_ref(&calls))?;
+    Ok((usd, calls))
+}
+
+fn print_estimate_simple_sonnet(spikes: &Path) -> anyhow::Result<f64> {
+    let (usd, c) = estimate_simple_sonnet(spikes)?;
+    println!(
+        "{}: {} chiamate × ({} in, {} out) = {usd:.4} USD",
+        c.model, c.calls, c.avg_input_tokens, c.avg_output_tokens
+    );
+    Ok(usd)
+}
+
 fn print_estimate(spikes: &Path) -> anyhow::Result<f64> {
     let (usd, calls) = estimate(spikes)?;
     for c in &calls {
@@ -1270,6 +1480,164 @@ fn p95_ms(values: &[u64]) -> Option<f64> {
         rec.record_us(v * 1000);
     }
     Some(rec.summary().p95_us as f64 / 1000.0)
+}
+
+fn p50_ms(values: &[u64]) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+    let mut rec = common::hist::Recorder::new();
+    for v in values {
+        rec.record_us(v * 1000);
+    }
+    Some(rec.summary().p50_us as f64 / 1000.0)
+}
+
+/// Claim senza citazioni per `(model, query_id, rep)` dal registro grezzo
+/// (`raw/*.jsonl`, testo di ogni risposta): serve solo alla variante
+/// diagnostica di D-32, che il CSV non può ricostruire.
+fn empty_citation_claims(path: &Path) -> anyhow::Result<BTreeMap<(String, String, u32), u64>> {
+    let mut out = BTreeMap::new();
+    let text = std::fs::read_to_string(path).with_context(|| format!("{}", path.display()))?;
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        let v: serde_json::Value = serde_json::from_str(line)?;
+        let Some(t) = v["text"].as_str() else {
+            continue;
+        };
+        let Ok(a) = validate::parse_answer(t) else {
+            continue;
+        };
+        let key = (
+            v["model"].as_str().unwrap_or_default().to_owned(),
+            v["query_id"].as_str().unwrap_or_default().to_owned(),
+            v["rep"].as_u64().unwrap_or_default() as u32,
+        );
+        let n = a.claims.iter().filter(|c| c.citations.is_empty()).count() as u64;
+        out.insert(key, n);
+    }
+    Ok(out)
+}
+
+fn fmt_rate(r: Option<f64>) -> String {
+    r.map_or_else(|| "denominatore nullo".to_owned(), |v| format!("{v:.4}"))
+}
+
+/// Confronto supplementare di D-32: Haiku (`llm.csv`) e Sonnet
+/// (`llm-simple-sonnet.csv`) sulle `simple` senza `no_answer`, sull'intersezione
+/// dei `query_id`, con lo stesso calcolo di D-31 (`claim_rate` su rep 2..3 con
+/// `json_valid`). Query presenti in un solo file: segnalate ed escluse.
+fn report_simple_sonnet(
+    paths: &Paths,
+    pool: &[OracleQuery],
+    llm: &[BTreeMap<String, String>],
+    simple_model: &str,
+) -> anyhow::Result<()> {
+    let sonnet = read_csv(&paths.results.join("llm-simple-sonnet.csv"))?;
+    let oracle = |id: &str| pool.iter().find(|q| q.oracle_id == id);
+    let is_simple = |id: &str| oracle(id).is_some_and(|q| q.complexity == "simple" && !q.no_answer);
+    let haiku: Vec<&BTreeMap<String, String>> = llm
+        .iter()
+        .filter(|r| r["model"] == simple_model && is_simple(&r["query_id"]))
+        .collect();
+    for r in &sonnet {
+        if !is_simple(&r["query_id"]) {
+            bail!(
+                "llm-simple-sonnet.csv: {} non è una simple senza no_answer",
+                r["query_id"]
+            );
+        }
+    }
+    let ids = |rows: &[&BTreeMap<String, String>]| -> BTreeSet<String> {
+        rows.iter().map(|r| r["query_id"].clone()).collect()
+    };
+    let sonnet_refs: Vec<&BTreeMap<String, String>> = sonnet.iter().collect();
+    let (h_ids, s_ids) = (ids(&haiku), ids(&sonnet_refs));
+    for id in h_ids.symmetric_difference(&s_ids) {
+        println!("  ATTENZIONE: {id} in un solo file, escluso dal confronto");
+    }
+    let common: BTreeSet<String> = h_ids.intersection(&s_ids).cloned().collect();
+    let raw_h = empty_citation_claims(&paths.raw.join("generate.jsonl")).unwrap_or_default();
+    let raw_s =
+        empty_citation_claims(&paths.raw.join("generate-simple-sonnet.jsonl")).unwrap_or_default();
+    println!(
+        "misura supplementare (D-32), {} query simple in comune:",
+        common.len()
+    );
+    for (name, rows, raw) in [("Haiku", &haiku, &raw_h), ("Sonnet", &sonnet_refs, &raw_s)] {
+        let sel: Vec<&&BTreeMap<String, String>> = rows
+            .iter()
+            .filter(|r| common.contains(&r["query_id"]))
+            .collect();
+        let rule: Vec<RuleRow> = sel
+            .iter()
+            .map(|r| -> anyhow::Result<RuleRow> {
+                Ok(RuleRow {
+                    model: if name == "Haiku" {
+                        Model::Haiku
+                    } else {
+                        Model::Sonnet
+                    },
+                    query_id: r["query_id"].clone(),
+                    rep: r["rep"].parse()?,
+                    label: jev::Complexity::Simple,
+                    no_answer: false,
+                    json_valid: r["json_valid"] == "true",
+                    claims_n: r["claims_n"].parse()?,
+                    claims_supported: r["claims_supported"].parse()?,
+                })
+            })
+            .collect::<anyhow::Result<_>>()?;
+        let used: Vec<&RuleRow> = rule.iter().filter(|r| r.rep >= 2 && r.json_valid).collect();
+        let (sup, n): (u64, u64) = used
+            .iter()
+            .fold((0, 0), |(a, b), r| (a + r.claims_supported, b + r.claims_n));
+        let rate = claim_rate(used.iter().copied());
+        // Variante diagnostica: claim senza citazioni tolti dal denominatore.
+        let mut empty = 0u64;
+        let mut missing_raw = 0usize;
+        for r in &used {
+            let model = &sel
+                .iter()
+                .find(|x| x["query_id"] == r.query_id && x["rep"] == r.rep.to_string())
+                .map(|x| x["model"].clone())
+                .unwrap_or_default();
+            match raw.get(&(model.clone(), r.query_id.clone(), r.rep)) {
+                Some(e) => empty += e,
+                None => missing_raw += 1,
+            }
+        }
+        let diag_n = n.saturating_sub(empty);
+        let lat: Vec<u64> = sel
+            .iter()
+            .filter(|r| r["json_valid"] == "true" || r["stop_reason"] == "refusal")
+            .filter_map(|r| r["latency_ms"].parse().ok())
+            .collect();
+        let costs: Vec<f64> = sel
+            .iter()
+            .filter_map(|r| r["cost_usd"].parse::<f64>().ok())
+            .collect();
+        let refusals = sel
+            .iter()
+            .filter(|r| r["refusal_present"] == "true")
+            .count();
+        println!(
+            "  {name}: righe {}, JSON valido {}, claim supportati {sup}/{n} = {}; senza claim non citati (diagnostico) {sup}/{diag_n} = {} (claim senza citazioni {empty}{}); falsi rifiuti {refusals}; p50 {:?} ms, p95 {:?} ms; costo totale {:.6} USD, medio per risposta {:.6} USD",
+            sel.len(),
+            used.len(),
+            fmt_rate(rate),
+            fmt_rate((diag_n > 0 && missing_raw == 0).then(|| sup as f64 / diag_n as f64)),
+            if missing_raw > 0 {
+                format!(", {missing_raw} righe senza grezzo")
+            } else {
+                String::new()
+            },
+            p50_ms(&lat),
+            p95_ms(&lat),
+            costs.iter().sum::<f64>(),
+            costs.iter().sum::<f64>() / costs.len().max(1) as f64,
+        );
+    }
+    Ok(())
 }
 
 fn report(spikes: &Path) -> anyhow::Result<()> {
@@ -1428,6 +1796,9 @@ fn report(spikes: &Path) -> anyhow::Result<()> {
             );
         }
     }
+    if paths.results.join("llm-simple-sonnet.csv").exists() {
+        report_simple_sonnet(&paths, &pool, &llm, &simple)?;
+    }
     if let Ok(spent) = read_ledger(&paths.raw) {
         println!("spesa della sessione (registro, LLM + JEV): {spent:.4} USD");
     }
@@ -1454,6 +1825,29 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             print_estimate(&spikes)?;
         }
         Cmd::Report => report(&spikes)?,
+        Cmd::EstimateSimpleSonnet => {
+            print_estimate_simple_sonnet(&spikes)?;
+        }
+        Cmd::GenerateSimpleSonnet => {
+            // Stima prima di ogni richiesta a pagamento, warm-up compreso, sul
+            // residuo del registro (D-32); il registro deve già esistere.
+            let est = print_estimate_simple_sonnet(&spikes)?;
+            let residual = simple_sonnet_residual(
+                &Paths::new(&spikes).raw,
+                &common::env::required("S06_MAX_COST_USD")?,
+                est,
+            )?;
+            println!("residuo prima della misura: {residual:.4} USD");
+            let s = Session::open(&spikes)?;
+            generate_simple_sonnet(&s).await?;
+            eprintln!(
+                "spesa della misura supplementare: {:.4} USD (LLM {:.4}, JEV {:.6}); registro {:.4} USD",
+                s.llm.spent_usd() + s.jev.spent_usd(),
+                s.llm.spent_usd(),
+                s.jev.spent_usd(),
+                read_ledger(&s.paths.raw)?
+            );
+        }
         cmd => {
             let s = Session::open(&spikes)?;
             match cmd {
@@ -1472,7 +1866,11 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 Cmd::Route => route(&s).await?,
                 Cmd::Fallback => fallback(&s).await?,
                 Cmd::Injection => injection(&s).await?,
-                Cmd::Select { .. } | Cmd::Estimate | Cmd::Report => unreachable!(),
+                Cmd::Select { .. }
+                | Cmd::Estimate
+                | Cmd::Report
+                | Cmd::EstimateSimpleSonnet
+                | Cmd::GenerateSimpleSonnet => unreachable!(),
             }
             s.checkpoint()?;
             eprintln!(
