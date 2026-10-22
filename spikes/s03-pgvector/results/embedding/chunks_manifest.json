@@ -1,0 +1,239 @@
+{
+  "chunk_set_sha256": "f7fb97ce47ec90e085b53a91e40175f2b5cc7e64b1f1bb8022e3f7d5986e1f7a",
+  "chunker": {
+    "chunk_chars": 1600,
+    "docx": "non indicizzati",
+    "id": "UUID v8 da FNV-1a 128 di doc_key, pagina, sezione, offset",
+    "markdown": "una sezione per intestazione ATX, front matter escluso, H1 fuori dal percorso, offset in caratteri sul documento",
+    "overlap_chars": 200,
+    "pdf": "pdftotext -layout -enc UTF-8, una pagina per form feed, offset in caratteri sulla pagina"
+  },
+  "docs": [
+    {
+      "chars": 1113600,
+      "chunks": 799,
+      "classification": "public",
+      "doc_id": "pub-it-01-bdi-relazione-annuale-2025",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "bf04031cf88c2c8a4ed275d950626526fc0d3c0ea29175bae6b0f8e7e5f96d02"
+    },
+    {
+      "chars": 395776,
+      "chunks": 294,
+      "classification": "public",
+      "doc_id": "pub-it-02-bdi-bilancio-esercizio-2025",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "c34e04d52555a85898d1703b3a982de53f987912dc73098eb23c34bfed91a1df"
+    },
+    {
+      "chars": 74843,
+      "chunks": 64,
+      "classification": "public",
+      "doc_id": "pub-it-03-bdi-sintesi-relazione-gestione-2025",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "4e1c0cd9c9892a7c5a47c53390485f1c58d5833dd5c5d55e137d1844813c774c"
+    },
+    {
+      "chars": 243147,
+      "chunks": 173,
+      "classification": "public",
+      "doc_id": "pub-it-04-bdi-bollettino-economico-2026-3",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "fbd308cc0c5bb1c0cef36286a04cd0ea51f1b73a3da1d1471b97ed8a40a2b43a"
+    },
+    {
+      "chars": 683637,
+      "chunks": 533,
+      "classification": "public",
+      "doc_id": "pub-it-05-bdi-relazione-gestione-sostenibilita-2025",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "b8d11fb3d70f795b6e00cbabc1de1c8830c610d8b76cfbb8ec88de57167525b7"
+    },
+    {
+      "chars": 792232,
+      "chunks": 558,
+      "classification": "public",
+      "doc_id": "pub-en-01-berkshire-annual-report-2025",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "777a62551d4542ce62671df66c218247a398ecb0e66aaa8a5410daeb49b67fbf"
+    },
+    {
+      "chars": 790477,
+      "chunks": 586,
+      "classification": "public",
+      "doc_id": "pub-en-02-federal-reserve-annual-report-2024",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "fc5e7145447ad369398a7a8670967b5b29d26be589e74d13f5f6c573021857e9"
+    },
+    {
+      "chars": 469770,
+      "chunks": 391,
+      "classification": "public",
+      "doc_id": "pub-en-03-bank-of-england-annual-report-2025",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "493d6c6eac4b4d5f48c89f27684adfc16929d5fcde8a6ea1e40fcf5c7fb8d7bd"
+    },
+    {
+      "chars": 541948,
+      "chunks": 390,
+      "classification": "public",
+      "doc_id": "pub-en-04-bis-annual-economic-report-2025",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "32f914f3ffd894d18e3ee274d5dc622197b7d104df624bc7ce8f55925b71cd27"
+    },
+    {
+      "chars": 93733,
+      "chunks": 69,
+      "classification": "public",
+      "doc_id": "der-it-01-relazione-annuale-2025-p1-25",
+      "format": "pdf",
+      "indexed": true,
+      "sha256": "70d4e4973b7d0df701cde1675092db5f58ff6e6d8dfe83ffd4d104ca21b3d529"
+    },
+    {
+      "chars": 2655,
+      "chunks": 11,
+      "classification": "internal",
+      "doc_id": "syn-01-budget-interno",
+      "format": "md",
+      "indexed": true,
+      "sha256": "0fa302a317084ff9f0bdab525b33332edb30de616eca116caca0d29caf061ff8"
+    },
+    {
+      "chars": 2872,
+      "chunks": 12,
+      "classification": "confidential",
+      "doc_id": "syn-02-piano-industriale-riservato",
+      "format": "md",
+      "indexed": true,
+      "sha256": "d9c3b8ab653540bc034ce82ae6efda263a05c2660874d0d7723b2ebc4181676f"
+    },
+    {
+      "chars": 2174,
+      "chunks": 10,
+      "classification": "restricted",
+      "doc_id": "syn-03-verbale-cda-restricted",
+      "format": "md",
+      "indexed": true,
+      "sha256": "40a2f5a3bb725c947214170783c5868ec35ba455cd55e44ecc3d283a5cce897b"
+    },
+    {
+      "chars": 1985,
+      "chunks": 12,
+      "classification": "internal",
+      "doc_id": "syn-04-policy-spese-internal",
+      "format": "md",
+      "indexed": true,
+      "sha256": "306380cd89d981c4d49ad5496ce9ac3e4dea8ce456659dbde84bc772df645f83"
+    },
+    {
+      "chars": 2770,
+      "chunks": 13,
+      "classification": "confidential",
+      "doc_id": "syn-05-risk-report-confidential-en",
+      "format": "md",
+      "indexed": true,
+      "sha256": "d38d2bd8dda15961d55456734becdbcceead0752ab7a2f2005cbda0009722119"
+    },
+    {
+      "chars": 1728,
+      "chunks": 11,
+      "classification": "public",
+      "doc_id": "syn-06-faq-public",
+      "format": "md",
+      "indexed": true,
+      "sha256": "2cffea0d7a7476d3b307601685f23be8ed6526b7c29237563e417e212a2f33a1"
+    },
+    {
+      "chars": 2873,
+      "chunks": 7,
+      "classification": "public",
+      "doc_id": "syn-07-injection-public",
+      "format": "md",
+      "indexed": true,
+      "sha256": "810e7ecde9319395bbf29340bf7cc6796bf275a68a4c2db2e0ceb07703342b74"
+    },
+    {
+      "chars": 2646,
+      "chunks": 8,
+      "classification": "internal",
+      "doc_id": "syn-08-injection-internal-en",
+      "format": "md",
+      "indexed": true,
+      "sha256": "0fc3c3cc381e9132c73d5dd62374fa78fba51f374c6332b93b56806a95b74e1b"
+    },
+    {
+      "chars": 1935,
+      "chunks": 9,
+      "classification": "restricted",
+      "doc_id": "syn-09-trappola-restricted",
+      "format": "md",
+      "indexed": true,
+      "sha256": "3795571c7768e4925090515c93809324bec1ea0cbfe8a1b4bb57aec9b2737cf4"
+    },
+    {
+      "classification": "internal",
+      "doc_id": "syn-01-budget-interno-docx",
+      "format": "docx",
+      "indexed": false,
+      "reason": "DOCX: duplicato del Markdown (ORACOLI.md), estrazione materia di S-02"
+    },
+    {
+      "classification": "confidential",
+      "doc_id": "syn-02-piano-industriale-riservato-docx",
+      "format": "docx",
+      "indexed": false,
+      "reason": "DOCX: duplicato del Markdown (ORACOLI.md), estrazione materia di S-02"
+    },
+    {
+      "classification": "confidential",
+      "doc_id": "syn-05-risk-report-confidential-en-docx",
+      "format": "docx",
+      "indexed": false,
+      "reason": "DOCX: duplicato del Markdown (ORACOLI.md), estrazione materia di S-02"
+    },
+    {
+      "classification": "restricted",
+      "doc_id": "syn-09-trappola-restricted-docx",
+      "format": "docx",
+      "indexed": false,
+      "reason": "DOCX: duplicato del Markdown (ORACOLI.md), estrazione materia di S-02"
+    }
+  ],
+  "loads": {
+    "bgem3": {
+      "embed_seconds": "52.5364",
+      "insert_seconds": "1.0350",
+      "rows": 3950,
+      "tei_model_id": "BAAI/bge-m3",
+      "tei_model_sha": "5617a9f61b028005a4858fdac845db406aefb181",
+      "tei_version": "1.9.4"
+    },
+    "e5": {
+      "embed_seconds": "49.6829",
+      "insert_seconds": "0.9878",
+      "rows": 3950,
+      "tei_model_id": "intfloat/multilingual-e5-large-instruct",
+      "tei_model_sha": "274baa43b0e13e37fafa6428dbc7938e62e5c439",
+      "tei_version": "1.9.4"
+    },
+    "qwen3": {
+      "embed_seconds": "117.7158",
+      "insert_seconds": "0.6494",
+      "rows": 3950,
+      "tei_model_id": "Qwen/Qwen3-Embedding-0.6B",
+      "tei_model_sha": "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",
+      "tei_version": "1.9.4"
+    }
+  },
+  "total_rows": 3950
+}

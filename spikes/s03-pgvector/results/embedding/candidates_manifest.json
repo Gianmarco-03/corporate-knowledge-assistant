@@ -1,0 +1,19 @@
+{
+  "candidates_total": 1479,
+  "excluded_oracles": 6,
+  "fields": [
+    "oracle_id",
+    "roles",
+    "candidates[rank, chunk_id, doc_key, page, section_path, char_start, char_end, distance, body]"
+  ],
+  "file": "spikes/s03-pgvector/results/raw/candidates_top20.jsonl (ignorato da git)",
+  "k": 20,
+  "leaked_candidates": 0,
+  "model": "bgem3",
+  "ordering": "query in ordine di queries.json; candidati per distanza coseno poi id (ORDER BY nella SQL)",
+  "queries": 74,
+  "query_instruction": "on",
+  "sha256": "8f507d073991677fd081dc7e0df118ec8bb9e866f199339e0ceaae4a1296af92",
+  "tei_model_id": "BAAI/bge-m3",
+  "tei_model_sha": "5617a9f61b028005a4858fdac845db406aefb181"
+}
