@@ -1,0 +1,45 @@
+{
+  "_meta_extract_pdf": {
+    "anomalies": [
+      "02a094caf73f02f681e81273a4b15ddb: failed Unsupported image_filter_on_non_image",
+      "1b53aa85278bc24c60cee19b40779560: failed Unsupported image_filter_on_non_image",
+      "2e187f57fef8982e287d5bdf74b8fa1a: failed Unsupported image_filter_on_non_image",
+      "61b1b96c92838d5870dac831905fd309: failed Unsupported image_filter_on_non_image"
+    ],
+    "budget_total_bytes": 2147483648,
+    "docs": 70,
+    "formula": "memory_reservation_bytes = 3 × max VmHWM; address_space_bytes = min(3 × max VmPeak, totale − riserva del padre); out_quota_bytes = 2 × max byte scritti nell'out_dir; file_size_bytes = max(quota, 1 MiB); cpu_seconds 60, wall_timeout 120 s, max_open_files 64 fissi",
+    "inputs": "/results/raw/extract-cal",
+    "max_objstm_count": 312,
+    "max_out_bytes": 44710580,
+    "max_vm_hwm_kb": 313352,
+    "max_vm_peak_kb": 758252,
+    "ok_docs": 66,
+    "parent_reserve_bytes": 268435456,
+    "run_tag": "e08s1rn5"
+  },
+  "default": {
+    "address_space_bytes": 1879048192,
+    "cpu_seconds": 60,
+    "file_size_bytes": 89421160,
+    "max_open_files": 64,
+    "memory_reservation_bytes": 817729536,
+    "out_quota_bytes": 89421160,
+    "wall_timeout": {
+      "nanos": 0,
+      "secs": 120
+    }
+  },
+  "extract_pdf": {
+    "address_space_bytes": 1879048192,
+    "cpu_seconds": 60,
+    "file_size_bytes": 89421160,
+    "max_open_files": 64,
+    "memory_reservation_bytes": 962617344,
+    "out_quota_bytes": 89421160,
+    "wall_timeout": {
+      "nanos": 0,
+      "secs": 120
+    }
+  }
+}
