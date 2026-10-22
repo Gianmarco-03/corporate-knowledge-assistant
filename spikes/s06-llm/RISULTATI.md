@@ -195,3 +195,42 @@ La regola di routing di D-31 è fallita su entrambe le condizioni (sezione «Esi
 | claude-sonnet-5-5 (warm-up + 13 × 3) | 40 | 1.559 / 1.000 | 0,5247 |
 
   Spesa registrata prima della misura: 0,4482 USD, quindi residuo 1,5518 USD. La stima (0,5247) è sotto il residuo. JEV (`support_claim` sui claim conservati) aggiunge alcuni millesimi.
+
+### Sessione
+
+**Modifica:** Claude (gsd-executor 01-12) · 2026-10-22 · sessione, risultati ed esito della misura supplementare (Soglie, CSV dei Task 1-2 ed «Esito» precedente invariati)
+
+- **Sessione** `01-12-20261022t135804z-601f` (`session.sh with 01-12`, solo il servizio `runner`, nessun container di altri piani prima di partire), `git_rev` 28f73ab, stessa immagine del runner (`cka-spikes-runner@sha256:86a924ad…d298`) e stessa macchina del Task 2. Comandi da `spikes/` nel runner via `session.sh oneshot`: `cargo build --release -p s06-llm --locked`; `/target/release/s06-llm generate-simple-sonnet`. Le tabelle sotto le ricalcola `cargo run -p s06-llm -- report`.
+- **Manifest hardware:** `results/hw.json` resta quello della sessione del Task 2 (le chiamate sono via API e la macchina è la stessa). Il manifest di questa sessione, grezzo e non normalizzato perché nessun CSV lo usa come gemello, è in `results/raw/hw-01-12-d32-01-12-20261022t135804z-601f.raw.json` (sha256 `a23fc272617335b7d5a56eefc802a516c496cc6fd856456a8e76b71546b320d6`).
+- **Modello risolto:** `claude-sonnet-5-5` in tutte le 39 risposte registrate (13 × 3). JEV `jev-1.13.0`.
+- **Evidenza:** [`results/llm-simple-sonnet.csv`](results/llm-simple-sonnet.csv), 26 righe (13 query × ripetizioni 2 e 3), header identico a `llm.csv`, sha256 `58f505154a15c3f06f1fabe248c5feb928de145cd0016050f19fbb2543bf047d`. Grezzi in `results/raw/generate-simple-sonnet.jsonl`.
+
+### Risultati
+
+Stesse 13 query `simple` senza `no_answer` per i due modelli; righe con ripetizione 2 o 3.
+
+| Modello | Righe | JSON conforme | Claim supportati / claim emessi | **Tasso (D-31)** | Diagnostico: solo claim con citazioni | Claim senza citazioni | Rifiuti su query con risposta | p50 / p95 latenza (ms) | Token medi in / out | Costo medio per risposta (USD) | Non autorizzati nel prompt |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| claude-haiku-5-5 (da `llm.csv`) | 26 | 26/26 | 21 / 29 | **0,7241** | 21 / 24 = 0,8750 | 5 | 2 (Q-006 e Q-019, ripetizione 2) | 1.330 / 2.613 | 1.146 / 153 | 0,000191 | 0 |
+| claude-sonnet-5-5 (da `llm-simple-sonnet.csv`) | 26 | 26/26 | 30 / 30 | **1,0000** | 30 / 30 = 1,0000 | 0 | 2 (Q-006, ripetizioni 2 e 3) | 2.002 / 4.481 | 1.146 / 143 | 0,003720 | 0 |
+
+- Il tasso di Haiku (0,7241) coincide con quello della regola di D-31: l'insieme e il calcolo sono gli stessi.
+- `stop_reason` = `end_turn` su tutte le 26 righe di Sonnet, nessun claim con id ignoto (0 su 30), `unauthorized_in_prompt` = 0 su ogni riga.
+- Sonnet emette meno claim per risposta (30 su 24 risposte con claim, quasi sempre uno) e li cita tutti; Haiku ne emette 29 su 24, di cui 5 senza citazioni, che la formula conta come non supportati.
+- Sonnet rifiuta Q-006 in entrambe le ripetizioni, per la stessa ragione già vista con Haiku nel Task 2 (la riga di tabella nel contesto non ha intestazioni di colonna). Il valore atteso, con il confronto stretto descritto in «Anomalie e deviazioni», compare in 13/26 risposte di Sonnet e 14/26 di Haiku.
+- Latenza: la p95 di Sonnet sulle `simple` (4,48 s, massimo 5,78 s su Q-054) è sotto la soglia di 8 s di Sonnet; la p95 di Haiku sulle `simple` (2,61 s) è sotto la soglia di 3 s di Haiku.
+- Costo per risposta: Sonnet circa 19,5 volte Haiku sulle stesse query (0,003720 contro 0,000191 USD).
+- **Solo a titolo informativo, la regola precedente a D-31** («Haiku entro 0,05 da Sonnet sulle `simple`»): Haiku − Sonnet = 0,7241 − 1,0000 = −0,2759, quindi 0,7241 ≥ 0,95 sarebbe falsa. Con la variante diagnostica la differenza è 0,8750 − 1,0000 = −0,1250. Questa regola non è più in vigore (D-31) e il numero non decide nulla.
+- Campione piccolo: 13 query e 29-30 claim per modello. Un claim in più o in meno sposta il tasso di circa 0,03.
+
+### Spesa
+
+- Stima prima della misura: 0,5247 USD, contro un residuo di 1,5518 USD.
+- Spesa della misura supplementare: **0,1498 USD** (LLM 0,1490, di cui 0,0038 di warm-up e circa 0,048 della ripetizione scartata; JEV 0,0008). Somma di `cost_usd` in `llm-simple-sonnet.csv`: 0,0967 USD.
+- Registro `results/raw/spend.json`: da 0,4482 a **0,5980 USD** per l'intera sessione 01-12, su un tetto di 2 USD.
+
+### Esito della misura supplementare
+
+- **La scelta del modello per le query `simple` resta all'utente, con questi numeri.** Questa sezione non la prende e non cambia l'«Esito» dei Task 1-2.
+- Numeri a confronto sulle stesse 13 query: tasso di claim supportati Haiku 0,7241 (0,8750 nella variante diagnostica), Sonnet 1,0000 (1,0000); rifiuti su query con risposta 2 e 2; p95 2,61 s e 4,48 s; costo per risposta 0,000191 e 0,003720 USD.
+- ADR-0011 resta `Proposed` con la decisione per le `simple` aperta; la sezione Evidenze cita questa misura. La riga «Generative LLM» di `DEPENDENCIES.md` la scrive il consolidamento (01-17) dopo la scelta dell'utente.

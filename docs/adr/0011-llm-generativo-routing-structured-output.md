@@ -74,3 +74,6 @@ Le misure vengono da 30 query ratificate (13 `simple`, 12 `complex`, 5 `no_answe
 - [`spikes/s06-llm/results/llm.csv`](../../spikes/s06-llm/results/llm.csv), [`routing.csv`](../../spikes/s06-llm/results/routing.csv), [`fallback.csv`](../../spikes/s06-llm/results/fallback.csv), [`injection.csv`](../../spikes/s06-llm/results/injection.csv).
 - [`spikes/s06-llm/schema/answer.schema.json`](../../spikes/s06-llm/schema/answer.schema.json): schema della risposta.
 - [`spikes/data/s06/selection.json`](../../spikes/data/s06/selection.json): selezione a seme delle 30 query e dei 15 `fallback_ids`.
+- [`spikes/s06-llm/results/llm-simple-sonnet.csv`](../../spikes/s06-llm/results/llm-simple-sonnet.csv) e la sezione «Misura supplementare (D-32)» di [`RISULTATI.md`](../../spikes/s06-llm/RISULTATI.md): Sonnet sulle stesse 13 query `simple` di Haiku, chiesta dall'utente con D-32 prima della scelta per le `simple`. Tasso di claim supportati Haiku 0,7241 (21/29; 0,8750 senza i claim non citati, dato diagnostico) contro Sonnet 1,0000 (30/30); p95 2,61 s contro 4,48 s; 0,000191 contro 0,003720 USD per risposta; spesa della sessione 0,5980 USD su 2. La decisione per le `simple` resta aperta e spetta all'utente.
+
+**Modifica:** Claude (gsd-executor 01-12) · 2026-10-22 · Evidenze: misura supplementare di Sonnet sulle `simple` (D-32); Stato e Decisione invariati
