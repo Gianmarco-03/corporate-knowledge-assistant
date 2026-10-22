@@ -1,0 +1,167 @@
+{
+  "band": {
+    "uncertain_from": 0.1528272925331749,
+    "select_from": 0.3056545850663498
+  },
+  "features": {
+    "strip_chars": "()[]$€£%,;:*",
+    "inner_chars": ".,'",
+    "min_digits": 1,
+    "min_tokens": 20,
+    "density_saturation": 0.3,
+    "align_tol_pt": 2.0,
+    "min_column_rows": 3,
+    "line_tol_pt": 3.0,
+    "min_numeric": 6,
+    "w_density": 0.5,
+    "w_align": 0.5,
+    "cell_gap_pt": 10.0
+  },
+  "tuning": {
+    "pages": 20,
+    "rule": "select_from = punteggio minimo fra le pagine-tabella vere di taratura; uncertain_from = 0,5 × select_from (Contratti di RISULTATI-estrazione.md)",
+    "scores": [
+      {
+        "doc_id": "0000006951-20-000048-20201211x10k",
+        "extracted": true,
+        "item_id": "dln-0000006951-20-000048-20201211x10k-p93",
+        "score": 0.6035723851613768,
+        "table": true
+      },
+      {
+        "doc_id": "0000006951-20-000048-20201211x10k",
+        "extracted": true,
+        "item_id": "dln-0000006951-20-000048-20201211x10k-p34",
+        "score": 0.4167449139280125,
+        "table": true
+      },
+      {
+        "doc_id": "0000006951-20-000048-20201211x10k",
+        "extracted": true,
+        "item_id": "dln-0000006951-20-000048-20201211x10k-p0",
+        "score": 0.08786848072562359,
+        "table": false
+      },
+      {
+        "doc_id": "0000006951-20-000048-20201211x10k",
+        "extracted": true,
+        "item_id": "dln-0000006951-20-000048-20201211x10k-p92",
+        "score": 0.05451713395638629,
+        "table": false
+      },
+      {
+        "doc_id": "nasdaq-shen-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-shen-2003-p31",
+        "score": 0.4938726153735088,
+        "table": true
+      },
+      {
+        "doc_id": "nasdaq-shen-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-shen-2003-p16",
+        "score": 0.8415750915750916,
+        "table": true
+      },
+      {
+        "doc_id": "nasdaq-shen-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-shen-2003-p41",
+        "score": 0.15973404456550525,
+        "table": false
+      },
+      {
+        "doc_id": "nasdaq-shen-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-shen-2003-p20",
+        "score": 0.06860371267150929,
+        "table": false
+      },
+      {
+        "doc_id": "nyse-smfg-2011",
+        "extracted": true,
+        "item_id": "dln-nyse-smfg-2011-p29",
+        "score": 0.4844499815430048,
+        "table": true
+      },
+      {
+        "doc_id": "nyse-smfg-2011",
+        "extracted": true,
+        "item_id": "dln-nyse-smfg-2011-p70",
+        "score": 0.7381102693602695,
+        "table": true
+      },
+      {
+        "doc_id": "nyse-smfg-2011",
+        "extracted": true,
+        "item_id": "dln-nyse-smfg-2011-p4",
+        "score": 0.032956685499058384,
+        "table": false
+      },
+      {
+        "doc_id": "nyse-smfg-2011",
+        "extracted": true,
+        "item_id": "dln-nyse-smfg-2011-p214",
+        "score": 0.00665335994677312,
+        "table": false
+      },
+      {
+        "doc_id": "nasdaq-atri-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-atri-2003-p8",
+        "score": 0.9231988249845393,
+        "table": true
+      },
+      {
+        "doc_id": "nasdaq-atri-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-atri-2003-p14",
+        "score": 0.3056545850663498,
+        "table": true
+      },
+      {
+        "doc_id": "nasdaq-atri-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-atri-2003-p26",
+        "score": 0.30666424770198353,
+        "table": false
+      },
+      {
+        "doc_id": "nasdaq-atri-2003",
+        "extracted": true,
+        "item_id": "dln-nasdaq-atri-2003-p25",
+        "score": 0.2637834036568214,
+        "table": false
+      },
+      {
+        "doc_id": "otc-nsany-2004",
+        "extracted": false,
+        "item_id": "dln-otc-nsany-2004-p97",
+        "score": 0.0,
+        "table": true
+      },
+      {
+        "doc_id": "otc-nsany-2004",
+        "extracted": false,
+        "item_id": "dln-otc-nsany-2004-p75",
+        "score": 0.0,
+        "table": true
+      },
+      {
+        "doc_id": "otc-nsany-2004",
+        "extracted": false,
+        "item_id": "dln-otc-nsany-2004-p47",
+        "score": 0.0,
+        "table": false
+      },
+      {
+        "doc_id": "otc-nsany-2004",
+        "extracted": false,
+        "item_id": "dln-otc-nsany-2004-p105",
+        "score": 0.0,
+        "table": false
+      }
+    ],
+    "split": "tune"
+  }
+}
