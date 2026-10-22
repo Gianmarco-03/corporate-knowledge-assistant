@@ -234,3 +234,9 @@ Stesse 13 query `simple` senza `no_answer` per i due modelli; righe con ripetizi
 - **La scelta del modello per le query `simple` resta all'utente, con questi numeri.** Questa sezione non la prende e non cambia l'«Esito» dei Task 1-2.
 - Numeri a confronto sulle stesse 13 query: tasso di claim supportati Haiku 0,7241 (0,8750 nella variante diagnostica), Sonnet 1,0000 (1,0000); rifiuti su query con risposta 2 e 2; p95 2,61 s e 4,48 s; costo per risposta 0,000191 e 0,003720 USD.
 - ADR-0011 resta `Proposed` con la decisione per le `simple` aperta; la sezione Evidenze cita questa misura. La riga «Generative LLM» di `DEPENDENCIES.md` la scrive il consolidamento (01-17) dopo la scelta dell'utente.
+
+### Decisione dell'utente (D-33)
+
+Sui numeri della misura supplementare l'utente ha scelto **Sonnet 5.5 anche per le query `simple`** (2026-10-22, D-33 di `01-CONTEXT.md`): fedeltà 1,0000 contro 0,7241 di Haiku sulle stesse 13 query, costo per risposta circa 0,0037 USD, p95 4,48 s entro la soglia di Sonnet. La regola di D-31 e gli esiti scritti sopra restano come sono; la decisione è registrata in ADR-0011, ancora `Proposed` fino alla ratifica di 01-17.
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · decisione dell'utente D-33 sul modello delle `simple`
