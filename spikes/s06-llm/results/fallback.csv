@@ -1,0 +1,16 @@
+query_id,jev_error,model_used,status,validated,degraded
+Q-006,unreachable,claude-sonnet-5-5,refused,false,true
+Q-014,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-019,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-021,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-024,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-029,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-031,unreachable,claude-sonnet-5-5,refused,false,true
+Q-034,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-038,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-047,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-054,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-055,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-058,unreachable,claude-sonnet-5-5,degraded,false,true
+Q-060,unreachable,claude-sonnet-5-5,refused,false,true
+Q-072,unreachable,claude-sonnet-5-5,refused,false,true
