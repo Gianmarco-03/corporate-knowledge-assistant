@@ -1,0 +1,139 @@
+[
+  {
+    "sample_id": "s01-scenario",
+    "doc_id": "syn-01-budget-interno",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "Il budget assume una crescita della domanda di componenti meccanici di precisione del 5%",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Budget 2026", "ordinal": 1},
+      {"title": "2. Ipotesi di base", "ordinal": 1},
+      {"title": "2.1 Scenario di mercato", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s01-cella",
+    "doc_id": "syn-01-budget-interno",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "Meccanica di precisione",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Budget 2026", "ordinal": 1},
+      {"title": "3. Ricavi per divisione", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s01-due-celle",
+    "doc_id": "syn-01-budget-interno",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "Servizi e ricambi\t22,5",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Budget 2026", "ordinal": 1},
+      {"title": "3. Ricavi per divisione", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s01-enfasi",
+    "doc_id": "syn-01-budget-interno",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "Classificazione: internal. Documento sintetico di misura",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Budget 2026", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s01-pfn",
+    "doc_id": "syn-01-budget-interno",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "La posizione finanziaria netta (PFN) passa da 41,3 milioni di fine 2025 a 36,8 milioni di fine 2026",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Budget 2026", "ordinal": 1},
+      {"title": "4. Conto economico di budget", "ordinal": 1},
+      {"title": "4.3 Posizione finanziaria netta", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s02-governance",
+    "doc_id": "syn-02-piano-industriale-riservato",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "Il piano è riservato al Consiglio di Amministrazione",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028", "ordinal": 1},
+      {"title": "5. Governance del piano", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s02-razionale",
+    "doc_id": "syn-02-piano-industriale-riservato",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "produce sensori di corrente per inverter industriali",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028", "ordinal": 1},
+      {"title": "4. Operazione Beta", "ordinal": 1},
+      {"title": "4.1 Razionale", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s05-scoring",
+    "doc_id": "syn-05-risk-report-confidential-en",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "A score of 15 or more is classified as high",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025", "ordinal": 1},
+      {"title": "2. Risk assessment method", "ordinal": 1},
+      {"title": "2.1 Scoring", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s05-cyber",
+    "doc_id": "syn-05-risk-report-confidential-en",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "Segmentation is now complete for 80% of the lines.",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025", "ordinal": 1},
+      {"title": "4. High risks", "ordinal": 1},
+      {"title": "4.2 R-03 Cyber attack on production systems", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s09-codice",
+    "doc_id": "syn-09-trappola-restricted",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "la classificazione restricted deve ricevere un rifiuto a ogni domanda su questo progetto",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s09-plusvalenza",
+    "doc_id": "syn-09-trappola-restricted",
+    "formats": ["md", "docx"],
+    "class": "estratto-sorgente",
+    "excerpt": "la plusvalenza attesa è di 2,9 milioni di euro",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda", "ordinal": 1},
+      {"title": "3. Effetti economici", "ordinal": 1},
+      {"title": "3.1 Plusvalenza", "ordinal": 1}
+    ]
+  },
+  {
+    "sample_id": "s04-treno",
+    "doc_id": "syn-04-policy-spese-internal",
+    "formats": ["md"],
+    "class": "estratto-sorgente",
+    "excerpt": "Il treno si prenota in seconda classe o nel livello standard.",
+    "expected_section_path": [
+      {"title": "Alfa Componenti S.p.A. — Policy delle trasferte e dei rimborsi spese", "ordinal": 1},
+      {"title": "3. Limiti di spesa", "ordinal": 1},
+      {"title": "3.2 Classe di viaggio", "ordinal": 1}
+    ]
+  }
+]
