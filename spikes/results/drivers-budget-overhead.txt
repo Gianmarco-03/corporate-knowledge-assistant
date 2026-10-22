@@ -543,3 +543,219 @@ PASS con avvisi: 0 CRITICAL, 0 HIGH, 7 MEDIUM pdf-untrusted-parse (regola lessic
 
 Deviazione scanner: con la soglia di default (MEDIUM) il file parse-parent.rs di BASE esce già 1 con 4 rilevamenti pdf-untrusted-parse (bind di PDFium e in_process_run, modo in-process su input fidato scelto da 01-18); il verify del Task 2 non può uscire 0 alla lettera. Come in 01-07 si usa --fail-on HIGH e i MEDIUM si motivano: 4 preesistenti, 2 nuovi su percorsi di tipo (variante InProcessError::Pdfium e use dentro in_process_status), 1 nel modulo dei test del Task 1.
 
+## Rimisura (D-04)
+Stesse condizioni di 01-18 (input, concorrenze, ripetizioni, servizio worker, derivazione del run-tag), prenotazione nuova a nome di 01-4-01.
+immagine worker prima: 8ed6d8c66af0
+
+$ docker compose -f spikes/compose.yaml build worker
+#12 3.335   Downloaded thiserror v2.0.21
+#12 7.677    Compiling thiserror v2.0.21
+#12 10.32    Compiling thiserror-impl v2.0.21
+#22 naming to docker.io/library/cka-spikes-worker:latest 0.0s done
+ Image cka-spikes-worker Built 
+[exit 0]
+
+immagine worker dopo: e96d8f6547e2
+
+run_id = 01-4-01-20261022t194257z-1c4c
+run-tag budget (controllo D-01) = 5df34802
+run-tag overhead = 5df34803
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-4-01-20261022t194257z-1c4c (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194257z-1c4c  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-4-01-20261022t194257z-1c4c (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194257z-1c4c  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent budget --concurrency 1 --jobs 1 --reserve-fraction 0.25 --run-tag "5df34802" --out /dev/null
+parse-parent: CSV /dev/null rifiutato: manca un manifest hardware valido accanto: manifest hardware /dev/hw.json assente o illeggibile: No such file or directory (os error 2)
+[exit 1]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent overhead --input /data/corpus/raw/der-it-01-relazione-annuale-2025-p1-25.pdf --runs 20 --concurrency 1,4,8 --run-tag "5df34803" --out /results/isolation/overhead.csv
+(stdout: 0 righe; stderr filtrato su ^overhead:)
+PRIMA ESECUZIONE, NON VALIDA: la cartella spikes/s02-parser/results/raw/ (ignorata da git) non esisteva nel worktree, quindi /results/raw mancava nel worker e no_symlink_components (isolate.rs:529) ha respinto ogni job child-per-doc con PathNotAllowed/symlink. Il driver corretto ha comunque scritto 120 righe, con exit 0.
+overhead: job_id=ovh-cpd-c1-r1-d0-5df34803: job_error PathNotAllowed: symlink
+overhead: job_id=ovh-cpd-c1-r1-d1-5df34803: job_error PathNotAllowed: symlink
+(… altre 958 righe uguali omesse dall'evidenza: job_error PathNotAllowed: symlink su tutti i 960 job child-per-doc)
+overhead: in-process c8 r9: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r10: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r11: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r12: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r13: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r14: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r15: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r16: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r17: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r18: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r19: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r20: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in_process_errors=12 su 60
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+Distribuzione di overhead.csv della prima esecuzione (sovrascritto dalla seconda):
+     20 child-per-doc,1,error:job_error
+     20 child-per-doc,4,error:job_error
+     20 child-per-doc,8,error:job_error
+     20 in-process-mutex,1,ok
+     20 in-process-mutex,4,ok
+     12 in-process-mutex,8,error:pdfium_format
+      8 in-process-mutex,8,ok
+
+Correzione dell'ambiente (nessun file del repo): mkdir spikes/s02-parser/results/raw nel worktree, come nel checkout principale; poi seconda esecuzione in una sessione nuova.
+
+### Seconda esecuzione (valida)
+run_id = 01-4-01-20261022t194442z-e7a8
+run-tag budget (controllo D-01) = 6226a702
+run-tag overhead = 6226a703
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-4-01-20261022t194442z-e7a8 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194442z-e7a8  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-4-01-20261022t194442z-e7a8 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194442z-e7a8  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent budget --concurrency 1 --jobs 1 --reserve-fraction 0.25 --run-tag "6226a702" --out /dev/null
+parse-parent: CSV /dev/null rifiutato: manca un manifest hardware valido accanto: manifest hardware /dev/hw.json assente o illeggibile: No such file or directory (os error 2)
+[exit 1]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent overhead --input /data/corpus/raw/der-it-01-relazione-annuale-2025-p1-25.pdf --runs 20 --concurrency 1,4,8 --run-tag "6226a703" --out /results/isolation/overhead.csv
+(stdout: 0 righe; stderr filtrato su ^overhead:)
+overhead: in-process c8 r10: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r11: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r12: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r13: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r14: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r15: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r16: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r17: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r18: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r19: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r20: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in_process_errors=11 su 60
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+## Controlli del CSV
+$ head -1 spikes/s02-parser/results/isolation/overhead.csv
+mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s,status
+
+$ awk -F, 'NR>1 && NF!=8' overhead.csv | wc -l
+0
+
+$ tail -n +2 overhead.csv | wc -l
+120
+
+$ tail -n +2 overhead.csv | cut -d, -f1,2 | sort | uniq -c
+     20 child-per-doc,1
+     20 child-per-doc,4
+     20 child-per-doc,8
+     20 in-process-mutex,1
+     20 in-process-mutex,4
+     20 in-process-mutex,8
+
+$ tail -n +2 overhead.csv | cut -d, -f8 | grep -cvE '^(ok|error:[A-Za-z_]+)$'
+0
+
+$ tail -n +2 overhead.csv | cut -d, -f1,2,8 | sort | uniq -c
+     20 child-per-doc,1,ok
+     20 child-per-doc,4,ok
+     20 child-per-doc,8,ok
+     20 in-process-mutex,1,ok
+     20 in-process-mutex,4,ok
+     11 in-process-mutex,8,error:pdfium_format
+      9 in-process-mutex,8,ok
+
+$ awk -F, 'NR>1 && $8!="ok" && ($5!="" || $6!="" || $7!="")' overhead.csv | wc -l   (righe in errore con campi di tempo)
+0
+
+$ test -f spikes/s02-parser/results/isolation/hw.json
+[exit 0]
+
+$ git diff --quiet $BASE -- <altri nove file di results/isolation>
+[exit 0]
+
+$ python <script del driver> overhead.csv   (numeri di M9 sulle sole righe ok)
+modo | concorrenza | ripetizioni | ok | errori | parete media ms | ms per documento | documenti/s | spawn_init_ms medio (max)
+child-per-doc | 1 | 20 | 20 | 0 | 2544 | 159.0 | 6.29 | 3.89 (4.2)
+child-per-doc | 4 | 20 | 20 | 0 | 1454 | 90.9 | 11.00 | 4.13 (4.6)
+child-per-doc | 8 | 20 | 20 | 0 | 1483 | 92.7 | 10.79 | 4.22 (4.6)
+in-process-mutex | 1 | 20 | 20 | 0 | 729 | 45.5 | 21.97 | -
+in-process-mutex | 4 | 20 | 20 | 0 | 730 | 45.7 | 21.91 | -
+in-process-mutex | 8 | 20 | 9 | 11 | 727 | 45.4 | 22.28 | -
+M9 = spawn_init_ms medio c1 / ms per documento child-per-doc c1 x 100 = 3.89 / 159.0 x 100 = 2.44%  (soglia 10%)
+rapporto ms per documento child-per-doc / in-process a c1 = 159.0 / 45.5 = 3.49x
+
+esito D-01-worker: exit=1 (atteso 1) work_prima=0 work_dopo=0 (atteso 0 e 0)
+esito D-04: righe=120 (atteso 120) gruppi=6x20 (atteso 6x20) campi=8 su tutte le righe si exit=0 (atteso 0) work_dopo=0 (atteso 0) hw.json accanto si
+esito in-process: c1 errori=0/20 c4 errori=0/20 c8 errori=11/20
+esito child-per-doc: c1 errori=0/20 c4 errori=0/20 c8 errori=0/20
+
+## Pulizia
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: run_id=01-10-20261022t194849z-d645 piano=01-10 pid=17807 (vivo) worktree=C:/Users/Gianmarco/Documents/Portfolio projects/01-corporate-knowledge-assistant/.claude/worktrees/01-10 git_rev=bc3e0ab dal=2026-10-22T19:48:49Z
+[exit 0]
+
+Nota: la prenotazione elencata è del piano 01-10 (esecutore parallelo, proprietario vivo), presa dopo il rilascio delle sessioni di questo piano; non si tocca e non si recupera. Le sessioni di 01-4-01 di questo task e del Task 2 (01-4-01-20261022t193847z-f947, 01-4-01-20261022t194257z-1c4c, 01-4-01-20261022t194442z-e7a8) sono uscite da session.sh with con DOWN residui 0 e RILASCIATO.
+
+$ docker ps -a --filter label=com.docker.compose.project=cka-spikes --format '{{.Names}} {{.Label "cka.run_id"}}' | grep 01-4-01
+(fine elenco)
+
+$ rm -rf <cartella del driver> "${TMPDIR:-/tmp}/cka-01-4-01-driver.path"
+[exit 0]
+
+Seconda lettura, dopo il rilascio di 01-10:
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+[exit 0]
+
