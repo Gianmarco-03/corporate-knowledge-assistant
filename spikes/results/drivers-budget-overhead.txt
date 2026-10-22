@@ -269,3 +269,277 @@ esito RED unit: cargo test --bin parse-parent exit=101 (atteso diverso da 0, sim
 Motivo dei rossi: budget_csv_error e budget_budget_error cadono sull'ultima asserzione (exit 1 e stderr come atteso, residuo selftest-input-dr1a0001 e selftest-input-dr1b0001 nella radice dei job); overhead esce 1 con «parse-parent: pdfium: PdfiumLibraryInternalError(FormatError)» dopo le sole 4 righe child-per-doc, con l'header vecchio a 7 colonne; i test unitari non compilano (E0425/E0433: InProcessError, in_process_status, RepOutcome, overhead_row, in_process_reps, child_per_doc_error assenti).
 Nota clippy: la riga «linea di base clippy» conta come avviso l'errore «cargo-clippy is not installed»; il riferimento per il Task 2 è la linea di base cargo check (exit 0, 0 avvisi), deviazione prevista dalle preconditions.
 
+
+GREEN: parse-parent.rs con la correzione nell'albero (4766f6a + diff)
+
+## Prova GREEN
+run_id = 01-4-01-20261022t193847z-f947
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test drivers
+ Container cka-spikes-runner-run-d983b5fa681f Creating 
+ Container cka-spikes-runner-run-d983b5fa681f Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.66s
+     Running tests/drivers.rs (/target/debug/deps/drivers-ea487dbc1c9a6896)
+
+running 4 tests
+test budget_budget_error_cleans_work_root ... ok
+test budget_csv_error_cleans_work_root ... ok
+test budget_success_cleans_work_root ... ok
+test overhead_in_process_errors_keep_all_rows ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --bin parse-parent
+ Container cka-spikes-runner-run-c8f39009300b Creating 
+ Container cka-spikes-runner-run-c8f39009300b Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.94s
+     Running unittests src/bin/parse-parent.rs (/target/debug/deps/parse_parent-054c523513121d4e)
+
+running 12 tests
+test tests::different_status_fails ... ok
+test tests::child_per_doc_error_table ... ok
+test tests::failed_kind_among_alternatives_passes ... ok
+test tests::expected_outcome_without_oom_adj_fails ... ok
+test tests::failed_kind_outside_alternatives_fails ... ok
+test tests::in_process_reps_single_failure_keeps_all_rows ... ok
+test tests::in_process_reps_sink_error_is_fatal ... ok
+test tests::in_process_status_table ... ok
+test tests::ok_expected_ok_with_oom_adj_passes ... ok
+test tests::overhead_row_shapes ... ok
+test tests::quarantined_missing_expected_reason_fails ... ok
+test tests::quarantined_superset_passes_with_extra_reasons ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+## Errori fatali ancora fatali (TEST-10, prova ad hoc nel runner, nessun file nel repo)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- bash -c '<overhead --out in cartella senza hw.json, budget fisso>'
+ Container cka-spikes-runner-run-6cf806191a92 Creating 
+ Container cka-spikes-runner-run-6cf806191a92 Created 
+parse-parent: CSV /tmp/fatali/out/overhead.csv rifiutato: manca un manifest hardware valido accanto: manifest hardware /tmp/fatali/out/hw.json assente o illeggibile: No such file or directory (os error 2)
+rc=1 csv_presente=no jobs=0
+
+[exit 1]
+
+## Regressione (D-05)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test isolation
+ Container cka-spikes-runner-run-d2e652989122 Creating 
+ Container cka-spikes-runner-run-d2e652989122 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.65s
+     Running tests/isolation.rs (/target/debug/deps/isolation-df02569021d2d25f)
+
+running 37 tests
+test input_with_dotdot_outside_roots_is_path_not_allowed ... ok
+test input_symlink_outside_roots_is_path_not_allowed ... ok
+test excerpt_file_outside_roots_is_path_not_allowed ... ok
+test job_id_outside_regex_is_rejected ... ok
+test dpi_out_of_domain_is_invalid_params ... ok
+test missing_bin_is_child_missing ... ok
+test out_dir_presence_must_match_op ... ok
+test out_dir_wrong_forms_are_path_not_allowed ... ok
+test existing_out_dir_is_out_dir_exists_and_launches_nothing ... ok
+test input_component_swapped_for_symlink_after_resolve_is_rejected ... ok
+test oversized_job_is_rejected ... ok
+test flood_on_both_pipes_is_output_limit_within_two_seconds ... ok
+test resolve_builds_fixed_argv_per_op ... ok
+test selftest_mode_outside_list_is_invalid_params ... ok
+test batch_over_parent_reserve_exits_3_after_reports ... ok
+test parse_parent_prints_job_error_and_exits_2 ... ok
+test successful_run_reports_isolation_fields ... ok
+test successful_parse_keeps_out_dir_and_removes_job_dir ... ok
+test unknown_op_is_unknown_op ... ok
+test quota_counts_job_dir_plus_out_dir ... ok
+test argv_echo_passes_path_with_spaces_and_non_ascii_unchanged ... ok
+test out_dir_symlink_planted_after_resolve_is_rejected_before_spawn ... ok
+test unknown_param_is_invalid_params ... ok
+test unknown_top_level_field_is_invalid_params ... ok
+test reservation_over_budget_is_budget_exceeded_without_spawn ... ok
+test alloc_over_address_space_is_resource_limit ... ok
+test externally_killed_child_is_crashed ... ok
+test unapplicable_setrlimit_fails_the_spawn_with_errno ... ok
+test write_over_quota_is_resource_limit_out_quota ... ok
+test budget_admits_alloc_jobs_and_all_complete ... ok
+test quota_scan_entry_cap_is_out_quota ... ok
+test parse_child_data_schema ... ok
+test dropped_future_kills_group_and_cleans_within_one_second ... ok
+test timeout_kills_grandchild_group_and_removes_job_dir ... ok
+test child_is_the_designated_oom_victim ... ok
+test budget_admits_at_most_two_jobs_together ... ok
+test quota_sum_under_limit_is_not_out_quota ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test oom
+ Container cka-spikes-runner-run-1629c8f95a85 Creating 
+ Container cka-spikes-runner-run-1629c8f95a85 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s
+     Running tests/oom.rs (/target/debug/deps/oom-df83e1bf5f5d7cbe)
+
+running 12 tests
+test m11_all_checks_with_oom_is_verificato ... ok
+test m11_each_violated_check_with_oom_is_fallito_naming_the_check ... ok
+test m11_more_than_one_oom_kill_is_still_verificato ... ok
+test m11_no_oom_kill_is_non_esercitato_with_reason ... ok
+test m11_oom_group_does_not_decide_the_outcome ... ok
+test m11_reservation_not_below_cgroup_is_fallito ... ok
+test oom_kills_child_not_parent ... ignored, solo nel container a memoria bassa di 01-18
+test m11_without_oom_never_verificato_nor_fallito ... ok
+test result_json_fallito_carries_reason_and_observed_values ... ok
+test result_json_is_one_line_without_environment_values ... ok
+test result_json_verificato_has_exact_keys_and_types_checked_by_the_plan ... ok
+test result_json_precondition_is_non_esercitato_with_nulls ... ok
+
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib
+ Container cka-spikes-runner-run-e1e4b5275a4a Creating 
+ Container cka-spikes-runner-run-e1e4b5275a4a Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.86s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-bbcbe4e3205477da)
+
+running 84 tests
+test isolate::tests::exit_zero_with_valid_failed_line_keeps_child_kind ... ok
+test isolate::tests::exit_zero_with_valid_ok_line_returns_child_outcome ... ok
+test isolate::tests::exit_zero_with_valid_quarantined_line_keeps_reasons ... ok
+test isolate::tests::missing_json_line_is_crashed ... ok
+test isolate::tests::parent_kill_is_evaluated_before_signal_and_oom ... ok
+test isolate::tests::malformed_json_line_is_crashed ... ok
+test isolate::tests::parent_kill_out_quota_is_resource_limit_out_quota ... ok
+test isolate::tests::parent_kill_output_limit_is_output_limit ... ok
+test isolate::tests::parent_kill_timeout_is_timeout ... ok
+test isolate::tests::sigabrt_with_bad_alloc_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_with_rust_alloc_failure_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_without_alloc_marker_is_crashed ... ok
+test isolate::tests::sigkill_with_oom_delta_is_resource_limit_cgroup_oom ... ok
+test isolate::tests::sigkill_without_oom_delta_is_crashed ... ok
+test isolate::tests::sigsegv_is_crashed ... ok
+test isolate::tests::sigxcpu_is_timeout ... ok
+test job::tests::ancestors_start_at_root ... ok
+test job::tests::job_error_line_has_contract_fields ... ok
+test job::tests::known_ops_parse_and_unknown_is_unknown_op ... ok
+test job::tests::numeric_selftest_modes_need_decimal_arg ... ok
+test job::tests::out_dir_must_be_exact_form ... ok
+test prescan::tests::c1_resolved_lopdf_is_0_45_0 ... ok
+test prescan::tests::default_caps_are_the_launcher_thresholds ... ok
+test prescan::tests::c6_pubsec_handler_is_password_required ... ok
+test prescan::tests::benign_docx_passes_with_none_and_zero_schema ... ok
+test prescan::tests::docx_with_declared_total_over_cap_is_rejected ... ok
+test prescan::tests::docx_with_entity_in_any_part_is_corrupt ... ok
+test prescan::tests::docx_with_macro_content_type_is_unsupported ... ok
+test prescan::tests::docx_with_doctype_is_corrupt ... ok
+test prescan::tests::docx_with_external_relationship_is_quarantined ... ok
+test prescan::tests::c7_undecodable_flate_stream_is_corrupt ... ok
+test prescan::tests::c2_defer_objstm_returns_other_objects_unchanged ... ok
+test prescan::tests::docx_with_too_many_entries_is_rejected ... ok
+test prescan::tests::docx_with_vba_project_is_unsupported ... ok
+test prescan::tests::encrypt_declared_with_corrupt_body_is_never_ok ... ok
+test prescan::tests::benign_pdf_passes_with_unencrypted_schema ... ok
+test prescan::tests::escaped_encrypt_name_is_never_ok ... ok
+test prescan::tests::filter_chain_of_two_allowed_filters_passes ... ok
+test prescan::tests::embedded_file_is_counted_not_quarantined ... ok
+test prescan::tests::filter_chain_longer_than_two_is_rejected ... ok
+test prescan::tests::bare_js_key_is_javascript ... ok
+test prescan::tests::garbage_pdf_is_corrupt ... ok
+test prescan::tests::c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load ... ok
+test prescan::tests::flate_ratio_over_limit_is_decompression_limit ... ok
+test prescan::tests::embedded_file_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::i2_work_counts_every_xref_stream ... ok
+test prescan::tests::flate_stream_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::image_filter_on_image_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_non_image_stream_is_rejected ... ok
+test prescan::tests::image_filter_on_image_within_cap_passes ... ok
+test prescan::tests::flate_stream_at_per_stream_cap_passes ... ok
+test prescan::tests::javascript_hidden_in_compressed_objstm_is_quarantined ... ok
+test prescan::tests::launch_action_is_quarantined ... ok
+test prescan::tests::launch_pointing_to_embedded_file_is_quarantined_as_launch ... ok
+test prescan::tests::launch_with_escaped_name_is_quarantined ... ok
+test prescan::tests::lzw_runlength_and_unknown_filters_are_unsupported ... ok
+test prescan::tests::many_small_objstm_are_not_rejected_by_count ... ok
+test prescan::tests::non_zip_docx_is_corrupt ... ok
+test prescan::tests::objstm_count_uses_normalized_names ... ok
+test prescan::tests::i1_shared_stream_is_counted_once ... ok
+test prescan::tests::incompressible_flate_under_ratio_passes ... ok
+test prescan::tests::c6_user_password_is_password_required_never_object_dropped ... ok
+test prescan::tests::open_action_javascript_is_quarantined_with_both_reasons ... ok
+test prescan::tests::objstm_within_caps_passes ... ok
+test prescan::tests::pages_at_limit_pass ... ok
+test prescan::tests::standard_handler_without_empty_password_is_password_required ... ok
+test prescan::tests::pages_over_limit_is_resource_limit ... ok
+test protocol::tests::emitted_line_round_trips ... ok
+test protocol::tests::status_value_is_read_in_kib ... ok
+test prescan::tests::objstm_expanding_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::empty_user_password_is_admitted_as_empty_password ... ok
+test prescan::tests::c3_encrypted_load_ignores_filter_and_expands_members ... ok
+test prescan::tests::javascript_hidden_in_encrypted_objstm_is_quarantined ... ok
+test prescan::tests::encrypted_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::i1_objstm_reexpansion_is_not_counted_twice ... ok
+test prescan::tests::user_password_is_encrypted_password_required ... ok
+test prescan::tests::objstm_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::flate_total_over_cap_is_decompression_limit ... ok
+test prescan::tests::encrypted_many_small_objstm_are_admitted ... ok
+test prescan::tests::c3_encrypted_objstm_over_quota_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_corrupt_objstm_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_unreadable_object_is_object_dropped ... ok
+test prescan::tests::i1_encrypted_counts_distinct_streams_once ... ok
+test prescan::tests::c4_xref_forms_and_incremental_update_have_no_false_drops ... ok
+
+test result: ok. 84 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo clippy -p s02-parser --all-targets --locked -- -D warnings
+ Container cka-spikes-runner-run-a6e29d56ad68 Creating 
+ Container cka-spikes-runner-run-a6e29d56ad68 Created 
+error: 'cargo-clippy' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'.
+help: run `rustup component add clippy` to install it
+
+[exit 1]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked
+ Container cka-spikes-runner-run-3f94cafc44d7 Created 
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.64s
+[exit 0]
+
+cargo check (deviazione, clippy assente): exit=0 avvisi=0
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo build -p s02-parser --locked
+ Container cka-spikes-runner-run-0064ee641eb5 Creating 
+ Container cka-spikes-runner-run-0064ee641eb5 Created 
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.34s
+[exit 0]
+
+$ cd spikes && cargo fmt --check -p s02-parser   (host)
+[exit 0]
+
+$ cd spikes && cargo clippy --workspace --all-targets --locked --offline -- -D warnings   (host Windows: compila e analizza anche parse-parent.rs, tests compresi; solo become_subreaper è cfg linux)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 53.32s
+[exit 0]
+
+$ git diff --quiet $BASE -- spikes/s02-parser/Cargo.toml spikes/Cargo.lock
+[exit 0]
+
+esito GREEN drivers: 4 passed; 0 failed (atteso 4 passed; 0 failed)
+esito GREEN unit: 12 passed; 0 failed (atteso 0 failed, test nuovi compresi; 7 hostile_verdict + 5 nuovi)
+esito fatali: overhead --out senza hw.json exit=1 csv_presente=no radice_jobs=0 (atteso exit 1, nessun output parziale); input illeggibile e bind di PDFium restano «?» con exit 1, righe non toccate dal diff
+esito R: isolation=ok oom=ok lib=ok clippy=ok (clippy assente nel runner, deviazione: linea di base cargo check exit 0 avvisi 0, ora cargo check exit 0 avvisi 0; clippy host -D warnings exit 0) build=ok fmt=ok (atteso tutti ok)
+conteggi: isolation 37 passed, oom 11 passed 1 ignored, lib 84 passed, bin parse-parent da 7 a 12 test
+
+$ python skills/security-scanner/security_scan.py --fail-on HIGH spikes/s02-parser/src/bin/parse-parent.rs spikes/s02-parser/tests/drivers.rs
+PASS con avvisi: 0 CRITICAL, 0 HIGH, 7 MEDIUM pdf-untrusted-parse (regola lessicale su «pdfium_render::»)
+[exit 0]
+
+Deviazione scanner: con la soglia di default (MEDIUM) il file parse-parent.rs di BASE esce già 1 con 4 rilevamenti pdf-untrusted-parse (bind di PDFium e in_process_run, modo in-process su input fidato scelto da 01-18); il verify del Task 2 non può uscire 0 alla lettera. Come in 01-07 si usa --fail-on HIGH e i MEDIUM si motivano: 4 preesistenti, 2 nuovi su percorsi di tipo (variante InProcessError::Pdfium e use dentro in_process_status), 1 nel modulo dei test del Task 1.
+
