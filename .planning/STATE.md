@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-22T19:24:09.467Z"
-last_activity: 2026-10-22 — 01-18 completato (bridge)
+last_updated: "2026-10-22T19:24:21.376Z"
+last_activity: 2026-10-22 — 01-08 completato (bridge); onda 5 chiusa
 progress:
   total_phases: 19
   completed_phases: 3
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 9 of 18 in current phase
 Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-22 — 01-18 completato (bridge)
+Last activity: 2026-10-22 — 01-08 completato (bridge); onda 5 chiusa
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -136,6 +136,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: Fase 01: Sonnet 5.5 anche sulle query simple (D-33), dopo regola D-31 fallita e misura D-32 (1,00 vs 0,72) → `phases/01-spike-tecnici/01-12-SUMMARY.md#decisions-made`
 - [Phase ?]: Fase 01: prescan v6 e prenotazione su 3×VmHWM, calibrazione 10/10 PDF benigni, 2 job parse nel budget → `phases/01-spike-tecnici/01-07-SUMMARY.md#decisions-made`
 - [Phase ?]: M8 di 01-18 dichiarata non raggiunta 24/26 (D-34, JBIG2 a 01-13); driver budget/overhead di 01-07 alla gap-closure 1.4 (D-35) → `phases/01-spike-tecnici/01-18-SUMMARY.md#decisions-made`
+- [Phase ?]: D-27 chiusa con l'opzione 4 (D-36), riavvio Docling e precisione pagine-tabella aperti per l'ADR di ingestion; falso positivo del prescan alla 1.4 (D-37) → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 
 ### Pending Todos
 
