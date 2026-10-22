@@ -99,7 +99,31 @@ struct Observed {
 /// - OOM avvenuto e un controllo falso → `Fallito`, con motivo che contiene il nome (chiave
 ///   della riga `OOM_RESULT`) del primo controllo violato, nell'ordine sopra.
 fn classify_m11(obs: &Observed) -> (Esito, String) {
-    todo!("classify_m11 per M11: {obs:?}")
+    if obs.oom_kill_delta == 0 {
+        return (
+            Esito::NonEsercitato,
+            "oom_kill_delta=0: il cgroup non è andato in OOM".to_owned(),
+        );
+    }
+    let checks: [(&str, bool); 10] = [
+        (
+            "memory_reservation_bytes",
+            obs.memory_reservation_bytes < obs.memory_max_bytes,
+        ),
+        ("outcome", obs.outcome == "failed"),
+        ("kind", obs.kind.as_deref() == Some("ResourceLimit")),
+        ("detail", obs.detail.as_deref() == Some("cgroup_oom")),
+        ("exit_signal", obs.exit_signal == Some(9)),
+        ("oom_adj_set", obs.oom_adj_set),
+        ("leftover_procs", obs.leftover_procs == 0),
+        ("unreaped_children", obs.unreaped_children == 0),
+        ("job_dir_removed", obs.job_dir_removed),
+        ("parent_oom_score_adj", obs.parent_oom_score_adj == 0),
+    ];
+    match checks.iter().find(|(_, ok)| !ok) {
+        Some((key, _)) => (Esito::Fallito, format!("controllo violato: {key}")),
+        None => (Esito::Verificato, String::new()),
+    }
 }
 
 /// Oggetto JSON della riga `OOM_RESULT`: sempre tutte le chiavi di [`RESULT_KEYS`] e nessun'altra.
@@ -110,7 +134,35 @@ fn classify_m11(obs: &Observed) -> (Esito, String) {
 /// numeri per byte, delta, segnale, contatori e `oom_score_adj`; booleani per `oom_adj_set` e
 /// `job_dir_removed`; stringhe (o `null`) per `outcome`, `kind`, `detail`, `oom_group`.
 fn result_json(esito: Esito, motivo: &str, obs: Option<&Observed>) -> Value {
-    todo!("result_json {} {motivo} {obs:?}", esito.as_str())
+    let mut v = json!({"esito": esito.as_str(), "motivo": motivo});
+    let fields = match obs {
+        Some(o) => json!({
+            "memory_max_bytes": o.memory_max_bytes,
+            "memory_reservation_bytes": o.memory_reservation_bytes,
+            "oom_group": o.oom_group,
+            "oom_kill_delta": o.oom_kill_delta,
+            "outcome": o.outcome,
+            "kind": o.kind,
+            "detail": o.detail,
+            "exit_signal": o.exit_signal,
+            "oom_adj_set": o.oom_adj_set,
+            "leftover_procs": o.leftover_procs,
+            "job_dir_removed": o.job_dir_removed,
+            "unreaped_children": o.unreaped_children,
+            "parent_oom_score_adj": o.parent_oom_score_adj,
+        }),
+        None => Value::Object(
+            RESULT_KEYS
+                .iter()
+                .filter(|k| !matches!(**k, "esito" | "motivo"))
+                .map(|k| ((*k).to_owned(), Value::Null))
+                .collect(),
+        ),
+    };
+    if let (Some(dst), Value::Object(src)) = (v.as_object_mut(), fields) {
+        dst.extend(src);
+    }
+    v
 }
 
 fn emit(esito: Esito, motivo: &str, obs: Option<&Observed>) {
