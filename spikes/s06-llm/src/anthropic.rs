@@ -1,5 +1,5 @@
 //! Client della Messages API per lo spike S-06: structured output
-//! (`output_config.format` json_schema), `effort: "low"`, niente `temperature`,
+//! (`output_config.format` json_schema), `effort: "low"`, niente parametri di campionamento,
 //! niente Citations native né prefill; `stop_reason` controllato prima del
 //! parse; costo da `usage` con arresto oltre il tetto di D-31.
 //!
@@ -7,8 +7,10 @@
 //! `x-api-key` e `anthropic-version: 2023-06-01`. La chiave non compare mai in
 //! `Debug`, errori o CSV.
 
+use anyhow::{Context, bail};
 use std::fmt;
-use std::time::Duration;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 /// URL base di default; sovrascrivibile in costruzione per i test locali.
 pub const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
@@ -78,11 +80,34 @@ pub enum AnthropicError {
     Other(String),
 }
 
+impl AnthropicError {
+    /// Etichetta breve per i CSV.
+    pub fn label(&self) -> String {
+        match self {
+            AnthropicError::BudgetExceeded { .. } => "budget".to_owned(),
+            AnthropicError::Http { status } => format!("http_{status}"),
+            AnthropicError::Malformed(_) => "malformed".to_owned(),
+            AnthropicError::Other(_) => "error".to_owned(),
+        }
+    }
+}
+
 impl fmt::Display for AnthropicError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // stub del test-write: da implementare in 01-12
-        let _ = f;
-        todo!()
+        match self {
+            AnthropicError::BudgetExceeded {
+                spent_usd,
+                budget_usd,
+            } => write!(
+                f,
+                "tetto di spesa raggiunto: spesi {spent_usd:.6} USD su {budget_usd:.6}, richiesta non inviata"
+            ),
+            AnthropicError::Http { status } => {
+                write!(f, "la Messages API ha risposto con status {status}")
+            }
+            AnthropicError::Malformed(m) => write!(f, "risposta non interpretabile: {m}"),
+            AnthropicError::Other(m) => write!(f, "errore verso la Messages API: {m}"),
+        }
     }
 }
 
@@ -97,66 +122,179 @@ pub struct ModelCalls {
     pub avg_output_tokens: u64,
 }
 
+/// Prezzi per milione di token, da RESEARCH §7 A-04 (skill claude-api, cache
+/// 2026-10-06, verificata): Haiku 5.5 0,10 / 0,50 USD con prompt ≤ 100K token,
+/// 0,50 / 2,50 oltre (la fascia vale per l'intera richiesta); Sonnet 5.5 2 / 10.
+pub const HAIKU_PRICE_LOW: (f64, f64) = (0.10, 0.50);
+pub const HAIKU_PRICE_HIGH: (f64, f64) = (0.50, 2.50);
+pub const HAIKU_TIER_TOKENS: u64 = 100_000;
+pub const SONNET_PRICE: (f64, f64) = (2.0, 10.0);
+
+/// Ritentativi su 429/529 (come ADR-0008: uno solo); attesa da `retry-after`, al più 10 s.
+const MAX_RETRIES: u32 = 1;
+const RETRY_WAIT_DEFAULT: Duration = Duration::from_secs(2);
+const RETRY_WAIT_MAX: Duration = Duration::from_secs(10);
+
 /// Costo in USD con i prezzi di RESEARCH §7 (Haiku 5.5 a fasce per prompt
 /// ≤ 100K / oltre; Sonnet 5.5 piatto). Errore su modello senza prezzo.
 pub fn cost_usd(model: &str, input_tokens: u64, output_tokens: u64) -> anyhow::Result<f64> {
-    // stub del test-write: da implementare in 01-12
-    let _ = (model, input_tokens, output_tokens);
-    todo!()
+    let (pin, pout) = if model.starts_with("claude-haiku-5-5") {
+        if input_tokens <= HAIKU_TIER_TOKENS {
+            HAIKU_PRICE_LOW
+        } else {
+            HAIKU_PRICE_HIGH
+        }
+    } else if model.starts_with("claude-sonnet-5-5") {
+        SONNET_PRICE
+    } else {
+        bail!("modello senza prezzo dichiarato: {model}");
+    };
+    Ok((input_tokens as f64 * pin + output_tokens as f64 * pout) / 1_000_000.0)
 }
 
 /// Valida `S06_MAX_COST_USD`: ammesso solo il tetto di D-31 (2 USD); ogni
 /// altro valore ferma l'avvio chiedendo l'intervento dell'utente.
 pub fn check_budget_cap(raw: &str) -> anyhow::Result<f64> {
-    // stub del test-write: da implementare in 01-12
-    let _ = raw;
-    todo!()
+    let v: f64 = raw
+        .trim()
+        .parse()
+        .ok()
+        .filter(|v: &f64| v.is_finite())
+        .context("S06_MAX_COST_USD non è un numero")?;
+    if v != D31_BUDGET_USD {
+        bail!(
+            "S06_MAX_COST_USD diverso dal tetto di D-31 ({D31_BUDGET_USD} USD): serve l'intervento \
+             dell'utente sul file segreti, l'esecutore non lo corregge"
+        );
+    }
+    Ok(v)
 }
 
 /// Stima della spesa della matrice di D-31.
 pub fn estimate_usd(calls: &[ModelCalls]) -> anyhow::Result<f64> {
-    // stub del test-write: da implementare in 01-12
-    let _ = calls;
-    todo!()
+    calls.iter().try_fold(0.0, |acc, c| {
+        Ok(acc + c.calls as f64 * cost_usd(&c.model, c.avg_input_tokens, c.avg_output_tokens)?)
+    })
 }
 
 /// Errore se la stima supera il tetto: si ferma prima di ogni richiesta a
 /// pagamento, warm-up compreso.
 pub fn ensure_estimate_within_cap(estimate_usd: f64, cap_usd: f64) -> anyhow::Result<()> {
-    // stub del test-write: da implementare in 01-12
-    let _ = (estimate_usd, cap_usd);
-    todo!()
+    if !(estimate_usd.is_finite() && estimate_usd <= cap_usd) {
+        bail!(
+            "stima della spesa {estimate_usd:.4} USD oltre il tetto di {cap_usd:.2} USD: \
+             nessuna richiesta a pagamento, serve l'intervento dell'utente"
+        );
+    }
+    Ok(())
+}
+
+/// Schema della risposta come valore JSON.
+pub fn answer_schema() -> serde_json::Value {
+    serde_json::from_str(ANSWER_SCHEMA_JSON).expect("schema/answer.schema.json è JSON valido")
 }
 
 /// Corpo della richiesta: `model`, `max_tokens`, `system`, un solo messaggio
 /// utente, `output_config {effort: "low", format: {type: "json_schema", schema}}`.
 pub fn request_body(model: &str, system: &str, user: &str, max_tokens: u32) -> serde_json::Value {
-    // stub del test-write: da implementare in 01-12
-    let _ = (model, system, user, max_tokens);
-    todo!()
+    serde_json::json!({
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+        "output_config": {
+            "effort": "low",
+            "format": {"type": "json_schema", "schema": answer_schema()}
+        }
+    })
 }
 
 /// Interpreta il corpo della risposta: `stop_reason` prima del parse, blocco
 /// `type == "text"` anche dopo blocchi `thinking`.
 pub fn extract(body: &serde_json::Value) -> Result<Extracted, AnthropicError> {
-    // stub del test-write: da implementare in 01-12
-    let _ = body;
-    todo!()
+    let stop_reason = body["stop_reason"]
+        .as_str()
+        .ok_or_else(|| AnthropicError::Malformed("manca stop_reason".to_owned()))?
+        .to_owned();
+    let tokens = |k: &str| {
+        body["usage"][k]
+            .as_u64()
+            .ok_or_else(|| AnthropicError::Malformed(format!("manca usage.{k}")))
+    };
+    let usage = Usage {
+        input_tokens: tokens("input_tokens")?,
+        output_tokens: tokens("output_tokens")?,
+    };
+    let model_resolved = body["model"].as_str().map(str::to_owned);
+    let generation = match stop_reason.as_str() {
+        "refusal" => Generation::Refusal,
+        "max_tokens" => Generation::MaxTokens,
+        _ => {
+            let text = body["content"]
+                .as_array()
+                .and_then(|blocks| {
+                    blocks
+                        .iter()
+                        .find(|b| b["type"] == "text")
+                        .and_then(|b| b["text"].as_str())
+                })
+                .ok_or_else(|| AnthropicError::Malformed("nessun blocco text".to_owned()))?;
+            Generation::Text(text.to_owned())
+        }
+    };
+    Ok(Extracted {
+        generation,
+        stop_reason,
+        usage,
+        model_resolved,
+    })
 }
 
 /// Client Messages API con contatore di spesa della sessione.
 pub struct Client {
-    // stub del test-write: da implementare in 01-12
-    _stub: (),
+    http: reqwest::Client,
+    base_url: String,
+    endpoint: String,
+    api_key: String,
+    max_tokens: u32,
+    max_cost_usd: f64,
+    spent_usd: Mutex<f64>,
 }
 
 impl Client {
     /// Errore con chiave vuota, tetto non positivo o URL non `https://`
     /// (ammesso `http://127.0.0.1` solo per i test locali).
     pub fn new(config: ClientConfig) -> anyhow::Result<Self> {
-        // stub del test-write: da implementare in 01-12
-        let _ = config;
-        todo!()
+        let base_url = config.base_url.trim_end_matches('/').to_owned();
+        let loopback = base_url.starts_with("http://127.0.0.1:");
+        if !base_url.starts_with("https://") && !loopback {
+            bail!("URL della Messages API non https:// (ammesso http solo su 127.0.0.1)");
+        }
+        if config.api_key.trim().is_empty() {
+            bail!("chiave Anthropic vuota");
+        }
+        if !(config.max_cost_usd.is_finite() && config.max_cost_usd > 0.0) {
+            bail!("tetto di spesa non positivo");
+        }
+        if config.max_tokens == 0 {
+            bail!("max_tokens nullo");
+        }
+        let http = reqwest::Client::builder()
+            .connect_timeout(config.connect_timeout)
+            .timeout(config.request_timeout)
+            .https_only(!loopback)
+            .build()
+            .context("costruzione del client HTTP verso la Messages API")?;
+        let endpoint = format!("{base_url}/v1/messages");
+        Ok(Client {
+            http,
+            base_url,
+            endpoint,
+            api_key: config.api_key,
+            max_tokens: config.max_tokens,
+            max_cost_usd: config.max_cost_usd,
+            spent_usd: Mutex::new(0.0),
+        })
     }
 
     /// Una generazione; rifiutata senza invio se la spesa ha già raggiunto il tetto.
@@ -166,23 +304,81 @@ impl Client {
         system: &str,
         user: &str,
     ) -> Result<Response, AnthropicError> {
-        // stub del test-write: da implementare in 01-12
-        let _ = (model, system, user);
-        todo!()
+        let body = request_body(model, system, user, self.max_tokens);
+        let mut retries = 0;
+        loop {
+            let spent = self.spent_usd();
+            if spent >= self.max_cost_usd {
+                return Err(AnthropicError::BudgetExceeded {
+                    spent_usd: spent,
+                    budget_usd: self.max_cost_usd,
+                });
+            }
+            let started = Instant::now();
+            let resp = self
+                .http
+                .post(&self.endpoint)
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", ANTHROPIC_VERSION)
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| AnthropicError::Other(format!("trasporto: {}", e.without_url())))?;
+            let status = resp.status().as_u16();
+            if (status == 429 || status == 529) && retries < MAX_RETRIES {
+                let wait = resp
+                    .headers()
+                    .get("retry-after")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.trim().parse::<f64>().ok())
+                    .filter(|s| s.is_finite() && *s >= 0.0)
+                    .map(Duration::from_secs_f64)
+                    .unwrap_or(RETRY_WAIT_DEFAULT)
+                    .min(RETRY_WAIT_MAX);
+                drop(resp);
+                tokio::time::sleep(wait).await;
+                retries += 1;
+                continue;
+            }
+            if !resp.status().is_success() {
+                return Err(AnthropicError::Http { status });
+            }
+            let json: serde_json::Value = resp
+                .json()
+                .await
+                .map_err(|_| AnthropicError::Malformed("corpo non JSON".to_owned()))?;
+            let latency_ms = started.elapsed().as_millis() as u64;
+            let extracted = extract(&json)?;
+            let cost = cost_usd(
+                model,
+                extracted.usage.input_tokens,
+                extracted.usage.output_tokens,
+            )
+            .map_err(|e| AnthropicError::Other(format!("{e:#}")))?;
+            *self.spent_usd.lock().unwrap_or_else(|e| e.into_inner()) += cost;
+            return Ok(Response {
+                extracted,
+                latency_ms,
+                cost_usd: cost,
+            });
+        }
     }
 
     /// Spesa cumulata della sessione in USD.
     pub fn spent_usd(&self) -> f64 {
-        // stub del test-write: da implementare in 01-12
-        todo!()
+        *self.spent_usd.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
 impl fmt::Debug for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // stub del test-write: da implementare in 01-12
-        let _ = f;
-        todo!()
+        f.debug_struct("Client")
+            .field("base_url", &self.base_url)
+            .field("api_key", &"<redatta>")
+            .field("max_tokens", &self.max_tokens)
+            .field("max_cost_usd", &self.max_cost_usd)
+            .field("spent_usd", &self.spent_usd())
+            .finish_non_exhaustive()
     }
 }
 
