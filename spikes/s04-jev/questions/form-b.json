@@ -1,0 +1,13 @@
+{
+  "_note": "Forma B (RESEARCH §7): una richiesta per query, state = {query, passages[N]}, una domanda Noul per passaggio con id p<i>. Il segnaposto {i} si sostituisce con l'indice del passaggio. Modifica: Claude (gsd-executor 01-11) · 2026-10-21 · prima versione",
+  "placeholder": "{i}",
+  "question_id": "p{i}",
+  "question": {
+    "type": "noul",
+    "instructions": "`passages[{i}]` contains information that answers `query`.",
+    "criteria": {
+      "true": "The passage states the requested fact or a figure needed to compute it.",
+      "false": "The passage is on another topic or only mentions related terms."
+    }
+  }
+}

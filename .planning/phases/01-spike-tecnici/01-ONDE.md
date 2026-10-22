@@ -24,6 +24,10 @@ Wave 0 = `wiring-build` (seam di §5 di `01-WIRING.md`) + gate GPU di 01-02 Task
 - **01-11** (JEV rank/forme) — dipende 01-01, 01-02, 01-05, 01-06
 - Attenzione integratore: 01-07 crea seam W17 (`s02-parser` lib + bin): file chiusi per 08/09/13/18. Classi risorsa CPU (07) vs JEV (11). Merge 01-07 poi 01-11.
 
+## Onda 4-bis (2026-10-22)
+
+- **01-12** anticipato da onda 7 (D-31, decisione utente 2026-10-22): dipendenze 01-01/02/06/11 chiuse; 01-07 e 01-18 fermi in audit GPT, un solo esecutore libero → tetto 2 rispettato. Classe di risorsa: rete API (Anthropic + JEV), nessuna GPU; finestra di misura serializzata da `session.sh`.
+
 ## Onda 5
 - **01-08** (estrazione PDF + Docling tabelle) — dipende 01-06, 01-07
 - **01-18** (casi ostili, budget reale, OOM, validazione 01-07) — dipende 01-02, 01-03, 01-07
@@ -58,3 +62,4 @@ Wave 0 = `wiring-build` (seam di §5 di `01-WIRING.md`) + gate GPU di 01-02 Task
 01-01/02 → 03/04 → 05 → 07 → 08 → 09/10 → 13 → 14 → 15 → 16 → 17 (11 onde). Divisione 07/18 (D-30): 08 parte in onda 5 senza attendere misure ostili.
 
 **Modifica:** Claude (Anthropic) · 2026-10-19 · onde della fase 1 (onde-slice): 01-12 spostato in onda 7 per tetto 2 esecutori
+**Modifica:** Claude (Anthropic) · 2026-10-22 · onda 4-bis: 01-12 anticipato (D-31)

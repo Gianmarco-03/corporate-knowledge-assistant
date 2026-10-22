@@ -24,6 +24,17 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Fan-out: variante A timeout_at+buffer_unordered di default, B JoinSet+Semaphore solo per task indipendenti; HTTP/2 preferito → `../docs/adr/0010-deadline-cancellazione-http.md#decisione`
 - 2026-10-21 · Addebito JEV dopo il drop non determinabile (console vuota 2026-10-21): cancellate contate come addebitate, lettura da ripetere → `../spikes/s05-cancel/RISULTATI.md#esito`
 - 2026-10-21 · Difetto hist.rs (01-01): Recorder satura a 2047 µs; gap-closure riapre_perimetro [1], verificare s01-upload → `phases/01-spike-tecnici/01-05-SUMMARY.md#deviations-from-plan`
+- 2026-10-21 · Hook pre-commit blocca solo CRITICAL/HIGH (--fail-on HIGH); i MEDIUM sono avvisi da motivare nel SUMMARY; gate di plan/verify invariati → `../skills/security-scanner/SKILL.md`
+- 2026-10-21 · Gap-closure 1.3: tmpfs /work del worker scrivibile da uid 10001 in compose.yaml (file chiuso 01-02) + commento s05-cancel → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
+- 2026-10-21 · Ripasso di plan 01-07: object stream su somma reale decompressa ≤512 MiB, PDF con password utente vuota ammessi, allegati ignorati e registrati, memoria su VmHWM → `../.planning/ORCHESTRATOR-STATUS.md#limiti-trovati`
+- 2026-10-21 · Forma A per il rank JEV: nDCG@5 1,0 contro 0,729 (C) e 0,679 (B), p95 606 ms ≤ 2.000 → `../spikes/s04-jev/RISULTATI-jev.md#esito`
+- 2026-10-21 · Concorrenza JEV 16 (massimo misurato con 0 risposte 429, non limite trovato); retry unico su 429/529 entro la deadline → `../docs/adr/0008-jev-forma-rank-concorrenza-pin.md#decisione`
+- 2026-10-21 · Pin jev-1.13.0 da JEV_MODEL senza default; jev-latest mobile, jev-preview già 1.14.0 → `../docs/adr/0008-jev-forma-rank-concorrenza-pin.md#decisione`
+- 2026-10-21 · Varianza Noul oltre soglia per 1 candidato su 600 (std 0,0954): margine di calibrazione ≥ ±0,1 attorno al taglio → `../spikes/s04-jev/RISULTATI-jev.md#esito`
+- 2026-10-21 · 01-11 fuso prima di 01-07 contro 01-ONDE (decisione utente: 01-07 fermo su tre blocchi esterni) → `phases/01-spike-tecnici/01-11-SUMMARY.md#integrazione-fuori-ordine`
+- 2026-10-21 · instructs_model misurato solo sui falsi positivi (0/1.800): il rilevamento sul testo ostile va a 01-12 o a un oracolo nuovo → `phases/01-spike-tecnici/01-11-SUMMARY.md#issues-encountered`
+
+- 2026-10-22 · Sonnet 5.5 anche sulle query simple (D-33): regola D-31 fallita, misura D-32 Sonnet 1,00 contro Haiku 0,72 → `phases/01-spike-tecnici/01-12-SUMMARY.md#decisions-made`
 
 ## Fase 1.1 — Gap-closure di session.sh
 
@@ -31,10 +42,56 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Id di piano 01-1-01 nelle sessioni di session.sh: le regex rifiutano il punto; fixture TEST-11/12 allineate, non indebolite → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#deviations-from-plan`
 - 2026-10-21 · Commit unico RED+GREEN+regressione: l'hook rifiuta i commit di soli .txt (security-scope-empty); regola dell'hook da decidere → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#punti-aperti`
 
+- 2026-10-21 · Hook pre-commit invariato: con evidenze solo .txt/.csv il RED entra nel commit della correzione, in sezione distinta (decisione utente) → `../.planning/ORCHESTRATOR-STATUS.md#decisioni-ratificate-in-corsa`
+
 ## Fase 1.2 — Gap-closure di hist.rs
 
 - 2026-10-21 · Il Recorder registra con record (auto-resize); il difetto reale saturava a 2 µs, non a 2047 → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#il-difetto-reale-più-grave-di-quello-del-context`
 - 2026-10-21 · Rifiuto di record contato da rejected() (metodo additivo), ripiego saturato e avviso unico su stderr, firme invariate → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 - 2026-10-21 · TEST-15/16 adottati su proposta del test design: ramo Err provato con new_with_max(2047, 3) dal mod tests → `phases/01.2-gap-closure-hist-rs-il-recorder-delle-latenze-non-satura-sop/01.2-01-SUMMARY.md#decisions-made`
 
+## Fase 1.3 — Gap-closure di compose.yaml
+
+- 2026-10-21 · tmpfs /work del worker con uid/gid 10001 e mode=0700 in sintassi corta; scartati 1777, /work nell'immagine e sintassi lunga → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#decisions-made`
+- 2026-10-21 · Docker monta il tmpfs con noexec/nosuid/nodev: per 01-07 nessun binario si esegue da /work → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#punti-aperti`
+- 2026-10-21 · TEST-5 e TEST-13 del design 01.3-01 difettosi (regex non ancorata, conflitto su «nessun down -v»): da correggere se riusati → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#deviations-from-plan`
+
+## Fase 2 — Fondazione (discuss)
+
+- 2026-10-21 · Contract-first: YAML OpenAPI per servizio, trait Contract (from_json + validate) in crates/contracts, classi Rust a mano, nessun generatore → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- 2026-10-21 · Contract test per servizio: oasdiff breaking + Schemathesis --mode all contro servizio avviato + unit test su validate(), a ogni push → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- 2026-10-21 · Errori problem+json RFC 9457 con code/message/request_id; 503+Retry-After per saturazione, 429 solo rate limit → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
+- 2026-10-21 · Schema per servizio in un database (contro raccomandazione), search_path per ruolo, test 42501, cataloghi visibili accettati → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- 2026-10-21 · Migrazioni a fascia PPNNNN_nome.sql con gate CI (sqlx: versione = prefisso prima del primo _, fuori ordine applicato in silenzio) → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- 2026-10-21 · Primitive idempotency/outbox/lease alle fasi proprietarie, nessun seam in Fondazione (contro raccomandazione) → `phases/02-fondazione/02-CONTEXT.md#dati-e-migrazioni-plat-02-criteri-3-e-5`
+- 2026-10-21 · Proposte runtime Decise alle versioni del 2026-10-21; reqwest-tracing escluso; crate config; distroless debian13 → `phases/02-fondazione/02-CONTEXT.md#ambiente-build-e-ci-plat-06-criteri-1-e-2`
+- 2026-10-21 · Caddy unico origin, /internal/v1 bloccate e solo su rete interna; Garage HTTP su rete interna, TLS in fase 15; niente bind mount → `phases/02-fondazione/02-CONTEXT.md#ambiente-build-e-ci-plat-06-criteri-1-e-2`
+- 2026-10-21 · OTLP opzionale + Jaeger v2 in override (passa a fase 14); redazione di default; /livez e /readyz → `phases/02-fondazione/02-CONTEXT.md#telemetria-log-e-health-criterio-4`
+- 2026-10-21 · crates/contracts: tipi trasversali subito, tipi di dominio file vuoti per le fasi 3 e 7 → `phases/02-fondazione/02-CONTEXT.md#tipi-condivisi-area-e2`
+- 2026-10-21 · React Router 8 data mode, TS 7 se il lint regge, Tailwind 4 + shadcn, registro route esplicito → `phases/02-fondazione/02-CONTEXT.md#shell-frontend-criterio-1-e-5`
+
+## Fase 3 — Provider di ingestion e indice (discuss)
+
+- 2026-10-21 · Firme S-07 confermate con variazioni: search(SearchQuery{text, embedding}) per l'ibrida, DocumentStore::delete per il GC della fase 6, parse su file locale; nel brief di execute di 01-16 → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#firme-delle-porte-conferma-s-07-area-a`
+- 2026-10-21 · Predicato = insieme di etichette, indice agnostico da Q-02; deny by default nel tipo → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#autorizzazione-nellindice-area-b`
+- 2026-10-21 · ACL in proiezione document_acl posseduta dalla fase 3, VectorIndex::set_acl (consumatori 6, 7, 12), versione ACL per documento → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#autorizzazione-nellindice-area-b`
+- 2026-10-21 · publish_version in una sola transazione con puntatore alla versione corrente → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#pubblicazione-delle-versioni-area-c`
+- 2026-10-21 · Locator multi-span con al massimo un confine (PDF e testo), contro raccomandazione; emenda D-10 di fase 1 → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
+- 2026-10-21 · Chunk in caratteri, TEI rifiuta invece di troncare; Docling in fase 3 condizionato ad ADR-0004/D-27 → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#parser-e-chunker-aree-d-e`
+- 2026-10-21 · SSRF: resolver che scarta IP non globali, redirect controllati, https, tetti, rete Compose dedicata; niente proxy egress → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#connettore-online-area-h`
+- 2026-10-21 · Contract suite unica su reale e fake; reali in CI (PG, Garage, PDFium+Tesseract, TEI CPU) + gate locale GPU in verify → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
+- 2026-10-21 · Fake deterministici con copione di guasti dietro feature testkit, mai in release; fixture ostili copiate con manifest → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
+
+## Fase 4 — Provider di decisione, risposta e trasversali (discuss)
+
+- 2026-10-21 · Split S-07 Reranker/DecisionEngine; baseline solo sul Reranker, guasto JEV = errore tipizzato; criterio 1 ROADMAP da riformulare → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#porte-e-baseline-aree-a-b-d-e`
+- 2026-10-21 · Adapter solo segnali, soglie nel caso d'uso della fase 8 (calibrate 13/14); generate con Complexity di dominio, single-turn fino a Q-05 → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#porte-e-baseline-aree-a-b-d-e`
+- 2026-10-21 · Circuit breaker scritto a mano, uno per provider, solo guasti del provider; semaforo globale + limite per query → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#resilienza-area-c`
+- 2026-10-21 · Snapshot OpenAPI JEV con hash; minimizzazione verso i provider; inference_geo global, nessun dato utente → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#adapter-jev-area-b`
+- 2026-10-21 · AuditSink PG append-only per servizio, evento tipizzato, IdempotencyConflict (forma provvisoria fino a Q-04) → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#auditsink-area-f-forma-provvisoria-fino-a-q-04`
+- 2026-10-21 · Hash chain dell'audit già in fase 4 (contro raccomandazione), riga di testa FOR UPDATE, nessun ancoraggio, verify_chain → fase 11 → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#auditsink-area-f-forma-provvisoria-fino-a-q-04`
+- 2026-10-21 · NoOpCache + fake in memoria con scope; replay wiremock in CI + gate locale a 0,50 USD; prova no-leak a sentinelle → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#contract-test-prova-no-leak-e-adapter-reali-aree-h-i`
+
 **Modifica:** Claude (Anthropic) · 2026-10-19 · creazione dell'indice con le decisioni dell'onda 1 della fase 1
+**Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 3
+**Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 4

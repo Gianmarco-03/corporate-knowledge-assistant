@@ -1,0 +1,220 @@
+# worker-work-tmpfs — /work del worker scrivibile dall'utente 10001 (fase 1.3, D-01/D-02)
+# data UTC: 2026-10-21T16:53:41Z  git_rev base: 0c91e08
+# La parte RED usa compose.yaml di base (identico a 254b338); la parte GREEN usa compose.yaml con la correzione.
+# Identificativo di piano per session.sh: 01-3-01, perché new-id, acquire e la regex del run_id rifiutano il punto di 01.3-01.
+
+immagine worker = cka-spikes-worker:latest 12e5ddbba19e (User 10001:10001, WorkingDir /work, Cmd sleep infinity; nessuna ricostruzione)
+cartella spikes/s02-parser/results prima della prova: assente
+
+sonda W = echo "uid=$(id -u) gid=$(id -g)"; echo "work=$(stat -c '%u:%g %a' /work)"; mkdir /work/job-probe; echo "mkdir_exit=$?"; if [ -d /work/job-probe ]; then echo "job_probe=$(stat -c '%u:%g %a' /work/job-probe)"; else echo "job_probe=assente"; fi; touch /rootfs-probe 2>/dev/null; echo "rootfs_write_exit=$?"
+
+formato inspect F = {{json .HostConfig.Tmpfs}} {{.HostConfig.ReadonlyRootfs}} {{.HostConfig.NetworkMode}} {{.Config.User}} {{json .HostConfig.CapDrop}} {{json .HostConfig.SecurityOpt}} {{.HostConfig.PidsLimit}} {{.HostConfig.Memory}}
+
+## Controllo D-01: tmpfs dei servizi non root
+
+$ grep -v '^[[:space:]]*#' spikes/compose.yaml | grep -c tmpfs
+1
+[exit 0]
+
+esito D-01: righe tmpfs non commentate = 1 (atteso 1, solo worker); docling e docling-cpu (1001) senza tmpfs, paddle (10001) senza tmpfs né read_only, runner (10001) usa il volume work-tmp di cui init-volumes fa il chown: nessun altro servizio da correggere
+
+run_id RED = 01-3-01-20261021t165341z-ffcc
+
+$ CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-3-01 01-3-01-20261021t165341z-ffcc --wait 1800
+PRENOTATO run_id=01-3-01-20261021t165341z-ffcc piano=01-3-01
+[exit 0]
+
+## Prova 1 (RED): mkdir in /work come 10001, compose.yaml di base
+
+$ bash spikes/tools/session.sh up 01-3-01-20261021t165341z-ffcc worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-3-01-20261021t165341z-ffcc (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-3-01-20261021t165341z-ffcc  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec 01-3-01-20261021t165341z-ffcc worker -- sh -c "$SONDA"
+uid=10001 gid=10001
+work=0:0 755
+mkdir: cannot create directory '/work/job-probe': Permission denied
+mkdir_exit=1
+job_probe=assente
+rootfs_write_exit=1
+[exit 0]
+
+$ docker inspect --format '{{json .HostConfig.Tmpfs}} {{.HostConfig.ReadonlyRootfs}} {{.HostConfig.NetworkMode}} {{.Config.User}} {{json .HostConfig.CapDrop}} {{json .HostConfig.SecurityOpt}} {{.HostConfig.PidsLimit}} {{.HostConfig.Memory}}' b091074005f7
+{"/work":"size=2g"} true none 10001:10001 ["ALL"] ["no-new-privileges:true"] 256 2147483648
+[exit 0]
+
+esito 1-RED: mkdir_exit=1 (atteso diverso da 0), work=0:0 755 (osservato, atteso proprietario diverso da 10001:10001), job_probe=assente (atteso assente), rootfs_write_exit=1 (atteso diverso da 0)
+
+## Pulizia RED
+
+$ bash spikes/tools/session.sh down 01-3-01-20261021t165341z-ffcc
+DOWN run_id=01-3-01-20261021t165341z-ffcc: rimossi 1, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-3-01-20261021t165341z-ffcc
+RILASCIATO run_id=01-3-01-20261021t165341z-ffcc
+[exit 0]
+
+GREEN: compose.yaml con la correzione nell'albero (08ef822 + diff)
+
+run_id GREEN = 01-3-01-20261021t165731z-aaea
+
+$ CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-3-01 01-3-01-20261021t165731z-aaea --wait 1800
+PRENOTATO run_id=01-3-01-20261021t165731z-aaea piano=01-3-01
+[exit 0]
+
+## Prova 1 (GREEN): mkdir in /work come 10001, compose.yaml corretto
+
+$ bash spikes/tools/session.sh up 01-3-01-20261021t165731z-aaea worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-3-01-20261021t165731z-aaea (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-3-01-20261021t165731z-aaea  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec 01-3-01-20261021t165731z-aaea worker -- sh -c "$SONDA"
+uid=10001 gid=10001
+work=10001:10001 700
+mkdir_exit=0
+job_probe=10001:10001 755
+rootfs_write_exit=1
+[exit 0]
+
+$ docker inspect --format '{{json .HostConfig.Tmpfs}} {{.HostConfig.ReadonlyRootfs}} {{.HostConfig.NetworkMode}} {{.Config.User}} {{json .HostConfig.CapDrop}} {{json .HostConfig.SecurityOpt}} {{.HostConfig.PidsLimit}} {{.HostConfig.Memory}}' 2019da02517c
+{"/work":"size=2g,uid=10001,gid=10001,mode=0700"} true none 10001:10001 ["ALL"] ["no-new-privileges:true"] 256 2147483648
+[exit 0]
+
+esito 1-GREEN: work=10001:10001 700 (atteso 10001:10001 700), mkdir_exit=0 (atteso 0), job_probe=10001:10001 755 (atteso proprietario 10001:10001), rootfs_write_exit=1 (atteso diverso da 0)
+esito inspect GREEN: Tmpfs /work con size=2g, uid=10001, gid=10001, mode=0700 si; campi di isolamento identici al RED (ReadonlyRootfs, NetworkMode, User, CapDrop, SecurityOpt, PidsLimit, Memory) si
+
+## Pulizia GREEN
+
+$ bash spikes/tools/session.sh down 01-3-01-20261021t165731z-aaea
+DOWN run_id=01-3-01-20261021t165731z-aaea: rimossi 1, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-3-01-20261021t165731z-aaea
+RILASCIATO run_id=01-3-01-20261021t165731z-aaea
+[exit 0]
+
+## Regressione (D-02)
+
+$ docker compose -f spikes/compose.yaml --env-file spikes/.env.example config -q
+[exit 0]
+
+esito R1: config -q exit 0 (atteso 0)
+
+run_id A = 01-3-01-20261021t165857z-6ddb
+
+$ CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-3-01 01-3-01-20261021t165857z-6ddb --wait 1800
+PRENOTATO run_id=01-3-01-20261021t165857z-6ddb piano=01-3-01
+[exit 0]
+
+### R2a: assert-only (prova a di session-negative.txt)
+
+$ bash spikes/tools/session.sh up 01-3-01-20261021t165857z-6ddb postgres
+SET RISOLTO = NOMINATO: {postgres }
+ Container cka-spikes-postgres-1 Creating 
+ Container cka-spikes-postgres-1 Created 
+ Container cka-spikes-postgres-1 Starting 
+ Container cka-spikes-postgres-1 Started 
+ Container cka-spikes-postgres-1 Waiting 
+ Container cka-spikes-postgres-1 Healthy 
+CONTAINER della sessione 01-3-01-20261021t165857z-6ddb (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-3-01-20261021t165857z-6ddb  running
+ASSERT-ONLY ok: in esecuzione solo {postgres}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps 01-3-01-20261021t165857z-6ddb --assert-only garage
+CONTAINER della sessione 01-3-01-20261021t165857z-6ddb (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-3-01-20261021t165857z-6ddb  running
+session.sh: in esecuzione un servizio fuori elenco: postgres (cka-spikes-postgres-1, run_id=01-3-01-20261021t165857z-6ddb)
+[exit 1]
+
+$ bash spikes/tools/session.sh ps 01-3-01-20261021t165857z-6ddb --assert-only postgres
+CONTAINER della sessione 01-3-01-20261021t165857z-6ddb (nome, servizio, run_id, stato):
+cka-spikes-postgres-1  postgres  01-3-01-20261021t165857z-6ddb  running
+ASSERT-ONLY ok: in esecuzione solo {postgres}
+[exit 0]
+
+esito R2a: up postgres exit 0 (atteso 0), assert-only garage exit 1 (atteso 1), assert-only postgres exit 0 (atteso 0)
+
+### R2b: rifiuto di un servizio già in esecuzione con un'altra sessione (prova b di session-negative.txt)
+
+container di A prima:
+d957c047b5b9 cka-spikes-postgres-1 running 01-3-01-20261021t165857z-6ddb
+
+$ bash spikes/tools/session.sh release 01-3-01-20261021t165857z-6ddb
+RILASCIATO run_id=01-3-01-20261021t165857z-6ddb
+[exit 0]
+
+run_id B = 01-3-01-20261021t165903z-bc3e
+
+$ CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-3-01 01-3-01-20261021t165903z-bc3e --wait 1800
+PRENOTATO run_id=01-3-01-20261021t165903z-bc3e piano=01-3-01
+[exit 0]
+
+$ bash spikes/tools/session.sh up 01-3-01-20261021t165903z-bc3e postgres
+SET RISOLTO = NOMINATO: {postgres }
+session.sh: servizio postgres già in esecuzione con un'altra sessione (cka-spikes-postgres-1, run_id=01-3-01-20261021t165857z-6ddb): non lo tocco
+[exit 1]
+
+container di A dopo:
+d957c047b5b9 cka-spikes-postgres-1 running 01-3-01-20261021t165857z-6ddb
+
+container di A intatto: stesso ID e stato prima/dopo
+
+esito R2b: up B postgres exit 1 (atteso 1)
+
+esito R3: session.sh, .env.example e runner.Dockerfile invariati da 254b338 si; diff del compose limitato alla riga tmpfs del worker si: le prove di session-env-precedence.txt restano valide per costruzione
+
+esito R: regressione ok (R1, R2a, R2b, R3 e container di A intatto)
+
+## Pulizia
+
+$ bash spikes/tools/session.sh down 01-3-01-20261021t165903z-bc3e
+DOWN run_id=01-3-01-20261021t165903z-bc3e: rimossi 0, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-3-01-20261021t165903z-bc3e
+RILASCIATO run_id=01-3-01-20261021t165903z-bc3e
+[exit 0]
+
+$ CKA_OWNER_PID=$$ bash spikes/tools/session.sh acquire 01-3-01 01-3-01-20261021t165857z-6ddb --wait 1800
+PRENOTATO run_id=01-3-01-20261021t165857z-6ddb piano=01-3-01
+[exit 0]
+
+$ bash spikes/tools/session.sh down 01-3-01-20261021t165857z-6ddb
+DOWN run_id=01-3-01-20261021t165857z-6ddb: rimossi 1, residui 0
+[exit 0]
+
+$ bash spikes/tools/session.sh release 01-3-01-20261021t165857z-6ddb
+RILASCIATO run_id=01-3-01-20261021t165857z-6ddb
+[exit 0]
+
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+[exit 0]
+
+container cka-spikes rimasti:
+(fine elenco)
+volumi docker: elenco identico prima/dopo (nessun volume creato o rimosso; nessun down -v)
+immagine worker: ID breve identico prima/dopo (12e5ddbba19e), nessuna ricostruzione
+cartella spikes/s02-parser/results creata dal bind e rimossa (vuota)
+
+**Modifica:** Claude (gsd-executor 01.3-01) · 2026-10-21 · evidenza RED (test-write), GREEN, regressione e pulizia della gap-closure 1.3

@@ -154,7 +154,10 @@ passo_confini() {
 
 # security-scanner su una directory-istantanea (il contenuto da giudicare,
 # non l'albero di lavoro). Sempre applicabile: 0 verde, qualsiasi altro
-# codice blocca.
+# codice blocca. Soglia --fail-on HIGH (decisione utente 2026-10-21): bloccano
+# CRITICAL e HIGH; i MEDIUM si stampano come avvisi e la giustificazione va
+# nel SUMMARY del piano. Vale per pre-commit e pre-push, che usano entrambi
+# questa funzione.
 passo_sicurezza() {
     istantanea="$1"
     descrizione="$2"
@@ -168,7 +171,7 @@ passo_sicurezza() {
         return
     fi
     rc=0
-    sh scripts/py.sh "$SCRIPT_SICUREZZA" "$istantanea" || rc=$?
+    sh scripts/py.sh "$SCRIPT_SICUREZZA" --fail-on HIGH "$istantanea" || rc=$?
     if [ "$rc" -eq 0 ]; then
         esito "PASS" "security-scanner"
     else

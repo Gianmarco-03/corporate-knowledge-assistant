@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · aggiornato: 2026-10-21
+fase 01 / onda 4-bis / slice 01-12 / exec completato (01-12 chiuso d8b6227; 01-07 v6 e 01-18 v5 APPROVED_WITH_WARNINGS, test design GPT in attesa) · aggiornato: 2026-10-22T14:30Z
 
 ## Prossima azione
 
-/execute 1 onda 4 (01-07 contratto job/lanciatore, 01-11 JEV rank; gate con `cargo clean -p` dei crate toccati); pendenti utente: UAT 01.1 e 01.2, hook pre-commit (TODO).
+READ+ACK test_design_11 (01-07 v6) e test_design_12 (01-18 v5), trascrivere, READ-GATE TEST_SPEC_READY; poi test-write delta 01-07 e /execute 1 --piano 01-07 dal Task 3 (patch .planning/tmp/task3-uncommitted.patch); poi onda 5 (01-18 + 01-08); traccia discuss: /discuss 5.
 
 ## Findings
 
@@ -47,26 +47,56 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 - verify 01.1: passed 7/7; contratto onorato; WIRING-MAP invariata (nessun seam); PLAT-07 non spuntato; STATE riportato a fase 1 dopo phase complete (che puntava a fase 2); goal ROADMAP 01.1 ancora segnaposto → 01.1-VERIFICATION.md
 - onda 1 di 01.1 chiusa: 01.1-01 (fix 20c5e6f, merge 598022d, bridge 94f2753); test-write RED_EXPECTED; gate main verde (bash -n, compose config, proprieta-file conforme con riapertura, segreti 0, scanner ok) → 01.1-01-SUMMARY.md
 - deviazioni livello a 01.1-01: id piano 01-1-01 (regex senza punto); commit unico RED+GREEN (hook su soli .txt); testo «down -v» riformulato per TEST-10; PLAN riga 114 senza «:» (falso positivo hook) → SUMMARY
+- fase 02 criticità normale, ratificata utente 2026-10-21 → 02-CONTEXT.md
+- 02 contract-first: YAML per servizio, trait Contract (from_json+validate), classi a mano, nessun generatore; oasdiff + Schemathesis --mode all + unit (D-01..D-04) · fonte Area A → 02-CONTEXT.md
+- 02 errori problem+json RFC 9457 + code/message/request_id; 503 saturazione, 429 rate limit (D-05/06) · fonte Area B
+- 02 schema per servizio (contro raccomandazione), search_path per ruolo, test 42501, cataloghi visibili accettati (D-07/08) · fonte Area C
+- 02 migrazioni PPNNNN_nome.sql + gate (sqlx: versione prima del primo _, fuori ordine silenzioso) (D-09) · fonte Area C
+- 02 primitive idempotency/outbox/lease alle fasi proprietarie, nessun seam (contro raccomandazione, allineato 01-CONTRATTO §6) (D-10)
+- 02 stack runtime Deciso 2026-10-21, reqwest-tracing escluso, crate config, distroless debian13, Caddy unico origin, /internal bloccate, Garage HTTP rete interna (D-11..D-18) · fonte Area B/D/E
+- 02 OTLP opzionale + Jaeger v2 override (→ fase 14), redazione default, /livez /readyz; contracts: trasversali ora, dominio vuoti (D-19..D-22)
+- 02 frontend React Router 8 data mode, TS 7 se lint regge, Tailwind 4 + shadcn, registro route esplicito (D-23..D-25) · fonte Area D
+- fase 03 criticità critica, ratificata utente 2026-10-21 → 03-CONTEXT.md
+- 03 firme S-07 base + search(SearchQuery{text, embedding}), DocumentStore::delete (consumer GC fase 6), parse su file locale; variazioni → brief execute 01-16 (D-01..D-05) · fonte Area A
+- 03 predicato = insieme etichette (agnostico Q-02, vuoto = zero); proiezione document_acl fase 3 + set_acl (6,7,12) + versione ACL per documento (D-06..D-08) · fonte Area B (Azure security filter, pgvector)
+- 03 publish_version una tx + puntatore versione corrente (D-09) · fonte Area C (PG Read Committed)
+- 03 locator multi-span max un confine, PDF e testo, contro raccomandazione; emenda D-10 fase 1 (Storia scritta) (D-10) · decisione utente
+- 03 chunk in caratteri + TEI rifiuta (no troncamento); Docling in fase 3 condizionato ADR-0004/D-27 (D-11, D-12) · fonte Area D/E
+- 03 SSRF in-process (resolver IP globali, redirect controllati, https, tetti) + rete Compose dedicata; no Smokescreen (D-13) · fonte Area H (OWASP)
+- 03 contract suite unica reale/fake; CI PG+Garage+PDFium/Tesseract+TEI CPU, gate locale GPU (TEI Qwen3, Docling) in verify; testkit mai in release; fake con copione guasti; fixture ostili copiate con manifest (D-14..D-18) · fonte Area I
+- fase 04 criticità critica, ratificata utente 2026-10-21 → 04-CONTEXT.md
+- 04 split S-07 Reranker/DecisionEngine; baseline solo Reranker, guasto JEV = errore tipizzato; adapter solo segnali, soglie fase 8 (±0,1 ADR-0008); generate con Complexity, single-turn fino Q-05; structured output validato lato client (D-01..D-06) · fonte Area A/B/D/E
+- 04 breaker a mano, uno per provider, solo guasti provider; semaforo globale + 16 per query (ADR-0008); retry JEV 429/529 (D-07..D-10) · fonte Area C
+- 04 snapshot OpenAPI JEV sha256 ee599512…; forma A rank + guardia ACL (ADR-0008); inference_geo global, nessun dato utente (D-11..D-13) · fonte Area B/D
+- 04 AuditSink PG append-only per servizio (identity/document/rag), evento tipizzato, IdempotencyConflict; hash chain contro raccomandazione, testa FOR UPDATE, no ancoraggio, verify_chain → 11 (D-14..D-19) · fonte Area F
+- 04 NoOpCache + fake con scope (fase 10); replay wiremock CI + gate locale 0,50 USD; no-leak a sentinelle, OTel senza contenuti (D-20..D-23) · fonte Area G/H/I
+- 01-12 v2 ripasso D-31: Sonnet solo complex/no_answer, fallback 15 fallback_ids, tetto 2 USD (locale portato 5→2); routing = Haiku ≥ Sonnet−0,05 su complex + Haiku ≥ 0,85 su simple, altrimenti utente; gate giro 9 verdi; test design Claude RISK-13/14, TEST-20..23; anticipato da onda 7 · utente 2026-10-22 → 01-CONTEXT D-31, 01-GATE.md, bdc3d8f
 
+- onda 4-bis chiusa: 01-12 (merge 6d1f090, bridge d8b6227), gate onda verde (fmt/clippy/35 test s06-llm, proprieta-file, scanner); regola D-31 → utente, D-32 misura Sonnet simple 1,00 vs Haiku 0,72, D-33 Sonnet su tutto (emenda D-18); spesa 0,598/2 USD; p95 Haiku 3,744 s > 3 s dichiarata → 01-12-SUMMARY.md, ADR-0011
+- deviazioni 01-12: b-segnalazione hw-manifest.sh (01-02) vs common::manifest (01-01) già nota, normalizzazione come 01-04/05/11; da verify: format! per URL http nei test (anthropic.rs:651, jev.rs:466), loopback per prefisso con userinfo, unauthorized_in_prompt 0 per costruzione (garanzia vera TEST-1) → 01-12-SUMMARY.md
+- 01-07 v6 (7ce2183) e 01-18 v5 (9f3d78d) APPROVED_WITH_WARNINGS (risk_audit_24/25, MEDIUM prenotazione memoria non rigida → prova OOM 01-18); 4° giro audit 01-07 autorizzato utente → 01-07-RISK-AUDIT-v6.md, 01-18-RISK-AUDIT-v5.md
 ## Limiti trovati
 
 - 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7
 - 2026-10-20 · API Claude irraggiungibile (ENOTFOUND, DNS) durante onda 2: esecutore 01-03 morto senza commit, test-write 01-04 morto con test non committati · impatto: ripresa con agenti nuovi da primo task non committato · rif. 01-ONDE.md onda 2
 - 2026-10-20 · DATABASE_URL di sistema Windows (DB cloud Neon altro progetto) vince su --env-file nell'interpolazione compose di session.sh: gc_race (TRUNCATE) tentò 2× quel DB, nessuna connessione riuscita (DNS, poi TLS assente) · impatto: workaround in bench.sh 9341b43; difetto file chiuso 01-02 → gap-closure fase 1.1 prima onda 3 (decisione utente; utente toglie la variabile) · rif. .planning/tmp/rapporto-01-04.yaml → 01-04-SUMMARY
 - 2026-10-20 · DNS intermittente: 2 schede attive (Fritz!Box 192.168.178.1 + hotspot 172.20.10.1); cargo fetch runner 35/35 falliti, 2° esecutore 01-04 morto ENOTFOUND · impatto: build runner offline con vendor host; riprese agenti; utente lascia rete com'è
+- 2026-10-21 · 01-07 fermo su 3 blocchi esterni al piano: B1 scanner MEDIUM bloccante (pdf-untrusted-parse, archive-decompress) → hook --fail-on HIGH 4441aef; B2 tmpfs /work root 755 nel compose.yaml chiuso (worker uid 10001) → gap-closure 1.3; B3 soglie prescan rifiutano 8/8 PDF benigni (object stream conteggio×64 MiB, /Encrypt solo permessi, allegato) + B4 formula su VmPeak → ripasso plan 01-07 · utente 2026-10-21 · impatto: 01-11 fuso prima di 01-07; lavoro 01-07 Task 3 in worktree + patch in TEMP/cka-0107-wip · rif. .planning/tmp/rapporto-01-07.yaml
 
 ## Gate & verdetti
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| 01.3-01 | conforme 6/6 (1° giro) → 01.3-GATE.md | verde: compose config, fmt/clippy/test spikes, lint-stato; security 0 gravi (0700+10001 restringe, isolamento invariato, evidenza pulita, noexec coerente con 01-07); code review non applicabile (1 riga YAML + commento) | passed 7/7, 0 gap → 01.3-VERIFICATION.md |
 | 01.2-01 | conforme 6/6 (1° giro) + 2 ritocchi post-gate (TEST-15/16, errata RED) → 01.2-GATE.md | verde: lint-stato verde; cargo fmt/clippy/test spikes verdi dopo `cargo clean -p common` (common 17/17); security HIGH «3 FAILED» = falso allarme da binario di test stale del RED (decaduto, confermato da rust-reviewer); LOW accettati: assert `max_us <= 2047` debole in TEST-15 (rejected==3 e n==4 già asseriti), tolleranza 0,1 % vicina a 1/1024 con valori scelti lontani dal caso peggiore, doc «anche u64::MAX» poggia su test upstream, `saturating_add` superfluo, commento storico s05-cancel/src/main.rs:280 (fuori perimetro D-03) | passed 7/7, 0 gap → 01.2-VERIFICATION.md |
 | 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | passed 7/7, 0 gap → 01.1-VERIFICATION.md |
 
 ## UAT
 
-- 01.1 pendente · TEST-8 conteggio grep -F sentinelle letterali attestato solo da rapporti (driver cancellato per piano) → 01.1-VERIFICATION.md
-- 01.1 pendente · RISK-14/15/16 LOW da confermare accettati (RISK-14 elenco reale vuoto) → 01.1-01-SUMMARY.md
-- 01.2 pendente · RISK-12 memoria auto-resize ≤ ~450 KB/Recorder senza benchmark; RISK-13 commento s05 «2047» storico (01-05-SUMMARY annotato) → 01.2-VERIFICATION.md
+- 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
+- 01.1 accettata · utente 2026-10-21 · RISK-14 vuoto (manca solo CKA_RUN_ID, impostato da dc()); RISK-15 0 collisioni; RISK-16 0 nomi non ASCII/non validi → 01.1-01-SUMMARY.md
+- 01.2 accettata · utente 2026-10-21 · RISK-12 memoria auto-resize ≤ ~704 KiB allocati/Recorder (≈3,4 MiB caso peggiore con 5 Recorder, ≈880 KiB a 60 s), calcolo da sorgente, misura diretta fallita (LNK1104); RISK-13 commento s05 accettato, correzione alla prossima riapertura fase 1 → 01.2-01-SUMMARY.md
+- 01.3 accettata · utente 2026-10-21 · RISK-15 noexec/nosuid/nodev del tmpfs non misurato (default Docker, passa a 01-07); RISK-13 uid scollegato da user:, RISK-14 tmpfs nel cgroup: accettati → 01.3-VERIFICATION.md
 
 ## TODO
 
@@ -77,15 +107,32 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 - da confermare utente: soglie M10/M11 (01-18); lessico motivi quarantena + exit 3 driver (01-07); pin pip 24.3.1 / pip-tools 7.4.1 non verificati.
 - test_design_3, _6 (07 v2, 13 v2) senza risposta su AgentBridge: obsoleti, sostituiti da _8, _9.
 - D-27 Docling pagine-tabella: scelta dopo misura 01-08 → 01-CONTEXT Deferred Ideas.
-- interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012).
-- da decidere utente: hook pre-commit rifiuta commit di sole evidenze .txt/.csv (security-scope-empty rc=2) → commit RED separato impossibile (01-04, 01.1-01) → 01.1-01-SUMMARY.md#punti-aperti
+- interfaces-and-concurrency.md (split Reranker/DecisionEngine) → Fondazione (ADR-0012); + 503/429 (02 D-06) → 02-CONTEXT TODO.
+- 02: DEPENDENCIES.md Proposte→Decise + contract-first, React Router 8, Caddy, Jaeger, Schemathesis/oasdiff, con Storia → plan 02.
+- 02: ROADMAP/STATE «primitive raccomandate in Fondazione» superata da D-10 → annotare via gsd-tools.
+- 02: IdempotencyKey in contracts o interno per servizio? assunzione provvisoria file vuoto → fase 6; decide wiring-design.
+- 02: rischio pipeline: D-18/D-22 provvisorie fino a ADR-0003 ratificato e ADR-0012 emesso (01-16/01-17).
+- 02: tag Jaeger v2 / Garage / cargo-chef e TS 7 + typescript-eslint da verificare in plan.
 - gate/verify su spikes/: target cache condivisa fra worktree può lasciare un binario di test stale (falsi rossi in verify 01.2) → partire da `cargo clean -p <crate toccato>` nei gate d'onda e in verify
+- 03: brief execute 01-16 ← D-02, D-03, D-04, D-06, D-07, D-08, D-10; brief execute 01-09 ← D-10 (ADR-0005 multi-span) → 03-CONTEXT.md §TODO
+- 03: ROADMAP tabella tracciabilità: delete→6, set_acl→6,7,12, embed_batch→embed_documents/embed_query (gsd-tools, riconciliazione o plan 3)
+- 03: tombstone DELETE /api/v1/documents/{id} senza fase proprietaria → assegnare in discuss 6 o 12; poi VectorIndex::withdraw in riconciliazione
+- 03: discuss 6 Q-02 deve produrre insiemi di etichette (D-06); discuss 12 prima fonte entro D-13
+- 03: threat model SSRF connettore + DNS rebinding (01-17 o plan 3)
+- 03: rischio pipeline: ADR 0004-0007, 0012 non emessi → D-01..D-04, D-10..D-12 provvisorie fino a fine Spike
+- 04: ROADMAP criterio 1 riformulato (3 op DecisionEngine + Reranker::rank, baseline solo Reranker) + tracciabilità (Reranker→8,13; verify_chain→11; fake Cache→10) via gsd-tools → 04-CONTEXT.md §TODO
+- 04: brief execute 01-16 ← D-03, D-04, D-06, D-15, D-16, D-19; brief 01-12 ← fixture replay (01-11 già fuso: fixture da recuperare dagli artefatti) → 04-CONTEXT.md §TODO
+- 04: discuss 8 (policy guasto JEV, soglie, Q-05), 11 (forma AuditSink, query nell'audit, verify_chain), 13 (Q-07 processo) ricevono vincoli da 04
+- 04: plan 2 → slot AuditSink + fascia 04 anche in identity e document-service; threat model ← D-13, D-18, D-20
+- 04: rischio pipeline: ADR 0009, 0011, 0012 non emessi → D-02, D-04, D-06 provvisorie fino a fine Spike
+- difetto commento spikes/s05-cancel/src/main.rs:279-281 (file chiuso 01-05): dice «satura a 2047 µs» al presente, reale era 2 µs e oggi corretto → correggere nella prossima gap-closure che riapre la fase 1 · utente 2026-10-21
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
 
 ## Decisioni ratificate in corsa
 
 - strategia provider-first + insiemi file chiusi (U-04) · utente · 2026-10-18 → PROJECT.md
 - racconto didattico per slice · utente · 2026-10-18 → skills/execute/SKILL.md §bridge 3-bis
+- hook pre-commit invariato: evidenze solo .txt/.csv → RED nel commit della correzione, sezione distinta · utente · 2026-10-21 → 01.1-01-SUMMARY.md#punti-aperti
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · creazione (preflight discuss 1)
 **Modifica:** Claude (Anthropic) · 2026-10-18 · --discuss fase 01
@@ -102,3 +149,11 @@ fase 01.2 / — / slice 01.2-01 / verify completato (passed), fase chiusa · agg
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --exec fase 01 onda 3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.2
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.2
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: decisione utente sull'hook pre-commit
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 02
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --discuss fase 03
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --uat fasi 01.1 e 01.2 accettate
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --evento: 01-07 fermo su tre blocchi, decisioni utente
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --verify-ecc fase 01.3
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.3
+**Modifica:** Claude (Anthropic) · 2026-10-21 · --uat fase 01.3 accettata

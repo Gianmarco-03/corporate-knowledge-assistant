@@ -74,6 +74,17 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Perimetro file**: `spikes/**` (usa-e-getta), nuovi ADR in `docs/adr/`, `DEPENDENCIES.md`, `docs/security/threat-model.md`
 **Plans**: TBD
 
+### Phase 01.3: Gap-closure compose.yaml: /work del worker scrivibile dall'utente 10001 (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 1
+**Plans:** 8/18 plans executed
+
+Plans:
+
+- [x] TBD (run /gsd-plan-phase 01.3 to break down) (completed 2026-10-21)
+
 ### Phase 01.2: Gap-closure hist.rs: il Recorder delle latenze non satura sopra 2 ms (INSERTED)
 
 **Goal:** [Urgent work - to be planned]
@@ -431,7 +442,7 @@ Discuss di tutte le fasi, poi Spike, poi plan di Fondazione e Provider, plan dei
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Spike tecnici | 6/18 | In Progress|  |
+| 1. Spike tecnici | 8/18 | In Progress|  |
 | 2. Fondazione | 0/TBD | Not started | - |
 | 3. Provider di ingestion e indice | 0/TBD | Not started | - |
 | 4. Provider di decisione, risposta e trasversali | 0/TBD | Not started | - |

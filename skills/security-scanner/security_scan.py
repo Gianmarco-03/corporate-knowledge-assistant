@@ -13,10 +13,16 @@ personali nei log.
 
 Uso:
     python security_scan.py <file_o_cartella> [<file_o_cartella> ...] [--json]
+                            [--fail-on {MEDIUM,HIGH,CRITICAL}]
+
+    --fail-on  soglia di blocco (default MEDIUM): solo i rilevamenti di
+               severita' pari o superiore alla soglia rendono l'esito 1. Quelli
+               sotto soglia si stampano comunque, come avvisi. L'hook
+               pre-commit usa HIGH; i gate di plan e verify il default.
 
 Esito:
-    0  nessun rilevamento
-    1  almeno un rilevamento (qualsiasi CRITICAL => FAIL del gate)
+    0  nessun rilevamento, oppure solo rilevamenti sotto soglia (avvisi)
+    1  almeno un rilevamento di severita' >= soglia (FAIL del gate)
     2  non eseguito: nessun file scansionabile nello scope (percorsi
        inesistenti o scope vuoto). Uno scope vuoto non e' mai verde.
 
@@ -502,7 +508,10 @@ def main():
     ap = argparse.ArgumentParser(prog="security_scan.py")
     ap.add_argument("path", nargs="+")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--fail-on", choices=list(SEV_ORDER), default="MEDIUM",
+                    help="severita' minima che fa fallire (default MEDIUM)")
     args = ap.parse_args()
+    soglia = SEV_ORDER[args.fail_on]
 
     missing = [p for p in args.path if not os.path.exists(p)]
     excluded_dirs = []
@@ -525,16 +534,25 @@ def main():
     for f in files:
         findings.extend(scan_file(f))
     findings = [(s, r, f.replace("\\", "/"), l, m) for (s, r, f, l, m) in findings]
+    # Severita' sconosciuta => bloccante (fail-closed).
+    def blocca(sev):
+        return SEV_ORDER.get(sev, -1) <= soglia
+    bloccanti = [x for x in findings if blocca(x[0])]
+    esito = EXIT_FINDINGS if bloccanti else EXIT_OK
 
     if args.json:
         print(json.dumps({
-            "findings": [dict(severity=s, rule=r, file=f, line=l, message=m)
+            "findings": [dict(severity=s, rule=r, file=f, line=l, message=m,
+                              blocking=blocca(s))
                          for (s, r, f, l, m) in findings],
+            "fail_on": args.fail_on,
+            "blocking_count": len(bloccanti),
+            "warning_count": len(findings) - len(bloccanti),
             "excluded_dirs": excluded_dirs,
             "missing_paths": missing,
             "scanned_files": len(files),
         }, indent=2, ensure_ascii=False))
-        return EXIT_FINDINGS if findings else EXIT_OK
+        return esito
 
     if excluded_dirs:
         print(f"Escluse per marcatore {FIXTURE_MARKER_FILENAME} ({len(excluded_dirs)}): "
@@ -553,9 +571,18 @@ def main():
     print(f"== Security scan: {len(findings)} rilevamenti (CRITICAL={counts.get('CRITICAL', 0)}, "
           f"HIGH={counts.get('HIGH', 0)}, MEDIUM={counts.get('MEDIUM', 0)}) su {len(files)} file ==\n")
     for sev, rid, f, l, m in findings:
-        print(f"[{sev}] {rid}  {f}:{l}\n        {m}")
-    print("\nRegola: qualsiasi CRITICAL => FAIL. Risolvi prima di consegnare.")
-    return EXIT_FINDINGS
+        tag = sev if blocca(sev) else f"{sev} - AVVISO"
+        print(f"[{tag}] {rid}  {f}:{l}\n        {m}")
+    sopra = [k for k, v in SEV_ORDER.items() if v <= soglia]
+    print(f"\nRegola: soglia --fail-on {args.fail_on}: qualsiasi {' o '.join(sopra)} => FAIL.")
+    if len(findings) > len(bloccanti):
+        print(f"AVVISO: {len(findings) - len(bloccanti)} rilevamenti sotto la soglia "
+              f"{args.fail_on} non bloccano; vanno giustificati nel SUMMARY del piano.")
+    if bloccanti:
+        print(f"FAIL: {len(bloccanti)} rilevamenti bloccanti. Risolvi prima di consegnare.")
+    else:
+        print("PASS con avvisi: nessun rilevamento bloccante.")
+    return esito
 
 
 if __name__ == "__main__":

@@ -58,6 +58,14 @@
 
 **Modifica:** Claude (Anthropic) · 2026-10-21 · giro 8: 01-07 v5 dopo REVISE di risk_audit_19
 
+- **Giro 9 (01-12 v2, ripasso D-31, 2026-10-22)** — solo 01-12. Matrice dei costi dimezzata (Haiku 30 query, Sonnet solo complex/no_answer, fallback 15 `fallback_ids`, tetto 2 USD) e regola di routing riformulata (entro 0,05 da Sonnet sulle complex + Haiku ≥ 0,85 sulle simple, altrimenti all'utente), decisioni utente 2026-10-19 e 2026-10-22 → D-31. Gate toccati: perimetro 01-12 «pulito» (uscita 1 solo sulle righe di altri piani già legittime); proprieta-file exit 0 su roadmap e `--fase 1`, `files_modified` invariati; security-scanner exit 0 su PLAN e CONTEXT; eval-oracle conforme: soglie nuove = decisione utente ratificata in D-31, scritte prima delle misure, nessun valore atteso degli oracoli toccato, selezione a seme fisso senza valori attesi. solid e crate-boundary non toccati: nessun modulo, crate o dipendenza nuovi.
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · giro 9: 01-12 v2 dopo D-31
+
 - **Giro 10 (01-07 v6, revisione da risk_audit_21, 2026-10-22)** — solo 01-07, quarto giro di audit del ripasso, oltre il limite di 3, autorizzato dall'utente il 2026-10-22. MEDIUM RISK-001: schema unico dei sei campi di `data` (`encryption`, `embedded_files`, `objstm_count`, `objstm_decompressed_bytes`, `xref_streams`, `decompress_work_bytes`) nel punto 5 di `<interfaces>`, richiamato da `parse-child`, dalla tabella del contratto con 01-18 e dai criteri; test end-to-end `parse_child_data_schema` in `tests/isolation.rs`, file già del piano, aggiunto alle `<files>` del Task 3. Gate toccati: perimetro 01-07 «pulito»; security-scanner exit 0 sul PLAN; `files_modified` invariati, quindi proprieta-file invariato. solid, crate-boundary ed eval-oracle non toccati.
 
 **Modifica:** Claude (Anthropic) · 2026-10-22 · giro 10: 01-07 v6 dopo REVISE di risk_audit_21
+
+- **Giro 11 (01-12 v3, Task 3 per D-32, 2026-10-22)** — solo 01-12. Misura supplementare di Sonnet sulle `simple` dopo l'esito «torna all'utente» della regola di D-31; file nuovo `spikes/s06-llm/results/llm-simple-sonnet.csv` nei `files_modified`. Gate toccati: perimetro 01-12 «pulito»; proprieta-file exit 0 su roadmap e `--fase 1`; security-scanner exit 0 sul PLAN; eval-oracle conforme: nessuna soglia nuova né modificata, Soglie e CSV dei Task 1-2 bloccati da `git diff --quiet edb8335`, nessuna scelta automatica. solid e crate-boundary non toccati: un sottocomando nel `main.rs` già del piano.
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · giro 11: 01-12 v3 per D-32
