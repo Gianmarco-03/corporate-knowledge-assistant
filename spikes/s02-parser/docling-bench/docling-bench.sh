@@ -48,6 +48,8 @@ BIG_INPUT=${BENCH_BIG_INPUT:-}
 OUTSIDE_INPUT=${BENCH_OUTSIDE_INPUT:-}
 BIG_PAGES=${BENCH_BIG_PAGES:-400}
 REPS=${BENCH_REPS:-3}
+# Numero della ripetizione delle prove di confine (colonna run di docling_isolation.csv).
+PROBE_RUN=${BENCH_PROBE_RUN:-1}
 
 log() { printf 'docling-bench: %s\n' "$*" >&2; }
 die() { local code=$1; shift; printf 'docling-bench: ERRORE: %s\n' "$*" >&2; exit "$code"; }
@@ -244,10 +246,11 @@ cmd_measure() {
 # misura una pagina benigna. Argomenti: probe device pages_sent page_range [opzioni client…]
 probe() {
   local probe=$1 device=$2 sent=$3 range=$4; shift 4
-  local svc cid exit_code=0 line st s0 s10 peak restart_s nb nb_st nb_s
+  local svc cid exit_code=0 line st sec s0 s10 peak restart_s nb nb_st nb_s
   svc=$(service_of "$device")
   line=$(client --device "$device" "$@") || exit_code=$?
   st=$(json_field status <<< "$line"); [[ -n $st ]] || st=client_exit_$exit_code
+  sec=$(json_field seconds <<< "$line")
   cid=$(bash "$TOOLS"/session.sh cid "$RID" "$svc")
   s0=$(stats_of "$cid")
   sleep 10
@@ -257,10 +260,13 @@ probe() {
   restart_s=$(restart "$device")
   nb=$(client --device "$device" --input "$BENIGN_INPUT" --page-range 1-1) || true
   nb_st=$(json_field status <<< "$nb"); nb_s=$(json_field seconds <<< "$nb")
-  printf '%s,%s,1,%s,%s,%s,%s,%s,%s,%s,%s,%s,true,%s,%s\n' \
-    "$probe" "$device" "$sent" "$range" "$exit_code" "$st" \
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,true,%s,%s\n' \
+    "$probe" "$device" "$PROBE_RUN" "$sent" "$range" "$exit_code" "$st" \
     "${s0%% *}" "${s10%% *}" "${s0##* }" "${s10##* }" "$peak" "${nb_st:-}" "${nb_s:-}" >> "$ISO_CSV"
   log "$probe/$device: riavvio in $restart_s s, pagina benigna $nb_st in $nb_s s"
+  # Tempo della richiesta della prova e del riavvio (docling_isolation.csv non ha la colonna).
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$probe" "$PROBE_RUN" "$sent" "$range" "$exit_code" "$st" "${sec:-}" "$restart_s" \
+    >> "$HOST_RAW/docling/$device/probes.tsv"
 }
 
 cmd_probes() {
@@ -292,7 +298,7 @@ cmd_probes() {
   local mstatus=marker_absent
   [[ $present == 0 ]] || mstatus=marker_present
   [[ $before != "$after" ]] || mstatus=same_container
-  printf 'state_marker,%s,1,1,1-1,0,%s,,,,,,true,%s,%s\n' "$device" "$mstatus" "${nb_st:-}" "${nb_s:-}" >> "$ISO_CSV"
+  printf 'state_marker,%s,%s,1,1-1,0,%s,,,,,,true,%s,%s\n' "$device" "$PROBE_RUN" "$mstatus" "${nb_st:-}" "${nb_s:-}" >> "$ISO_CSV"
   printf '%s\tcontainer %s -> %s\tprocessi %s -> %s\tmount prima: %s\tmount dopo: %s\tmarcatori trovati: %s\n' \
     "$device" "${before:0:12}" "${after:0:12}" "$pr_b" "$pr_a" "$mounts_b" "$mounts_a" "$present" \
     >> "$HOST_RAW/docling/$device/state-marker.tsv"
