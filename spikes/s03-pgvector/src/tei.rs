@@ -1,18 +1,143 @@
 //! Client TEI (`POST /embed`, URL da `TEI_EMBED_URL`): embedding dei documenti e della query
 //! separati, istruzione asimmetrica solo sulla query.
 //!
-//! STUB test-write 01-10: i costruttori del corpo della richiesta sono `todo!()`; `Client`
-//! lo scrive l'esecutore e deve usare questi costruttori.
+//! L'istruzione di Qwen3 ed e5-instruct si scrive come prefisso esplicito
+//! `Instruct: <compito>\nQuery: <testo>` (stesso compito per i due modelli), invece del
+//! `prompt_name` di TEI: il prefisso non dipende dai nomi di prompt nel config del modello
+//! ([NV] RESEARCH §11.10) e rende identica la richiesta fra modelli. bge-m3 non ha prefisso.
+use std::time::Duration;
+
+use anyhow::{Context, bail};
+use serde_json::{Value, json};
+
 use crate::Model;
 
+/// Compito dell'istruzione di query, quello delle model card di Qwen3-Embedding e
+/// multilingual-e5-large-instruct per il retrieval.
+pub const QUERY_TASK: &str =
+    "Given a web search query, retrieve relevant passages that answer the query";
+
+/// Testo della query come lo riceve il modello.
+pub fn query_text(model: Model, query: &str, with_instruction: bool) -> String {
+    match (model, with_instruction) {
+        (Model::Qwen3 | Model::E5, true) => format!("Instruct: {QUERY_TASK}\nQuery: {query}"),
+        _ => query.to_string(),
+    }
+}
+
 /// Corpo di `POST /embed` per un lotto di documenti: mai istruzioni.
-pub fn documents_body(_texts: &[&str]) -> serde_json::Value {
-    todo!("documents_body: implementazione del piano 01-10")
+pub fn documents_body(texts: &[&str]) -> Value {
+    json!({ "inputs": texts, "normalize": true, "truncate": true })
 }
 
 /// Corpo di `POST /embed` per una query: istruzione per modello se `with_instruction`.
-pub fn query_body(_model: Model, _query: &str, _with_instruction: bool) -> serde_json::Value {
-    todo!("query_body: implementazione del piano 01-10")
+pub fn query_body(model: Model, query: &str, with_instruction: bool) -> Value {
+    json!({
+        "inputs": query_text(model, query, with_instruction),
+        "normalize": true,
+        "truncate": true,
+    })
+}
+
+/// Dimensione dei vettori dei tre modelli candidati.
+pub const DIM: usize = 1024;
+
+/// Client HTTP verso il servizio `tei-embed` locale.
+pub struct Client {
+    http: reqwest::Client,
+    embed_url: String,
+    info_url: String,
+    /// Dimensione dei lotti di `embed_documents`.
+    pub batch: usize,
+}
+
+impl Client {
+    /// URL base da `TEI_EMBED_URL` (es. il servizio `tei-embed` del compose).
+    pub fn from_env(batch: usize) -> anyhow::Result<Client> {
+        let base = common::env::required("TEI_EMBED_URL")?;
+        Client::new(&base, batch)
+    }
+
+    pub fn new(base_url: &str, batch: usize) -> anyhow::Result<Client> {
+        if batch == 0 {
+            bail!("dimensione del lotto nulla");
+        }
+        let base = base_url.trim_end_matches('/');
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(300))
+            .build()
+            .context("client HTTP")?;
+        Ok(Client {
+            http,
+            embed_url: format!("{base}/embed"),
+            info_url: format!("{base}/info"),
+            batch,
+        })
+    }
+
+    /// `GET /info` di TEI (modello, revisione `model_sha`, versione).
+    pub async fn info(&self) -> anyhow::Result<Value> {
+        let resp = self
+            .http
+            .get(&self.info_url)
+            .send()
+            .await
+            .context("GET /info")?;
+        let status = resp.status();
+        if !status.is_success() {
+            bail!("GET /info: stato {status}");
+        }
+        resp.json().await.context("risposta di /info")
+    }
+
+    async fn post_embed(&self, body: &Value) -> anyhow::Result<Vec<Vec<f32>>> {
+        let resp = self
+            .http
+            .post(&self.embed_url)
+            .json(body)
+            .send()
+            .await
+            .context("POST /embed")?;
+        let status = resp.status();
+        if !status.is_success() {
+            let detail: Value = resp.json().await.unwrap_or(Value::Null);
+            bail!("POST /embed: stato {status}, {detail}");
+        }
+        let vecs: Vec<Vec<f32>> = resp.json().await.context("risposta di /embed")?;
+        if let Some(v) = vecs.iter().find(|v| v.len() != DIM) {
+            bail!("vettore di dimensione {} invece di {DIM}", v.len());
+        }
+        Ok(vecs)
+    }
+
+    /// Embedding dei documenti a lotti di `self.batch`, senza istruzione, nell'ordine.
+    pub async fn embed_documents(&self, texts: &[&str]) -> anyhow::Result<Vec<Vec<f32>>> {
+        let mut out = Vec::with_capacity(texts.len());
+        for lot in texts.chunks(self.batch) {
+            let vecs = self.post_embed(&documents_body(lot)).await?;
+            if vecs.len() != lot.len() {
+                bail!("TEI ha restituito {} vettori per {}", vecs.len(), lot.len());
+            }
+            out.extend(vecs);
+        }
+        Ok(out)
+    }
+
+    /// Embedding di una query, con l'istruzione del modello se `with_instruction`.
+    pub async fn embed_query(
+        &self,
+        query: &str,
+        model: Model,
+        with_instruction: bool,
+    ) -> anyhow::Result<Vec<f32>> {
+        let mut vecs = self
+            .post_embed(&query_body(model, query, with_instruction))
+            .await?;
+        if vecs.len() != 1 {
+            bail!("TEI ha restituito {} vettori per una query", vecs.len());
+        }
+        Ok(vecs.remove(0))
+    }
 }
 
 #[cfg(test)]
