@@ -65,6 +65,7 @@ Ricerca a supporto: `01-RICERCA-DISCUSSIONE.md` (Area A upload/storage/threat, A
 - **D-28:** memoria del worker resta **2 GiB** (compose di 01-02 invariato): 01-13 misura e riporta il `max_admitted` reale per concorrenza richiesta e il dimensionamento in ADR-0004 si dichiara estrapolato da quel dato.
 - **D-29:** DocLayNet in 01-08 passa da 20 a **40 pagine**, split per documento 20 di taratura + 20 di verifica (holdout); l'esito si giudica solo sull'holdout.
 - **D-30:** il piano 01-07 si divide: 01-07 (contratto del job, lanciatore, prescan, figli, calibrazione dei limiti) e il nuovo 01-18 (casi ostili, budget aggregato, overhead, `RISULTATI-isolamento.md`), così 01-08 parte senza attendere le misure ostili. Respinta la divisione della fase in 1.1/1.2 (i decimali sono riservati alla gap-closure; nuovo audit di tutti i piani; conflitti `proprieta-file` sui file condivisi degli spike).
+- **D-31 (decisione utente 2026-10-19, completata il 2026-10-22):** spesa Anthropic di 01-12 dimezzata: Haiku su tutte le 30 query, Sonnet solo sulle `complex` e `no_answer` (3 ripetizioni), fallback su 15 query a seme fisso, `S06_MAX_COST_USD` = 2; injection e JEV invariati. La regola di routing diventa: Haiku resta sulle `simple` se sulle `complex` sta entro 0,05 da Sonnet nel tasso di claim supportati e se sulle `simple` raggiunge da solo ≥ 0,85; altrimenti la scelta torna all'utente. 01-12 si esegue subito, in parallelo all'attesa degli audit GPT di 01-07 e 01-18, invece che in onda 7.
 
 ### Claude's Discretion
 - **S-07 (firme Rust candidate di tutte le porte)**: le scrive lo spike, incluse le variazioni emerse qui — `Embedder` deve coprire anche l'embedding della query (oggi `embed_batch(&[ChunkDraft])` non basta); `DecisionEngine::validate_query` restituisce la complessità (D-18); il locator a due varianti (D-10) entra nei tipi di `crates/contracts`.
@@ -150,3 +151,4 @@ Ricerca a supporto: `01-RICERCA-DISCUSSIONE.md` (Area A upload/storage/threat, A
 **Modifica:** Claude (Anthropic) · 2026-10-19 · D-09 emendata: ruolo di PP-OCRv5 allineato a 01-13 v3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · D-10: paragrafo *Storia* sul locator multi-span (decisione utente, discuss fase 3)
 **Modifica:** Claude (Anthropic) · 2026-10-21 · allineamento alle regole del prescan e della calibrazione decise dall'utente (ripasso 01-07 v4)
+**Modifica:** Claude (Anthropic) · 2026-10-22 · D-31 (costi e regola di routing di 01-12, anticipo dell'esecuzione)

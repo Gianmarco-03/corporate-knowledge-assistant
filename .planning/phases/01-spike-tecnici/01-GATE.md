@@ -50,3 +50,7 @@
 **Modifica:** Claude (Anthropic) · 2026-10-19 · giro 4: re-gate dopo l'audit GPT v1
 **Modifica:** Claude (Anthropic) · 2026-10-19 · giro 5: divisione 01-07/01-18 e 01-13 v3
 **Modifica:** Claude (Anthropic) · 2026-10-19 · giro 6: 01-18 v2
+
+- **Giro 9 (01-12 v2, ripasso D-31, 2026-10-22)** — solo 01-12. Matrice dei costi dimezzata (Haiku 30 query, Sonnet solo complex/no_answer, fallback 15 `fallback_ids`, tetto 2 USD) e regola di routing riformulata (entro 0,05 da Sonnet sulle complex + Haiku ≥ 0,85 sulle simple, altrimenti all'utente), decisioni utente 2026-10-19 e 2026-10-22 → D-31. Gate toccati: perimetro 01-12 «pulito» (uscita 1 solo sulle righe di altri piani già legittime); proprieta-file exit 0 su roadmap e `--fase 1`, `files_modified` invariati; security-scanner exit 0 su PLAN e CONTEXT; eval-oracle conforme: soglie nuove = decisione utente ratificata in D-31, scritte prima delle misure, nessun valore atteso degli oracoli toccato, selezione a seme fisso senza valori attesi. solid e crate-boundary non toccati: nessun modulo, crate o dipendenza nuovi.
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · giro 9: 01-12 v2 dopo D-31
