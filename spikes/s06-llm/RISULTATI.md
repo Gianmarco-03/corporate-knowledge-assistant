@@ -172,3 +172,26 @@ Definizioni comuni a tutte le soglie:
   - T-14 (contenuto non autorizzato nel prompt): `unauthorized_in_prompt` = 0 su ogni riga di `llm.csv`, guardia anche su ogni invio a JEV;
   - T-24 (costo): 0,4482 USD per l'intera matrice; Sonnet circa 0,0044 USD per risposta, Haiku circa 0,0002.
 - **Destinazione:** ADR-0011 (`docs/adr/0011-llm-generativo-routing-structured-output.md`, Stato `Proposed`, con la scelta per le `simple` aperta). La riga «Generative LLM» di `DEPENDENCIES.md` passa da Aperta a Decisa solo dopo la scelta dell'utente sulle `simple`; la scrive il consolidamento (01-17).
+
+## Misura supplementare (D-32)
+
+**Modifica:** Claude (gsd-executor 01-12) · 2026-10-22 · insieme, formato del registro, formula del tasso e stima, scritti prima di ogni richiesta della misura supplementare
+
+La regola di routing di D-31 è fallita su entrambe le condizioni (sezione «Esito»). Con D-32 l'utente ha chiesto, prima di scegliere il modello delle `simple`, il confronto diretto di Haiku e Sonnet sulle stesse query `simple`. Questa sezione si aggiunge alle precedenti: le Soglie, i CSV dei Task 1-2 (`llm.csv`, `routing.csv`, `fallback.csv`, `injection.csv`), `hw.json` e l'«Esito» qui sopra restano come sono. La misura non ha una soglia di superamento: fornisce i numeri, e la scelta resta all'utente.
+
+### Prima della misura
+
+- **Insieme:** le 13 query di `selection.json` con etichetta `simple` e senza `no_answer` (Q-003, Q-006, Q-019, Q-021, Q-028, Q-033, Q-038, Q-054, Q-055, Q-058, Q-064, Q-065, Q-069), cioè le stesse su cui Haiku è misurato in `llm.csv`. Le seleziona `simple_sonnet_jobs` in `src/main.rs`.
+- **Protocollo:** sottocomando `s06-llm generate-simple-sonnet`, con un warm-up di Sonnet scartato e poi 3 ripetizioni delle 13 query, la prima scartata e fuori dal CSV. Contesto, schema, `effort: "low"`, validazione e conteggio JEV sono quelli di `generate` (stessa funzione `answer`). Il risultato va in `results/llm-simple-sonnet.csv`, con lo stesso header di `llm.csv` e 26 righe attese (13 query × ripetizioni 2 e 3). `llm.csv` non si riscrive.
+- **Formato di `results/raw/spend.json`** (registro della spesa della sessione 01-12, ignorato da git): un oggetto JSON con la sola chiave `spent_usd`, numero finito ≥ 0, uguale alla spesa cumulata in USD di LLM (da `usage`) e JEV di tutte le esecuzioni di 01-12, warm-up e ripetizioni scartate comprese. Esempio: `{"spent_usd": 0.4482}`. Per D-32 il registro si legge in modo stretto: se manca o non è in questo formato il sottocomando si ferma prima di ogni richiesta, e non assume mai una spesa nulla. Dopo ogni richiesta la spesa nuova si somma al valore registrato (`add_to_ledger`), senza riscrivere il totale da zero.
+- **Tetto e residuo:** `S06_MAX_COST_USD` deve valere 2 (confrontato per uguaglianza, senza stamparlo). Residuo = 2 − `spent_usd` del registro. La stima si confronta con il residuo, non con 2. Una stima oltre il residuo, oppure una spesa registrata ≥ 2, ferma il sottocomando prima del warm-up. Durante la misura il client Anthropic rifiuta una richiesta quando la sua spesa raggiunge il residuo, e la sessione si ferma quando il registro raggiunge 2.
+- **Formula del tasso, identica a D-31:** tasso di claim supportati = somma di `claims_supported` diviso somma di `claims_n`, sulle sole righe con ripetizione 2 o 3 e `json_valid = true`. Si calcola per Haiku (righe Haiku di `llm.csv`) e per Sonnet (righe di `llm-simple-sonnet.csv`) sullo stesso insieme di `query_id`, cioè l'intersezione delle query presenti nei due file; una query presente in un solo file è segnalata ed esclusa. Un denominatore nullo dà «non definito», mai 0 o 1. Il calcolo lo fa `s06-llm report` con la stessa funzione `claim_rate` della regola di D-31.
+- **Variante diagnostica:** lo stesso rapporto con al denominatore i soli claim con almeno una citazione (i claim con `citations: []` si contano dal testo grezzo di ogni risposta, in `results/raw/generate.jsonl` per Haiku e `results/raw/generate-simple-sonnet.jsonl` per Sonnet). Serve solo a leggere i numeri: non sostituisce il tasso principale.
+- **Altri numeri riportati:** latenza p50 e p95 (righe con JSON valido o con rifiuto del modello), costo medio per risposta da `cost_usd`, rifiuti su query con risposta e, in fondo, a titolo informativo, la differenza Haiku − Sonnet confrontata con la regola precedente a D-31 («Haiku entro 0,05 da Sonnet sulle `simple`»).
+- **Stima** (`s06-llm estimate-simple-sonnet`, prima di ogni richiesta, stesse assunzioni della stima del Task 2: token di input ≈ caratteri del prompt reale / 3 + 1.000, 1.000 token di output per risposta):
+
+| Modello | Chiamate | Token in / out per chiamata | USD |
+|---|---|---|---|
+| claude-sonnet-5-5 (warm-up + 13 × 3) | 40 | 1.559 / 1.000 | 0,5247 |
+
+  Spesa registrata prima della misura: 0,4482 USD, quindi residuo 1,5518 USD. La stima (0,5247) è sotto il residuo. JEV (`support_claim` sui claim conservati) aggiunge alcuni millesimi.
