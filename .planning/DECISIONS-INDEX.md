@@ -36,6 +36,7 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 
 - 2026-10-22 · Sonnet 5.5 anche sulle query simple (D-33): regola D-31 fallita, misura D-32 Sonnet 1,00 contro Haiku 0,72 → `phases/01-spike-tecnici/01-12-SUMMARY.md#decisions-made`
 
+- 2026-10-22 · Prescan v6 (cifrati a password vuota ammessi, allegati contati, object stream sulla somma reale) e prenotazione 3×VmHWM: 10/10 PDF benigni, 2 job parse nel budget → `phases/01-spike-tecnici/01-07-SUMMARY.md#decisions-made`
 ## Fase 1.1 — Gap-closure di session.sh
 
 - 2026-10-21 · dc() toglie con env -u, dal solo processo compose, le variabili dell'host omonime (in maiuscolo) delle chiavi di spikes.env; la shell non cambia → `phases/01.1-gap-closure-session-sh-segreti-di-spikes-env-prevalgono-su-e/01.1-01-SUMMARY.md#decisions-made`
