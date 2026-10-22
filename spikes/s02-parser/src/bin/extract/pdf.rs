@@ -149,6 +149,14 @@ fn page_json(page: &pdfium_render::prelude::PdfPage, number: u32) -> Result<Valu
     let crop = page.boundaries().crop().map(|b| rect4(&b.bounds)).ok();
     let crop_differs = crop.is_some_and(|c| c.iter().zip(media).any(|(a, b)| (a - b).abs() > 0.01));
     let frame = Frame { media, rotation };
+    // Larghezza e altezza della pagina ruotata nel MediaBox, lo stesso riferimento dei bbox
+    // (PDFium misura la pagina sul CropBox, che può essere più piccolo).
+    let (mw, mh) = (media[2] - media[0], media[3] - media[1]);
+    let (width, height) = if matches!(rotation, 90 | 270) {
+        (mh, mw)
+    } else {
+        (mw, mh)
+    };
     let text = page.text().map_err(|e| corrupt("text", e))?;
     let all = text.all();
 
@@ -180,8 +188,8 @@ fn page_json(page: &pdfium_render::prelude::PdfPage, number: u32) -> Result<Valu
 
     Ok(json!({
         "page": number,
-        "width": round2(page.width().value as f64),
-        "height": round2(page.height().value as f64),
+        "width": round2(width),
+        "height": round2(height),
         "rotation": rotation,
         "media_box": media,
         "crop_box": crop,
