@@ -223,3 +223,10 @@ Confronto voce per voce fra il contratto di 01-07 plan_version 6 (`<interfaces>`
 - **RISK-001 dell'audit v2 di 01-07.** `oom_adj_set` e reaping verificati come uid 10001, dopo l'OOM compreso. Nessun timeout si è presentato. Un'impostazione non applicabile conterebbe come job fallito e misura non «isolata» (`pass=false`, exit 3), ma qui non si è mai presentata.
 - **Windows Job Objects: fuori scope.** Il parser gira in un container Linux (cgroup v2, `RLIMIT_AS`, `oom_score_adj`, subreaper). La variante Windows con Job Object prevista da D-08 non si implementa né si misura. È una decisione vincolante, da riportare nell'ADR-0004.
 - L'Esito complessivo di S-02 e l'ADR-0004 li scrive 01-13, che riassume i quattro RISULTATI di S-02.
+
+### Decisioni dell'utente sull'esito (2026-10-22)
+
+- **M8 (D-34): resta «non raggiunta», 24 casi su 26.** `deep-nesting` e `jbig2-malformed` danno `ok` invece di `Corrupt`/`Crashed`, con contenimento intatto. Gli attesi del manifest non si ritoccano. Motivo dichiarato: l'op `parse` estrae solo il testo e non decodifica le immagini, quindi il decoder JBIG2 non viene esercitato. Il caso JBIG2 si riprova in 01-13, dove le pagine si rasterizzano per l'OCR.
+- **Difetti dei driver di 01-07 (D-35):** il cleanup di `budget` sul percorso d'errore e l'interruzione di `overhead` sugli errori del modo in-process si correggono nella gap-closure 1.4. Questa aggiunge a `overhead.csv` una colonna `status` e lo rimisura, aggiornando la sezione «Overhead» e la riga dell'header nella «Validazione di 01-07».
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · decisioni dell'utente D-34 e D-35 sull'esito
