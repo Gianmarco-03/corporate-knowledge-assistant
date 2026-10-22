@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 4-bis / slice 01-12 / plan completato (ripasso 01-12 v2; 01-07 v5 e 01-18 v4 in audit GPT) · aggiornato: 2026-10-22T10:47Z
+fase 01 / onda 4-bis / slice 01-12 / exec completato (01-12 chiuso d8b6227; 01-07 v6 e 01-18 v5 APPROVED_WITH_WARNINGS, test design GPT in attesa) · aggiornato: 2026-10-22T14:30Z
 
 ## Prossima azione
 
-/execute 1 --piano 01-12 (anticipato, D-31); al rientro di risk_audit_21 (01-07 v5) e risk_audit_23 (01-18 v4) READ+ACK, poi test-design GPT o revisione; poi ripresa execute 01-07 dal Task 3 (patch .planning/tmp/task3-uncommitted.patch); traccia discuss: /discuss 5.
+READ+ACK test_design_11 (01-07 v6) e test_design_12 (01-18 v5), trascrivere, READ-GATE TEST_SPEC_READY; poi test-write delta 01-07 e /execute 1 --piano 01-07 dal Task 3 (patch .planning/tmp/task3-uncommitted.patch); poi onda 5 (01-18 + 01-08); traccia discuss: /discuss 5.
 
 ## Findings
 
@@ -72,6 +72,9 @@ fase 01 / onda 4-bis / slice 01-12 / plan completato (ripasso 01-12 v2; 01-07 v5
 - 04 NoOpCache + fake con scope (fase 10); replay wiremock CI + gate locale 0,50 USD; no-leak a sentinelle, OTel senza contenuti (D-20..D-23) · fonte Area G/H/I
 - 01-12 v2 ripasso D-31: Sonnet solo complex/no_answer, fallback 15 fallback_ids, tetto 2 USD (locale portato 5→2); routing = Haiku ≥ Sonnet−0,05 su complex + Haiku ≥ 0,85 su simple, altrimenti utente; gate giro 9 verdi; test design Claude RISK-13/14, TEST-20..23; anticipato da onda 7 · utente 2026-10-22 → 01-CONTEXT D-31, 01-GATE.md, bdc3d8f
 
+- onda 4-bis chiusa: 01-12 (merge 6d1f090, bridge d8b6227), gate onda verde (fmt/clippy/35 test s06-llm, proprieta-file, scanner); regola D-31 → utente, D-32 misura Sonnet simple 1,00 vs Haiku 0,72, D-33 Sonnet su tutto (emenda D-18); spesa 0,598/2 USD; p95 Haiku 3,744 s > 3 s dichiarata → 01-12-SUMMARY.md, ADR-0011
+- deviazioni 01-12: b-segnalazione hw-manifest.sh (01-02) vs common::manifest (01-01) già nota, normalizzazione come 01-04/05/11; da verify: format! per URL http nei test (anthropic.rs:651, jev.rs:466), loopback per prefisso con userinfo, unauthorized_in_prompt 0 per costruzione (garanzia vera TEST-1) → 01-12-SUMMARY.md
+- 01-07 v6 (7ce2183) e 01-18 v5 (9f3d78d) APPROVED_WITH_WARNINGS (risk_audit_24/25, MEDIUM prenotazione memoria non rigida → prova OOM 01-18); 4° giro audit 01-07 autorizzato utente → 01-07-RISK-AUDIT-v6.md, 01-18-RISK-AUDIT-v5.md
 ## Limiti trovati
 
 - 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7
