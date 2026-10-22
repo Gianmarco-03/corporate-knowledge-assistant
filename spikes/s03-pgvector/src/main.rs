@@ -122,6 +122,8 @@ enum Cmd {
         #[arg(long, default_value_t = 20)]
         k: i64,
     },
+    /// Senza DB né TEI: chunking del corpus e chunk rilevanti per query (irraggiungibili).
+    RelevanceCheck,
 }
 
 #[tokio::main]
@@ -158,7 +160,35 @@ async fn main() -> anyhow::Result<()> {
         Cmd::ExportCandidates { model, k } => {
             export(&cli.corpus, &cli.out, &cli.raw, model, k).await
         }
+        Cmd::RelevanceCheck => relevance_check(&cli.corpus),
     }
+}
+
+/// Diagnostica senza servizi: quanti chunk produce il corpus e quante query ratificate
+/// non `no_answer` non hanno alcun chunk rilevante (irraggiungibili).
+fn relevance_check(corpus: &Path) -> anyhow::Result<()> {
+    let all = chunk::chunk_corpus(corpus)?;
+    let rq = ratified(corpus)?;
+    let mut unreachable = Vec::new();
+    for q in rq.queries.iter().filter(|q| !q.no_answer) {
+        let n = metrics::relevant_chunks(&all, &q.expected_passages)
+            .into_iter()
+            .filter(|r| *r)
+            .count();
+        if n == 0 {
+            unreachable.push(q.oracle_id.as_str());
+        }
+        println!("{} {} rilevanti={n}", q.oracle_id, q.lang);
+    }
+    println!(
+        "frammenti={} ratificate={} escluse={} irraggiungibili={} {:?}",
+        all.len(),
+        rq.queries.len(),
+        rq.excluded,
+        unreachable.len(),
+        unreachable
+    );
+    Ok(())
 }
 
 // ---------------------------------------------------------------- utilità

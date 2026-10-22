@@ -277,7 +277,9 @@ pub fn pdftotext_layout(pdf: &Path) -> anyhow::Result<String> {
     if !out.status.success() {
         bail!("pdftotext su {} uscito con {}", pdf.display(), out.status);
     }
-    String::from_utf8(out.stdout).context("output di pdftotext non UTF-8")
+    // Una sequenza non UTF-8 (rara, da font senza mappa Unicode) diventa U+FFFD invece di
+    // fermare il caricamento: il testo resta allineato alle pagine.
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 /// Chunk di un documento del manifest; `None` se il formato non si indicizza.
