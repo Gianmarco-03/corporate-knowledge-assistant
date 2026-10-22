@@ -181,6 +181,7 @@ fn static_err(bytes: &[u8]) -> JobError {
 fn limits() -> Limits {
     Limits {
         address_space_bytes: 256 * MIB,
+        memory_reservation_bytes: 256 * MIB,
         cpu_seconds: 10,
         wall_timeout: Duration::from_secs(10),
         file_size_bytes: 16 * MIB,
@@ -767,7 +768,9 @@ fn dpi_out_of_domain_is_invalid_params() {
     }
 }
 
-/// Prenotazione = AS × (1 + discendenti) + quota; oltre totale − riserva → `BudgetExceeded`.
+/// Prenotazione = `memory_reservation_bytes` × (1 + discendenti) + quota; oltre totale − riserva
+/// → `BudgetExceeded` (dal piano v6 la prenotazione non usa più l'AS: i casi fissano la
+/// prenotazione uguale all'AS, come la (f) del piano).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reservation_over_budget_is_budget_exceeded_without_spawn() {
     let budget = Budget::fixed(320 * MIB, 64 * MIB);
@@ -775,6 +778,7 @@ async fn reservation_over_budget_is_budget_exceeded_without_spawn() {
     let id = "tw-bud-as";
     let l = Limits {
         address_space_bytes: 512 * MIB,
+        memory_reservation_bytes: 512 * MIB,
         out_quota_bytes: 0,
         ..limits()
     };
@@ -786,16 +790,18 @@ async fn reservation_over_budget_is_budget_exceeded_without_spawn() {
     let id = "tw-bud-quota";
     let l = Limits {
         address_space_bytes: 200 * MIB,
+        memory_reservation_bytes: 200 * MIB,
         out_quota_bytes: 64 * MIB,
         ..limits()
     };
     let e = job_err(&selftest(id, "sleep", Some("0")), &l, &budget).await;
     assert_eq!(e.code, JobErrorCode::BudgetExceeded, "{e:?}");
 
-    // I discendenti ammessi dall'op moltiplicano l'AS: 2 × 130 MiB > 256 MiB.
+    // I discendenti ammessi dall'op moltiplicano la prenotazione: 2 × 130 MiB > 256 MiB.
     let id = "tw-bud-desc";
     let l = Limits {
         address_space_bytes: 130 * MIB,
+        memory_reservation_bytes: 130 * MIB,
         out_quota_bytes: 0,
         ..limits()
     };
@@ -811,6 +817,7 @@ async fn reservation_over_budget_is_budget_exceeded_without_spawn() {
     let id = "tw-bud-fits";
     let l = Limits {
         address_space_bytes: 200 * MIB,
+        memory_reservation_bytes: 200 * MIB,
         out_quota_bytes: 0,
         ..limits()
     };
@@ -820,12 +827,14 @@ async fn reservation_over_budget_is_budget_exceeded_without_spawn() {
     assert_ok_report(&r, id);
 }
 
-/// (f) 4 job `alloc 100` con AS 128 MiB e `Budget::fixed(320 MiB, 64 MiB)`: tutti `ok`.
+/// (f) 4 job `alloc 100` con `memory_reservation_bytes` 128 MiB, AS 128 MiB e
+/// `Budget::fixed(320 MiB, 64 MiB)`: tutti `ok`.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn budget_admits_alloc_jobs_and_all_complete() {
     let budget = Budget::fixed(320 * MIB, 64 * MIB);
     let l = Limits {
         address_space_bytes: 128 * MIB,
+        memory_reservation_bytes: 128 * MIB,
         out_quota_bytes: 0,
         ..limits()
     };
@@ -849,6 +858,7 @@ async fn budget_admits_at_most_two_jobs_together() {
     let budget = Budget::fixed(320 * MIB, 64 * MIB);
     let l = Limits {
         address_space_bytes: 128 * MIB,
+        memory_reservation_bytes: 128 * MIB,
         out_quota_bytes: 0,
         ..limits()
     };
@@ -902,6 +912,7 @@ async fn unapplicable_setrlimit_fails_the_spawn_with_errno() {
     let id = "tw-rlimit-fail";
     let l = Limits {
         address_space_bytes: 200 * MIB,
+        memory_reservation_bytes: 200 * MIB,
         out_quota_bytes: 0,
         max_open_files: 1 << 40,
         ..limits()
@@ -979,6 +990,7 @@ async fn dropped_future_kills_group_and_cleans_within_one_second() {
     let id = "tw-grandchild-drop";
     let l = Limits {
         address_space_bytes: 200 * MIB,
+        memory_reservation_bytes: 200 * MIB,
         out_quota_bytes: 0,
         wall_timeout: Duration::from_secs(30),
         ..limits()

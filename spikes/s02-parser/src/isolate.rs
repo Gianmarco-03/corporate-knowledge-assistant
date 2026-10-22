@@ -30,10 +30,15 @@ pub const QUOTA_MAX_ENTRIES: usize = 10_000;
 pub const REAP_DEADLINE: Duration = Duration::from_secs(1);
 
 /// Limiti per figlio (profilo di `limits.json`).
+///
+/// `address_space_bytes` è solo il tetto rigido `RLIMIT_AS` del figlio; la prenotazione nel
+/// budget aggregato usa `memory_reservation_bytes` (3 × massimo `VmHWM` benigno, ripasso del
+/// 2026-10-21), che non è un tetto rigido per processo.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Limits {
     pub address_space_bytes: u64,
+    pub memory_reservation_bytes: u64,
     pub cpu_seconds: u64,
     pub wall_timeout: Duration,
     pub file_size_bytes: u64,
@@ -51,8 +56,10 @@ struct AdmitStats {
 /// Budget aggregato di memoria dei figli ammessi.
 ///
 /// Semaforo pesato in MiB con capacità `totale − riserva del padre`. Un job prenota
-/// `address_space_bytes × (1 + discendenti) + out_quota_bytes` (il tmpfs è memoria del
-/// cgroup) e la rilascia solo dopo il cleanup del gruppo.
+/// `memory_reservation_bytes × (1 + discendenti) + out_quota_bytes` (il tmpfs è memoria del
+/// cgroup) e la rilascia solo dopo il cleanup del gruppo. La prenotazione stima la memoria
+/// residente con margine 3× sul picco benigno: un figlio ostile può superarla fino al proprio
+/// `RLIMIT_AS`, e allora l'OOM del cgroup sceglie un figlio (`oom_score_adj` 1000).
 #[derive(Debug)]
 pub struct Budget {
     sem: Arc<Semaphore>,
@@ -108,10 +115,11 @@ impl Budget {
         u64::from(self.capacity_mib) * MIB
     }
 
-    /// Prenotazione di un job: AS × (1 + discendenti) + quota dell'output.
+    /// Prenotazione di un job: `memory_reservation_bytes` × (1 + discendenti) + quota
+    /// dell'output.
     pub fn reservation_bytes(spec: &ChildSpec, limits: &Limits) -> u64 {
         limits
-            .address_space_bytes
+            .memory_reservation_bytes
             .saturating_mul(1 + u64::from(spec.descendants))
             .saturating_add(limits.out_quota_bytes)
     }

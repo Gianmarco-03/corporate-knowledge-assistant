@@ -2,42 +2,54 @@
 //!
 //! Gira nel figlio isolato, sotto i suoi limiti: anche il prescan legge input ostile.
 //!
-//! PDF, nell'ordine:
+//! PDF (Task 3 del piano 01-07, regole del ripasso del 2026-10-21, plan_version 6):
 //! 1. scansione a byte con nomi normalizzati (escape `#xx` risolti), prima di ogni
-//!    caricamento: `/Encrypt` → `Encrypted`; numero di `/ObjStm` oltre il tetto →
-//!    `DecompressionLimit` (un object stream non sta dentro un altro: il conteggio è completo);
-//! 2. caricamento con `LoadOptions::with_max_decompressed_size(per_stream)`: il tetto per
-//!    stream agisce già sugli object stream espansi dal loader. In modalità tollerante lopdf
-//!    0.45.0 scarta in silenzio un object stream oltre il tetto (lo registra solo nel log),
-//!    quindi si carica prima in modalità `strict`, dove l'errore
-//!    `Error::Decompress(DecompressError::MemoryLimitExceeded)` arriva al chiamante
-//!    (→ `DecompressionLimit`); un altro errore stretto ripiega sul caricamento tollerante,
-//!    che deve comunque contenere ogni object stream citato dalla xref (altrimenti `Corrupt`);
-//! 3. dopo il caricamento: cifratura, pagine (tetto → `ResourceLimit`), catene di filtri,
-//!    decodifica in streaming dei soli Flate con `take(cap + 1)` senza trattenere byte, tetti
-//!    per stream, totale (l'espansione del loader stimata come object stream × tetto per
-//!    stream) e rapporto; poi i contenuti attivi → quarantena con motivi fissi.
+//!    caricamento: `/Encrypt` dichiarato, `/ObjStm` e cross-reference stream (`/XRef`)
+//!    contati, nomi attivi (`/JavaScript`, `/JS`, `/Launch`). Nessuno dei conteggi è un
+//!    motivo di rifiuto: servono alla quota del ramo cifrato e al limite B dell'invariante I2;
+//! 2. PDF non cifrato: prima passata con `defer_objstm` (gli object stream restano compressi),
+//!    decodifica in streaming di ogni stream con un contatore unico dei byte distinti
+//!    (invariante I1, arresto appena supera il totale), poi il caricamento vero, che riespande
+//!    gli stessi object stream già misurati (entrano solo nel lavoro I2);
+//!    PDF cifrato: caricamento con quota per stream min(tetto, ⌊totale / object stream⌋),
+//!    ammesso solo se lopdf l'apre con la password vuota; ordine fisso dei controlli
+//!    (`password_required`, `encrypt_state`, riconciliazione con la xref, contenuto);
+//! 3. pagine (tetto → `ResourceLimit`), catene di filtri, tetti per stream, totale e
+//!    rapporto, contenuti attivi → quarantena con motivi fissi; gli allegati incorporati si
+//!    contano e non causano quarantena.
+//!
+//! I2 (lavoro cumulativo di tutte le passate) è `decompress_work_bytes`: byte contati più i
+//! limiti analitici delle espansioni del loader, mai una stima più bassa del reale; oltre il
+//! limite B = 2 × totale + 2 × `xref_streams` × tetto per stream è un errore di programma
+//! (`Corrupt`, detail `work_bound`).
 //!
 //! DOCX: voci, somma dichiarata, macro, `<!DOCTYPE`/`<!ENTITY`, relazioni esterne.
+use std::collections::BTreeSet;
 use std::io::{self, Read};
 use std::path::Path;
 
-use lopdf::{Document, LoadOptions, Object};
+use lopdf::xref::XrefEntry;
+use lopdf::{Document, LoadOptions, Object, ObjectId};
 
 use crate::protocol::Kind;
 
 const MIB: u64 = 1024 * 1024;
 
-/// Motivi di quarantena (stringhe fisse del contratto, nell'ordine di emissione).
+/// Blocco di lettura del contatore I1: l'arresto avviene entro un blocco oltre il totale.
+const READ_BLOCK: usize = 16 * 1024;
+
+/// Nome privato del `/Type` degli object stream nella prima passata del ramo non cifrato.
+const DEFERRED_OBJSTM: &[u8] = b"S02DeferredObjStm";
+
+/// Motivi di quarantena (stringhe fisse del contratto, nell'ordine di emissione). Dal
+/// ripasso del 2026-10-21 un allegato incorporato non è più un motivo di quarantena.
 pub const REASON_JAVASCRIPT: &str = "javascript";
 pub const REASON_LAUNCH: &str = "launch";
-pub const REASON_EMBEDDED_FILE: &str = "embedded_file";
 pub const REASON_OPEN_ACTION_JS: &str = "open_action_js";
 pub const REASON_EXTERNAL_LINK: &str = "external_link";
-const REASON_ORDER: [&str; 5] = [
+const REASON_ORDER: [&str; 4] = [
     REASON_JAVASCRIPT,
     REASON_LAUNCH,
-    REASON_EMBEDDED_FILE,
     REASON_OPEN_ACTION_JS,
     REASON_EXTERNAL_LINK,
 ];
@@ -47,14 +59,12 @@ const REASON_ORDER: [&str; 5] = [
 pub struct Caps {
     /// Tetto per stream, anche al caricamento (`max_decompressed_size`): 64 MiB.
     pub per_stream_bytes: u64,
-    /// Totale decompresso, caricamento compreso: 512 MiB.
+    /// Somma reale dei byte decompressi distinti (I1), object stream compresi: 512 MiB.
     pub total_bytes: u64,
     /// Rapporto massimo di espansione: 100.
     pub max_ratio: u64,
     /// Il rapporto vale oltre questa soglia di byte espansi: 16 MiB.
     pub ratio_min_bytes: u64,
-    /// Object stream ammessi (2 × massimo del corpus benigno).
-    pub max_object_streams: u32,
     /// Lunghezza massima della catena di filtri: 2.
     pub max_filter_chain: usize,
     /// Limite di pagine: 2.000.
@@ -67,10 +77,6 @@ pub struct Caps {
     pub docx_max_total_bytes: u64,
 }
 
-/// Object stream ammessi: 2 × massimo del corpus benigno misurato dalla calibrazione
-/// (Task 4, `results/isolation/calibration.csv`, colonna `objstm_count`).
-pub const MAX_OBJECT_STREAMS: u32 = 64;
-
 impl Default for Caps {
     fn default() -> Self {
         Caps {
@@ -78,7 +84,6 @@ impl Default for Caps {
             total_bytes: 512 * MIB,
             max_ratio: 100,
             ratio_min_bytes: 16 * MIB,
-            max_object_streams: MAX_OBJECT_STREAMS,
             max_filter_chain: 2,
             max_pages: 2000,
             max_image_bytes: 64 * MIB,
@@ -89,6 +94,10 @@ impl Default for Caps {
 }
 
 /// Esito positivo del prescan, con le grandezze che la calibrazione registra.
+///
+/// Schema unico del rapporto (punto 5 di `<interfaces>` del piano, v6): `encryption`,
+/// `embedded_files`, `objstm_count`, `objstm_decompressed_bytes`, `xref_streams`,
+/// `decompress_work_bytes`. Per un DOCX valgono `none` e 0.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PrescanReport {
     /// Pagine (PDF); `None` per i DOCX.
@@ -99,17 +108,15 @@ pub struct PrescanReport {
     pub max_flate_ratio: f64,
     /// Massimo di byte espansi da un singolo stream.
     pub max_stream_bytes: u64,
-    /// Byte espansi in totale, stima del caricamento compresa.
+    /// Somma reale dei byte decompressi distinti (I1); per i DOCX i byte letti dalle parti.
     pub total_decompressed_bytes: u64,
     /// Voci dell'archivio (DOCX).
     pub entries: usize,
-    // Schema unico dei sei campi (punto 5 di `<interfaces>` del piano, v6): `objstm_count`
-    // sopra più i cinque campi qui sotto. Stub del test-write: da riempire in 01-07.
     /// Cifratura ammessa: `none` | `empty_password`.
     pub encryption: Encryption,
     /// Allegati incorporati trovati e ignorati.
     pub embedded_files: u32,
-    /// Somma reale dei byte decompressi degli object stream (I1).
+    /// Somma reale dei byte decompressi degli object stream (parte di I1).
     pub objstm_decompressed_bytes: u64,
     /// Cross-reference stream contati a byte.
     pub xref_streams: u32,
@@ -117,7 +124,7 @@ pub struct PrescanReport {
     pub decompress_work_bytes: u64,
 }
 
-/// Cifratura di un PDF ammesso (schema unico, campo `encryption`). Stub del test-write.
+/// Cifratura di un PDF ammesso (schema unico, campo `encryption`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Encryption {
     /// Nessun `/Encrypt` (anche ogni DOCX).
@@ -127,13 +134,28 @@ pub enum Encryption {
     EmptyPassword,
 }
 
+impl Encryption {
+    /// Valore del campo `encryption` nel `data` del figlio.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Encryption::None => "none",
+            Encryption::EmptyPassword => "empty_password",
+        }
+    }
+}
+
 /// Filtro di `LoadOptions` della prima passata del ramo non cifrato (punto 2 del Task 3):
-/// rinomina il `/Type` degli object stream perché lopdf non li espanda; ogni altro oggetto
-/// torna invariato. Stub del test-write: da implementare in 01-07.
-#[cfg_attr(not(test), allow(dead_code))]
-fn defer_objstm(id: (u32, u16), obj: &mut Object) -> Option<((u32, u16), Object)> {
-    let _ = (id, obj);
-    todo!("stub del test-write: defer_objstm da implementare in 01-07")
+/// rinomina il `/Type` degli object stream perché lopdf 0.45.0 non li espanda (il filtro
+/// gira su ogni oggetto prima dell'espansione, `load_objects_raw`); ogni altro oggetto torna
+/// invariato. Senza stato: il nome privato basta a riconoscere i contenitori dopo il
+/// caricamento.
+fn defer_objstm(id: ObjectId, obj: &mut Object) -> Option<(ObjectId, Object)> {
+    if let Object::Stream(s) = obj
+        && s.dict.has_type(b"ObjStm")
+    {
+        s.dict.set("Type", Object::Name(DEFERRED_OBJSTM.to_vec()));
+    }
+    Some((id, obj.clone()))
 }
 
 /// Rifiuto tipizzato del prescan.
@@ -174,9 +196,9 @@ fn hex_val(b: u8) -> Option<u8> {
 struct ByteScan {
     encrypt: bool,
     objstm: u32,
+    xref: u32,
     javascript: bool,
     launch: bool,
-    embedded_file: bool,
 }
 
 /// Intervalli dei dati degli stream (`stream` EOL … `endstream`), dove i nomi brevi non
@@ -219,6 +241,9 @@ fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
     hay.windows(needle.len()).position(|w| w == needle)
 }
 
+/// Un object stream non sta dentro un altro e i dizionari non sono cifrati: i conteggi di
+/// `/ObjStm` e `/XRef` sono completi anche sui PDF cifrati (in eccesso, mai in difetto, se il
+/// nome compare anche altrove).
 fn scan_bytes(bytes: &[u8]) -> ByteScan {
     let bodies = stream_bodies(bytes);
     let in_body = |pos: usize| bodies.iter().any(|&(s, e)| pos >= s && pos < e);
@@ -250,14 +275,84 @@ fn scan_bytes(bytes: &[u8]) -> ByteScan {
         match name.as_slice() {
             b"Encrypt" => out.encrypt = true,
             b"ObjStm" => out.objstm = out.objstm.saturating_add(1),
+            b"XRef" => out.xref = out.xref.saturating_add(1),
             b"JavaScript" => out.javascript = true,
             b"Launch" => out.launch = true,
-            b"EmbeddedFile" | b"EmbeddedFiles" => out.embedded_file = true,
             b"JS" if !in_body(start) => out.javascript = true,
             _ => {}
         }
     }
     out
+}
+
+// ---- invarianti I1 e I2 ----------------------------------------------------------------
+
+/// Contatore unico dei byte decompressi distinti (I1) e del lavoro cumulativo (I2).
+#[derive(Debug)]
+struct Meter {
+    /// Byte decompressi distinti contati in streaming (I1).
+    counted: u64,
+    /// Lavoro di tutte le passate: contati, riespansioni e limiti analitici del loader (I2).
+    work: u64,
+    total_cap: u64,
+    bound: u64,
+}
+
+impl Meter {
+    fn new(caps: &Caps, xref_streams: u32) -> Meter {
+        Meter {
+            counted: 0,
+            work: 0,
+            total_cap: caps.total_bytes,
+            bound: work_bound(caps, xref_streams),
+        }
+    }
+
+    /// Lavoro senza byte distinti nuovi (riespansioni, limiti analitici del loader).
+    fn add_work(&mut self, n: u64) -> Result<(), Rejection> {
+        self.work = self.work.saturating_add(n);
+        if self.work > self.bound {
+            return Err(fail(
+                Kind::Corrupt,
+                format!("work_bound work={} bound={}", self.work, self.bound),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Byte distinti appena decompressi: entrano in I1 e in I2; I1 si ferma appena supera
+    /// il totale (`total_decompressed`).
+    fn add_distinct(&mut self, n: u64) -> Result<(), Rejection> {
+        self.counted = self.counted.saturating_add(n);
+        self.work = self.work.saturating_add(n);
+        if self.counted > self.total_cap {
+            return Err(fail(
+                Kind::DecompressionLimit,
+                format!(
+                    "total_decompressed counted={} work={}",
+                    self.counted, self.work
+                ),
+            ));
+        }
+        self.add_work(0)
+    }
+}
+
+/// Limite B di I2: 2 × totale + 2 × `xref_streams` × tetto per stream.
+fn work_bound(caps: &Caps, xref_streams: u32) -> u64 {
+    caps.total_bytes.saturating_mul(2).saturating_add(
+        u64::from(xref_streams)
+            .saturating_mul(2)
+            .saturating_mul(caps.per_stream_bytes),
+    )
+}
+
+/// Quota per stream del ramo cifrato: min(tetto per stream, ⌊totale / object stream⌋).
+fn encrypted_quota(caps: &Caps, objstm: u32) -> u64 {
+    match objstm {
+        0 => caps.per_stream_bytes,
+        n => caps.per_stream_bytes.min(caps.total_bytes / u64::from(n)),
+    }
 }
 
 // ---- caricamento -----------------------------------------------------------------------
@@ -269,11 +364,28 @@ fn is_memory_limit(e: &lopdf::Error) -> bool {
     )
 }
 
-fn load(bytes: &[u8], caps: &Caps) -> Result<Document, Rejection> {
-    let limit = usize::try_from(caps.per_stream_bytes).unwrap_or(usize::MAX);
+fn as_usize(n: u64) -> usize {
+    usize::try_from(n).unwrap_or(usize::MAX)
+}
+
+/// Caricamento del ramo non cifrato con tetto per stream. In modalità tollerante lopdf
+/// 0.45.0 scarta in silenzio un object stream oltre il tetto (lo registra solo nel log),
+/// quindi si carica prima in modalità `strict`, dove l'errore
+/// `Error::Decompress(DecompressError::MemoryLimitExceeded)` arriva al chiamante
+/// (→ `DecompressionLimit`); un altro errore stretto ripiega sul caricamento tollerante, che
+/// deve comunque contenere ogni object stream citato dalla xref (altrimenti `Corrupt`).
+fn load_plain(
+    bytes: &[u8],
+    caps: &Caps,
+    filter: Option<lopdf::FilterFunc>,
+) -> Result<Document, Rejection> {
+    let lenient = LoadOptions {
+        filter,
+        ..LoadOptions::with_max_decompressed_size(as_usize(caps.per_stream_bytes))
+    };
     let strict = LoadOptions {
         strict: true,
-        ..LoadOptions::with_max_decompressed_size(limit)
+        ..lenient.clone()
     };
     match Document::load_mem_with_options(bytes, strict) {
         Ok(doc) => Ok(doc),
@@ -282,7 +394,6 @@ fn load(bytes: &[u8], caps: &Caps) -> Result<Document, Rejection> {
             format!("load_per_stream: {e}"),
         )),
         Err(_) => {
-            let lenient = LoadOptions::with_max_decompressed_size(limit);
             let doc = Document::load_mem_with_options(bytes, lenient).map_err(|e| {
                 if is_memory_limit(&e) {
                     fail(Kind::DecompressionLimit, format!("load_per_stream: {e}"))
@@ -290,10 +401,8 @@ fn load(bytes: &[u8], caps: &Caps) -> Result<Document, Rejection> {
                     fail(Kind::Corrupt, format!("load: {e}"))
                 }
             })?;
-            // Il caricamento tollerante salta un object stream che non decodifica (anche
-            // per il tetto): ogni contenitore citato dalla xref deve esserci.
             let missing = doc.reference_table.entries.values().any(|entry| {
-                matches!(entry, lopdf::xref::XrefEntry::Compressed { container, .. }
+                matches!(entry, XrefEntry::Compressed { container, .. }
                     if !matches!(doc.objects.get(&(*container, 0)), Some(Object::Stream(_))))
             });
             if missing {
@@ -302,6 +411,57 @@ fn load(bytes: &[u8], caps: &Caps) -> Result<Document, Rejection> {
             Ok(doc)
         }
     }
+}
+
+/// Errori di lopdf legati alla cifratura (password, gestore o algoritmo non supportati).
+fn is_password_error(e: &lopdf::Error) -> bool {
+    matches!(
+        e,
+        lopdf::Error::InvalidPassword
+            | lopdf::Error::Decryption(_)
+            | lopdf::Error::Unimplemented(_)
+    )
+}
+
+/// Riconciliazione del ramo cifrato (punto 3-bis): lopdf 0.45.0 scarta in silenzio oggetti
+/// illeggibili, object stream non espandibili ed errori di decifratura, quindi ogni voce in
+/// uso della xref deve risultare caricata, salvo il dizionario `/Encrypt` che lopdf rimuove.
+fn reconcile(doc: &Document) -> Result<(), Rejection> {
+    let encrypt_id = doc
+        .encryption_state
+        .as_ref()
+        .and_then(|s| s.encrypt_object_id());
+    let mut member: Option<(u32, u32)> = None;
+    let mut object: Option<ObjectId> = None;
+    for (&num, entry) in &doc.reference_table.entries {
+        match *entry {
+            XrefEntry::Compressed { container, .. } => {
+                if member.is_none() && !doc.objects.contains_key(&(num, 0)) {
+                    member = Some((num, container));
+                }
+            }
+            XrefEntry::Normal { generation, .. } => {
+                let id = (num, generation);
+                if object.is_none() && Some(id) != encrypt_id && !doc.objects.contains_key(&id) {
+                    object = Some(id);
+                }
+            }
+            XrefEntry::Free | XrefEntry::UnusableFree => {}
+        }
+    }
+    if let Some((num, container)) = member {
+        return Err(fail(
+            Kind::DecompressionLimit,
+            format!("objstm_dropped object={num} container={container}"),
+        ));
+    }
+    if let Some((num, generation)) = object {
+        return Err(fail(
+            Kind::Corrupt,
+            format!("object_dropped object={num} generation={generation}"),
+        ));
+    }
+    Ok(())
 }
 
 // ---- filtri e decodifica ---------------------------------------------------------------
@@ -426,16 +586,37 @@ fn ascii85(data: &[u8]) -> Result<Vec<u8>, Rejection> {
     Ok(out)
 }
 
-/// Byte prodotti da `r` fino a `cap + 1` (letti in un buffer fisso e scartati). Un errore
-/// di decodifica chiude il conteggio ai byte già prodotti: non è una bomba.
-fn drain_counted<R: Read>(r: R, cap: u64) -> u64 {
+/// Lettore che conta i byte prodotti (Flate interno di una catena `[Flate, Flate]`: lavoro
+/// I2, non byte distinti del documento).
+struct Tally<R> {
+    inner: R,
+    bytes: u64,
+}
+
+impl<R: Read> Read for Tally<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.bytes = self.bytes.saturating_add(n as u64);
+        Ok(n)
+    }
+}
+
+/// Byte prodotti da `r` fino a `cap + 1`, letti a blocchi fissi e scartati, ciascun blocco
+/// sommato subito al contatore I1. Un errore di decodifica è `Corrupt`: nessuno stream si
+/// salta.
+fn drain_counted<R: Read>(r: R, cap: u64, meter: &mut Meter) -> Result<u64, Rejection> {
     let mut limited = r.take(cap.saturating_add(1));
-    let mut buf = [0u8; 16 * 1024];
+    let mut buf = [0u8; READ_BLOCK];
     let mut n = 0u64;
     loop {
         match limited.read(&mut buf) {
-            Ok(0) | Err(_) => return n,
-            Ok(k) => n += k as u64,
+            Ok(0) => return Ok(n),
+            Ok(k) => {
+                n += k as u64;
+                meter.add_distinct(k as u64)?;
+            }
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(fail(Kind::Corrupt, format!("flate_decode: {e}"))),
         }
     }
 }
@@ -443,7 +624,12 @@ fn drain_counted<R: Read>(r: R, cap: u64) -> u64 {
 /// Espansione Flate di uno stream secondo la sua catena di filtri (già validata).
 /// I filtri prima del primo Flate riducono e si applicano sul buffer; Flate annidati si
 /// leggono in streaming; i filtri dopo l'ultimo Flate non espandono e non si decodificano.
-fn flate_expansion(chain: &[Vec<u8>], raw: &[u8], cap: u64) -> Result<Option<u64>, Rejection> {
+fn flate_expansion(
+    chain: &[Vec<u8>],
+    raw: &[u8],
+    cap: u64,
+    meter: &mut Meter,
+) -> Result<Option<u64>, Rejection> {
     let Some(first_flate) = chain.iter().position(|f| f == b"FlateDecode") else {
         return Ok(None);
     };
@@ -462,12 +648,21 @@ fn flate_expansion(chain: &[Vec<u8>], raw: &[u8], cap: u64) -> Result<Option<u64
         .iter()
         .take_while(|f| f.as_slice() == b"FlateDecode")
         .count();
-    let n = if flates >= 2 {
-        let inner = flate2::read::ZlibDecoder::new(data).take(cap.saturating_add(1));
-        drain_counted(flate2::read::ZlibDecoder::new(inner), cap)
-    } else {
-        drain_counted(flate2::read::ZlibDecoder::new(data), cap)
+    if flates < 2 {
+        return drain_counted(flate2::read::ZlibDecoder::new(data), cap, meter).map(Some);
+    }
+    let mut inner = Tally {
+        inner: flate2::read::ZlibDecoder::new(data).take(cap.saturating_add(1)),
+        bytes: 0,
     };
+    let n = drain_counted(flate2::read::ZlibDecoder::new(&mut inner), cap, meter)?;
+    meter.add_work(inner.bytes)?;
+    if inner.bytes > cap {
+        return Err(fail(
+            Kind::DecompressionLimit,
+            format!("per_stream oltre {cap} (flate interno)"),
+        ));
+    }
     Ok(Some(n))
 }
 
@@ -510,12 +705,54 @@ fn check_chain(chain: &[Vec<u8>], dict: &lopdf::Dictionary, caps: &Caps) -> Resu
     Ok(())
 }
 
+/// Massimi per stream registrati dalla calibrazione.
+#[derive(Debug, Default)]
+struct StreamStats {
+    max_flate_ratio: f64,
+    max_stream_bytes: u64,
+}
+
+/// Filtri, decodifica in streaming e tetti di uno stream; ritorna i byte espansi (0 se lo
+/// stream non ha Flate).
+fn check_stream(
+    stream: &lopdf::Stream,
+    caps: &Caps,
+    meter: &mut Meter,
+    stats: &mut StreamStats,
+) -> Result<u64, Rejection> {
+    let chain = filters(&stream.dict)?;
+    check_chain(&chain, &stream.dict, caps)?;
+    let Some(n) = flate_expansion(&chain, &stream.content, caps.per_stream_bytes, meter)? else {
+        return Ok(0);
+    };
+    if n > caps.per_stream_bytes {
+        return Err(fail(
+            Kind::DecompressionLimit,
+            format!("per_stream oltre {}", caps.per_stream_bytes),
+        ));
+    }
+    let raw = stream.content.len().max(1) as u64;
+    let ratio = n as f64 / raw as f64;
+    if n > caps.ratio_min_bytes && n > raw.saturating_mul(caps.max_ratio) {
+        return Err(fail(
+            Kind::DecompressionLimit,
+            format!("ratio {ratio:.0} oltre {} su {n} byte", caps.max_ratio),
+        ));
+    }
+    stats.max_stream_bytes = stats.max_stream_bytes.max(n);
+    if ratio > stats.max_flate_ratio {
+        stats.max_flate_ratio = ratio;
+    }
+    Ok(n)
+}
+
+// ---- contenuti attivi e allegati -------------------------------------------------------
+
 /// Motivi di quarantena trovati negli oggetti caricati (object stream compresi).
 #[derive(Debug, Default)]
 struct Active {
     javascript: bool,
     launch: bool,
-    embedded_file: bool,
     open_action_js: bool,
     external_link: bool,
 }
@@ -525,7 +762,6 @@ impl Active {
         let flags = [
             self.javascript,
             self.launch,
-            self.embedded_file,
             self.open_action_js,
             self.external_link,
         ];
@@ -546,7 +782,6 @@ fn walk(o: &Object, a: &mut Active, depth: u32) {
         Object::Name(n) => match n.as_slice() {
             b"JavaScript" => a.javascript = true,
             b"Launch" => a.launch = true,
-            b"EmbeddedFile" | b"EmbeddedFiles" => a.embedded_file = true,
             _ => {}
         },
         Object::Dictionary(d) => walk_dict(d, a, depth),
@@ -560,7 +795,6 @@ fn walk_dict(d: &lopdf::Dictionary, a: &mut Active, depth: u32) {
     for (k, v) in d.iter() {
         match k.as_slice() {
             b"JS" | b"JavaScript" => a.javascript = true,
-            b"EF" | b"EmbeddedFiles" => a.embedded_file = true,
             b"Launch" => a.launch = true,
             _ => {}
         }
@@ -578,40 +812,52 @@ fn is_js_action(doc: &Document, o: &Object) -> bool {
     d.has(b"JS") || matches!(d.get(b"S"), Ok(Object::Name(n)) if n == b"JavaScript")
 }
 
-/// Prescan di un PDF tenuto in memoria. Va chiamato nel figlio, prima di PDFium.
-pub fn check_pdf(bytes: &[u8], caps: &Caps) -> Result<PrescanReport, Rejection> {
-    // 1. Prima del caricamento.
-    let scan = scan_bytes(bytes);
-    if scan.encrypt {
-        return Err(fail(Kind::Encrypted, "encrypt_in_trailer"));
+/// Riferimenti di un dizionario `/EF` di un file specification (punto 3-ter).
+fn collect_ef(o: &Object, ids: &mut BTreeSet<ObjectId>, depth: u32) {
+    if depth > 64 {
+        return;
     }
-    if scan.objstm > caps.max_object_streams {
-        return Err(fail(
-            Kind::DecompressionLimit,
-            format!(
-                "objstm_count={} oltre {}",
-                scan.objstm, caps.max_object_streams
-            ),
-        ));
+    let d = match o {
+        Object::Dictionary(d) => d,
+        Object::Stream(s) => &s.dict,
+        Object::Array(v) => {
+            v.iter().for_each(|x| collect_ef(x, ids, depth + 1));
+            return;
+        }
+        _ => return,
+    };
+    for (k, v) in d.iter() {
+        if k.as_slice() == b"EF"
+            && let Object::Dictionary(ef) = v
+        {
+            for (_, r) in ef.iter() {
+                if let Object::Reference(id) = r {
+                    ids.insert(*id);
+                }
+            }
+        }
+        collect_ef(v, ids, depth + 1);
     }
-    let mut total = u64::from(scan.objstm).saturating_mul(caps.per_stream_bytes);
-    if total > caps.total_bytes {
-        return Err(fail(
-            Kind::DecompressionLimit,
-            format!(
-                "total_load_estimate objstm_count={} × per_stream oltre {}",
-                scan.objstm, caps.total_bytes
-            ),
-        ));
-    }
+}
 
-    // 2. Caricamento con tetto per stream.
-    let doc = load(bytes, caps)?;
-
-    // 3. Dopo il caricamento.
-    if doc.is_encrypted() || doc.was_encrypted() {
-        return Err(fail(Kind::Encrypted, "encrypted_document"));
+/// Allegati incorporati (punto 3-ter): stream `/Type /EmbeddedFile` e stream citati da un
+/// `/EF`, contati una volta. Si contano soltanto: non si estraggono né si passano ad altri
+/// parser; i loro stream sono già passati da filtri e tetti come ogni altro stream.
+fn count_embedded_files(doc: &Document) -> u32 {
+    let mut ids = BTreeSet::new();
+    for (id, o) in &doc.objects {
+        if let Object::Stream(s) = o
+            && s.dict.has_type(b"EmbeddedFile")
+        {
+            ids.insert(*id);
+        }
+        collect_ef(o, &mut ids, 0);
     }
+    u32::try_from(ids.len()).unwrap_or(u32::MAX)
+}
+
+/// Pagine dall'albero con limite (→ `ResourceLimit`); nessuna pagina → `Corrupt`.
+fn page_count(doc: &Document, caps: &Caps) -> Result<u32, Rejection> {
     let pages = doc.page_iter().take(caps.max_pages as usize + 1).count();
     if pages == 0 {
         return Err(fail(Kind::Corrupt, "no_pages"));
@@ -622,63 +868,22 @@ pub fn check_pdf(bytes: &[u8], caps: &Caps) -> Result<PrescanReport, Rejection> 
             format!("pages oltre {}", caps.max_pages),
         ));
     }
+    Ok(u32::try_from(pages).unwrap_or(u32::MAX))
+}
 
-    let mut report = PrescanReport {
-        pages: Some(u32::try_from(pages).unwrap_or(u32::MAX)),
-        objstm_count: scan.objstm,
-        total_decompressed_bytes: total,
-        ..PrescanReport::default()
-    };
+/// Contenuti attivi del documento caricato (object stream espansi) e della scansione a byte.
+fn quarantine(doc: &Document, scan: &ByteScan) -> Result<(), Rejection> {
     let mut active = Active {
         javascript: scan.javascript,
         launch: scan.launch,
-        embedded_file: scan.embedded_file,
         ..Active::default()
     };
     for obj in doc.objects.values() {
         walk(obj, &mut active, 0);
-        let Object::Stream(stream) = obj else {
-            continue;
-        };
-        let chain = filters(&stream.dict)?;
-        check_chain(&chain, &stream.dict, caps)?;
-        let Some(n) = flate_expansion(&chain, &stream.content, caps.per_stream_bytes)? else {
-            continue;
-        };
-        if n > caps.per_stream_bytes {
-            return Err(fail(
-                Kind::DecompressionLimit,
-                format!("per_stream oltre {}", caps.per_stream_bytes),
-            ));
-        }
-        let raw = stream.content.len().max(1) as u64;
-        let ratio = n as f64 / raw as f64;
-        if n > caps.ratio_min_bytes && n > raw.saturating_mul(caps.max_ratio) {
-            return Err(fail(
-                Kind::DecompressionLimit,
-                format!("ratio {ratio:.0} oltre {} su {n} byte", caps.max_ratio),
-            ));
-        }
-        // L'espansione degli object stream è già nella stima del caricamento.
-        if !stream.dict.has_type(b"ObjStm") {
-            total = total.saturating_add(n);
-        }
-        if total > caps.total_bytes {
-            return Err(fail(
-                Kind::DecompressionLimit,
-                format!("total oltre {}", caps.total_bytes),
-            ));
-        }
-        report.max_stream_bytes = report.max_stream_bytes.max(n);
-        if ratio > report.max_flate_ratio {
-            report.max_flate_ratio = ratio;
-        }
     }
-    report.total_decompressed_bytes = total;
-
     if let Ok(cat) = doc.catalog()
         && let Ok(oa) = cat.get(b"OpenAction")
-        && is_js_action(&doc, oa)
+        && is_js_action(doc, oa)
     {
         active.open_action_js = true;
     }
@@ -686,6 +891,141 @@ pub fn check_pdf(bytes: &[u8], caps: &Caps) -> Result<PrescanReport, Rejection> 
     if !reasons.is_empty() {
         return Err(Rejection::Quarantined(reasons));
     }
+    Ok(())
+}
+
+// ---- PDF -------------------------------------------------------------------------------
+
+/// Prescan di un PDF tenuto in memoria. Va chiamato nel figlio, prima di PDFium.
+pub fn check_pdf(bytes: &[u8], caps: &Caps) -> Result<PrescanReport, Rejection> {
+    let scan = scan_bytes(bytes);
+    if scan.encrypt {
+        check_encrypted(bytes, caps, &scan)
+    } else {
+        check_plain(bytes, caps, &scan)
+    }
+}
+
+/// Lavoro di una passata di caricamento sui cross-reference stream (limite analitico).
+fn xref_pass(caps: &Caps, scan: &ByteScan) -> u64 {
+    u64::from(scan.xref).saturating_mul(caps.per_stream_bytes)
+}
+
+/// Ramo non cifrato (punto 2): prima passata con gli object stream compressi, I1 su ogni
+/// stream, poi il caricamento vero solo se I1 regge.
+fn check_plain(bytes: &[u8], caps: &Caps, scan: &ByteScan) -> Result<PrescanReport, Rejection> {
+    let mut meter = Meter::new(caps, scan.xref);
+    let mut stats = StreamStats::default();
+    let mut objstm_bytes = 0u64;
+    {
+        let first = load_plain(bytes, caps, Some(defer_objstm))?;
+        if first.was_encrypted() || first.is_encrypted() {
+            return Err(fail(Kind::Corrupt, "encrypt_state not_declared"));
+        }
+        meter.add_work(xref_pass(caps, scan))?;
+        for obj in first.objects.values() {
+            let Object::Stream(s) = obj else {
+                continue;
+            };
+            let n = check_stream(s, caps, &mut meter, &mut stats)?;
+            if s.dict.has_type(DEFERRED_OBJSTM) {
+                objstm_bytes = objstm_bytes.saturating_add(n);
+            }
+        }
+    }
+
+    // Caricamento vero: riespande gli stessi object stream già misurati.
+    let doc = load_plain(bytes, caps, None)?;
+    if doc.was_encrypted() || doc.is_encrypted() {
+        return Err(fail(Kind::Corrupt, "encrypt_state not_declared"));
+    }
+    meter.add_work(objstm_bytes)?;
+    meter.add_work(xref_pass(caps, scan))?;
+
+    let pages = page_count(&doc, caps)?;
+    let report = PrescanReport {
+        pages: Some(pages),
+        objstm_count: scan.objstm,
+        max_flate_ratio: stats.max_flate_ratio,
+        max_stream_bytes: stats.max_stream_bytes,
+        total_decompressed_bytes: meter.counted,
+        entries: 0,
+        encryption: Encryption::None,
+        embedded_files: count_embedded_files(&doc),
+        objstm_decompressed_bytes: objstm_bytes,
+        xref_streams: scan.xref,
+        decompress_work_bytes: meter.work,
+    };
+    quarantine(&doc, scan)?;
+    Ok(report)
+}
+
+/// Ramo cifrato (punto 3-bis): ammesso solo se lopdf l'apre con la password vuota.
+fn check_encrypted(bytes: &[u8], caps: &Caps, scan: &ByteScan) -> Result<PrescanReport, Rejection> {
+    let quota = encrypted_quota(caps, scan.objstm);
+    let opts = LoadOptions::with_max_decompressed_size(as_usize(quota));
+    let doc = match Document::load_mem_with_options(bytes, opts) {
+        Ok(d) => d,
+        Err(e) if is_memory_limit(&e) => {
+            return Err(fail(
+                Kind::DecompressionLimit,
+                format!("load_per_stream: {e}"),
+            ));
+        }
+        Err(e) if is_password_error(&e) => {
+            return Err(fail(
+                Kind::Encrypted,
+                format!("password_required load: {e}"),
+            ));
+        }
+        Err(e) => return Err(fail(Kind::Corrupt, format!("load: {e}"))),
+    };
+    // Ordine fisso: password, stato della cifratura, riconciliazione, contenuto.
+    if doc.is_encrypted() {
+        return Err(fail(Kind::Encrypted, "password_required"));
+    }
+    if !doc.was_encrypted() {
+        return Err(fail(Kind::Corrupt, "encrypt_state not_loaded"));
+    }
+    reconcile(&doc)?;
+
+    let mut meter = Meter::new(caps, scan.xref);
+    let containers = doc
+        .objects
+        .values()
+        .filter(|o| matches!(o, Object::Stream(s) if s.dict.has_type(b"ObjStm")))
+        .count();
+    let expanded = u64::from(scan.objstm).max(containers as u64);
+    meter.add_work(expanded.saturating_mul(quota))?;
+    meter.add_work(xref_pass(caps, scan))?;
+
+    let mut stats = StreamStats::default();
+    let mut objstm_bytes = 0u64;
+    for obj in doc.objects.values() {
+        let Object::Stream(s) = obj else {
+            continue;
+        };
+        let n = check_stream(s, caps, &mut meter, &mut stats)?;
+        if s.dict.has_type(b"ObjStm") {
+            objstm_bytes = objstm_bytes.saturating_add(n);
+        }
+    }
+
+    let pages = page_count(&doc, caps)?;
+    let report = PrescanReport {
+        pages: Some(pages),
+        objstm_count: scan.objstm,
+        max_flate_ratio: stats.max_flate_ratio,
+        max_stream_bytes: stats.max_stream_bytes,
+        total_decompressed_bytes: meter.counted,
+        entries: 0,
+        encryption: Encryption::EmptyPassword,
+        embedded_files: count_embedded_files(&doc),
+        objstm_decompressed_bytes: objstm_bytes,
+        xref_streams: scan.xref,
+        decompress_work_bytes: meter.work,
+    };
+    quarantine(&doc, scan)?;
     Ok(report)
 }
 

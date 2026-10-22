@@ -39,7 +39,10 @@ const FIXED_CPU_SECONDS: u64 = 60;
 const FIXED_WALL_TIMEOUT: Duration = Duration::from_secs(120);
 const FIXED_MAX_OPEN_FILES: u64 = 64;
 const MIN_FILE_SIZE_BYTES: u64 = MIB;
-/// Formula delle Soglie: `RLIMIT_AS` = 3 × max `VmPeak`, quota = 2 × max spazio scritto.
+/// Formula delle Soglie (ripasso del 2026-10-21): prenotazione = 3 × max `VmHWM`,
+/// `RLIMIT_AS` = min(3 × max `VmPeak`, totale − riserva del padre), quota = 2 × max spazio
+/// scritto.
+const HWM_FACTOR: u64 = 3;
 const AS_FACTOR: u64 = 3;
 const QUOTA_FACTOR: u64 = 2;
 /// Quota dei job di calibrazione; l'AS è il resto del budget.
@@ -51,7 +54,12 @@ const OVERHEAD_DOCS_PER_RUN: usize = 16;
 const HOSTILE_HEADER: &str = "case_id,run,expected,outcome,kind,extra_reasons,signal,peak_rss_kb,ms_to_fail,parent_alive,oom_kill_delta,leftover_procs,oom_adj_set,pass";
 const BUDGET_HEADER: &str = "requested_concurrency,jobs,max_admitted,completed,oom_kill_delta,parent_vm_hwm_kb,parent_alive";
 const OVERHEAD_HEADER: &str = "mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s";
-const CALIBRATION_HEADER: &str = "doc_id,pages,vm_peak_kb,out_bytes,max_flate_ratio,max_stream_bytes,total_decompressed_bytes,objstm_count,rejected_filter_streams";
+const CALIBRATION_HEADER: &str = "doc_id,pages,vm_peak_kb,vm_hwm_kb,out_bytes,max_flate_ratio,max_stream_bytes,total_decompressed_bytes,objstm_count,objstm_decompressed_bytes,rejected_filter_streams,encryption,embedded_files";
+
+/// Budget fisso per i test nel runner, che non ha `memory.max`: variabili lette solo dal
+/// padre, come `S02_BIN_DIR`. Senza `S02_BUDGET_TOTAL_BYTES` il totale è `memory.max`.
+const BUDGET_TOTAL_VAR: &str = "S02_BUDGET_TOTAL_BYTES";
+const PARENT_RESERVE_VAR: &str = "S02_PARENT_RESERVE_BYTES";
 
 #[derive(Parser)]
 #[command(
@@ -308,8 +316,28 @@ fn clamp(mut l: Limits, budget: &Budget) -> Limits {
     l
 }
 
+fn env_bytes(key: &str) -> anyhow::Result<Option<u64>> {
+    match std::env::var(key) {
+        Ok(v) if !v.trim().is_empty() => v
+            .trim()
+            .parse()
+            .map(Some)
+            .with_context(|| format!("{key} non è un intero di byte")),
+        _ => Ok(None),
+    }
+}
+
+/// Budget aggregato: `memory.max` del cgroup con la riserva delle Soglie, oppure
+/// `Budget::fixed` se il padre riceve `S02_BUDGET_TOTAL_BYTES` (test nel runner; la riserva
+/// viene da `S02_PARENT_RESERVE_BYTES`, default quella delle Soglie).
 fn budget() -> anyhow::Result<Budget> {
-    Budget::from_cgroup(PARENT_RESERVE_BYTES)
+    match env_bytes(BUDGET_TOTAL_VAR)? {
+        Some(total) => {
+            let reserve = env_bytes(PARENT_RESERVE_VAR)?.unwrap_or(PARENT_RESERVE_BYTES);
+            Ok(Budget::fixed(total, reserve))
+        }
+        None => Budget::from_cgroup(PARENT_RESERVE_BYTES),
+    }
 }
 
 /// Esito di `run_child` come riga: `RunReport` o `job_error`; `None` su errore di lancio.
@@ -413,6 +441,15 @@ async fn cmd_batch(jobs: &Path, concurrency: usize, limits_path: &Path) -> anyho
         })
         .to_string(),
     );
+    // Il padre con coda e rapporti non deve erodere in silenzio il margine dei figli
+    // (revisione di risk_audit_19, RISK-004): oltre la riserva la misura non è isolata.
+    let reserve_kb = budget.parent_reserve_bytes() / 1024;
+    if let Some(hwm) = s02_parser::protocol::vm_hwm_kb()
+        && hwm > reserve_kb
+    {
+        eprintln!("parent_reserve_exceeded vm_hwm_kb={hwm}");
+        return Ok(Exit(3));
+    }
     Ok(Exit(if job_errors > 0 { 2 } else { 0 }))
 }
 
@@ -551,10 +588,12 @@ async fn cmd_calibrate(
     }
 
     let budget = budget()?;
+    let cal_mem = budget
+        .capacity_bytes()
+        .saturating_sub(CALIBRATION_QUOTA_BYTES);
     let cal = Limits {
-        address_space_bytes: budget
-            .capacity_bytes()
-            .saturating_sub(CALIBRATION_QUOTA_BYTES),
+        address_space_bytes: cal_mem,
+        memory_reservation_bytes: cal_mem,
         cpu_seconds: FIXED_CPU_SECONDS,
         wall_timeout: FIXED_WALL_TIMEOUT,
         file_size_bytes: CALIBRATION_QUOTA_BYTES,
@@ -574,7 +613,8 @@ async fn cmd_calibrate(
 
     let area = calibration_area(op);
     let mut seen = BTreeSet::new();
-    let (mut max_peak_kb, mut max_out, mut max_objstm, mut ok_docs) = (0u64, 0u64, 0u64, 0u32);
+    let (mut max_peak_kb, mut max_hwm_kb, mut max_out, mut max_objstm, mut ok_docs) =
+        (0u64, 0u64, 0u64, 0u64, 0u32);
     let mut anomalies: Vec<String> = Vec::new();
     for f in &files {
         let mut id = doc_id(f);
@@ -601,71 +641,66 @@ async fn cmd_calibrate(
             }
         };
         print_line(&report_line(&r));
+        if !r.oom_adj_set {
+            anomalies.push(format!("{id}: oom_adj_set=false"));
+        }
         let out_bytes = spec.out_dir().map(dir_bytes).unwrap_or(0);
-        let cell = |v: Option<String>| v.unwrap_or_default();
-        let (pages, peak, ratio, stream, total, objstm, rejected) = match &r.outcome {
+        let mut row: Vec<String> = vec![String::new(); 13];
+        row[0] = id.clone();
+        row[4] = out_bytes.to_string();
+        row[10] = "0".to_owned();
+        match &r.outcome {
             ChildOutcome::Ok { pages, data, .. } => {
                 let d = data.clone().unwrap_or(Value::Null);
-                let p = &d["prescan"];
                 let peak = d["vm_peak_kb"].as_u64();
+                let hwm = r.peak_rss_kb.or_else(|| d["vm_hwm_kb"].as_u64());
                 ok_docs += 1;
                 max_peak_kb = max_peak_kb.max(peak.unwrap_or(0));
+                max_hwm_kb = max_hwm_kb.max(hwm.unwrap_or(0));
                 max_out = max_out.max(out_bytes);
-                max_objstm = max_objstm.max(p["objstm_count"].as_u64().unwrap_or(0));
-                (
-                    pages.map(|v| v.to_string()),
-                    peak.map(|v| v.to_string()),
-                    p["max_flate_ratio"].as_f64().map(|v| format!("{v:.2}")),
-                    p["max_stream_bytes"].as_u64().map(|v| v.to_string()),
-                    p["total_decompressed_bytes"]
-                        .as_u64()
-                        .map(|v| v.to_string()),
-                    p["objstm_count"].as_u64().map(|v| v.to_string()),
-                    "0".to_owned(),
-                )
+                max_objstm = max_objstm.max(d["objstm_count"].as_u64().unwrap_or(0));
+                let num = |k: &str| d[k].as_u64().map(|v| v.to_string()).unwrap_or_default();
+                row[1] = pages.map(|v| v.to_string()).unwrap_or_default();
+                row[2] = opt(peak);
+                row[3] = opt(hwm);
+                row[5] = d["max_flate_ratio"]
+                    .as_f64()
+                    .map(|v| format!("{v:.2}"))
+                    .unwrap_or_default();
+                row[6] = num("max_stream_bytes");
+                row[7] = num("total_decompressed_bytes");
+                row[8] = num("objstm_count");
+                row[9] = num("objstm_decompressed_bytes");
+                row[11] = d["encryption"].as_str().unwrap_or_default().to_owned();
+                row[12] = num("embedded_files");
             }
             ChildOutcome::Failed { kind, detail } => {
+                // PDF benigno rifiutato: anomalia da portare all'utente, mai un ritocco
+                // delle soglie (Soglie del lanciatore).
                 anomalies.push(format!("{id}: failed {} {detail}", kind.as_str()));
-                let objstm = detail_number(detail, "objstm_count");
-                if let Some(n) = objstm {
-                    max_objstm = max_objstm.max(n);
-                }
-                (
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    objstm.map(|v| v.to_string()),
-                    u8::from(is_filter_rejection(*kind, detail)).to_string(),
-                )
+                row[3] = opt(r.peak_rss_kb);
+                row[7] = opt(detail_number(detail, "counted"));
+                row[10] = u8::from(is_filter_rejection(*kind, detail)).to_string();
             }
             ChildOutcome::Quarantined { reasons } => {
                 anomalies.push(format!("{id}: quarantined {}", reasons.join(";")));
-                (None, None, None, None, None, None, "0".to_owned())
+                row[3] = opt(r.peak_rss_kb);
             }
-        };
-        let row = [
-            id.clone(),
-            cell(pages),
-            cell(peak),
-            out_bytes.to_string(),
-            cell(ratio),
-            cell(stream),
-            cell(total),
-            cell(objstm),
-            rejected,
-        ];
+        }
         let refs: Vec<&str> = row.iter().map(String::as_str).collect();
         w.write_row(&refs)?;
     }
-    if ok_docs == 0 || max_peak_kb == 0 {
-        bail!("calibrazione senza documenti riusciti con VmPeak: limiti non calcolabili");
+    if ok_docs == 0 || max_peak_kb == 0 || max_hwm_kb == 0 {
+        bail!("calibrazione senza documenti riusciti con VmPeak e VmHWM: limiti non calcolabili");
     }
 
     let quota = max_out.saturating_mul(QUOTA_FACTOR);
     let limits = Limits {
-        address_space_bytes: max_peak_kb.saturating_mul(1024).saturating_mul(AS_FACTOR),
+        address_space_bytes: max_peak_kb
+            .saturating_mul(1024)
+            .saturating_mul(AS_FACTOR)
+            .min(budget.capacity_bytes()),
+        memory_reservation_bytes: max_hwm_kb.saturating_mul(1024).saturating_mul(HWM_FACTOR),
         cpu_seconds: FIXED_CPU_SECONDS,
         wall_timeout: FIXED_WALL_TIMEOUT,
         file_size_bytes: quota.max(MIN_FILE_SIZE_BYTES),
@@ -687,15 +722,17 @@ async fn cmd_calibrate(
     doc.insert(
         format!("_meta_{op}"),
         json!({
-            "formula": "address_space_bytes = 3 × max VmPeak; out_quota_bytes = 2 × max byte scritti nell'out_dir; file_size_bytes = max(quota, 1 MiB); cpu_seconds 60, wall_timeout 120 s, max_open_files 64 fissi",
+            "formula": "memory_reservation_bytes = 3 × max VmHWM; address_space_bytes = min(3 × max VmPeak, totale − riserva del padre); out_quota_bytes = 2 × max byte scritti nell'out_dir; file_size_bytes = max(quota, 1 MiB); cpu_seconds 60, wall_timeout 120 s, max_open_files 64 fissi",
             "run_tag": tag,
             "inputs": inputs.to_string_lossy(),
             "docs": files.len(),
             "ok_docs": ok_docs,
             "max_vm_peak_kb": max_peak_kb,
+            "max_vm_hwm_kb": max_hwm_kb,
+            "budget_total_bytes": budget.total_bytes(),
+            "parent_reserve_bytes": budget.parent_reserve_bytes(),
             "max_out_bytes": max_out,
             "max_objstm_count": max_objstm,
-            "object_streams_cap_formula": max_objstm.saturating_mul(2),
             "anomalies": anomalies,
         }),
     );
@@ -1017,6 +1054,7 @@ async fn cmd_budget(
         let as_mib = ((budget.capacity_bytes() as f64 * reserve_fraction) as u64 / MIB).max(2);
         let limits = Limits {
             address_space_bytes: as_mib * MIB,
+            memory_reservation_bytes: as_mib * MIB,
             cpu_seconds: FIXED_CPU_SECONDS,
             wall_timeout: FIXED_WALL_TIMEOUT,
             file_size_bytes: MIN_FILE_SIZE_BYTES,

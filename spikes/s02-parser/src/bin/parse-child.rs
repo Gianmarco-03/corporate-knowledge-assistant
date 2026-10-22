@@ -5,6 +5,11 @@
 //! PDFium (`page.text()` per pagina), per i DOCX `word/document.xml` letto con `take`. Il
 //! testo va in `<out>/text.txt`; l'esito è una riga `protocol::emit`. I fallimenti del
 //! documento sono esiti `failed` con exit 0: un exit diverso o un segnale li classifica il padre.
+//! `data` di un esito `ok` porta, al livello alto, i sei campi dello schema unico del prescan
+//! (`encryption`, `embedded_files`, `objstm_count`, `objstm_decompressed_bytes`,
+//! `xref_streams`, `decompress_work_bytes`) più `pages`, `chars`, `parse_ms`, `vm_hwm_kb` e
+//! le grandezze della calibrazione. Gli allegati incorporati non si estraggono: il figlio non
+//! usa le API degli allegati di PDFium.
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -12,7 +17,7 @@ use std::time::Instant;
 
 use pdfium_render::prelude::{Pdfium, PdfiumError, PdfiumInternalError};
 use s02_parser::prescan::{self, Caps, PrescanReport, Rejection};
-use s02_parser::protocol::{ChildOutcome, Kind, emit, vm_peak_kb};
+use s02_parser::protocol::{ChildOutcome, Kind, emit, vm_hwm_kb, vm_peak_kb};
 use serde_json::{Value, json};
 
 /// Tetto di lettura di `word/document.xml` (somma dichiarata delle Soglie DOCX).
@@ -47,9 +52,16 @@ fn rejection(r: Rejection) -> ChildOutcome {
     }
 }
 
+/// Campi del rapporto di prescan in `data`, al livello alto: i sei dello schema unico
+/// (punto 5 di `<interfaces>` del piano, v6) più le grandezze della calibrazione.
 fn stats(r: &PrescanReport) -> Value {
     json!({
+        "encryption": r.encryption.as_str(),
+        "embedded_files": r.embedded_files,
         "objstm_count": r.objstm_count,
+        "objstm_decompressed_bytes": r.objstm_decompressed_bytes,
+        "xref_streams": r.xref_streams,
+        "decompress_work_bytes": r.decompress_work_bytes,
         "max_flate_ratio": r.max_flate_ratio,
         "max_stream_bytes": r.max_stream_bytes,
         "total_decompressed_bytes": r.total_decompressed_bytes,
@@ -76,6 +88,7 @@ fn parse(input: &Path, out: &Path) -> ChildOutcome {
         Ok((pages, output, mut data)) => {
             data["parse_ms"] = json!(t0.elapsed().as_millis() as u64);
             data["vm_peak_kb"] = json!(vm_peak_kb());
+            data["vm_hwm_kb"] = json!(vm_hwm_kb());
             ChildOutcome::Ok {
                 pages,
                 output: Some(output.to_string_lossy().into_owned()),
@@ -123,8 +136,10 @@ fn parse_pdf(bytes: &[u8], out: &Path) -> Parsed {
             .and_then(|()| file.write_all(b"\x0c"))
             .map_err(|e| ChildOutcome::failed(Kind::ResourceLimit, format!("write: {e}")))?;
     }
-    let mut data = json!({"format": "pdf", "chars": chars});
-    data["prescan"] = stats(&report);
+    let mut data = stats(&report);
+    data["format"] = json!("pdf");
+    data["pages"] = json!(pages);
+    data["chars"] = json!(chars);
     Ok((Some(pages), path, data))
 }
 
@@ -144,8 +159,10 @@ fn parse_docx(input: &Path, out: &Path) -> Parsed {
     let (path, mut f) = write_text(out)?;
     f.write_all(text.as_bytes())
         .map_err(|e| ChildOutcome::failed(Kind::ResourceLimit, format!("write: {e}")))?;
-    let mut data = json!({"format": "docx", "chars": text.chars().count()});
-    data["prescan"] = stats(&report);
+    let mut data = stats(&report);
+    data["format"] = json!("docx");
+    data["pages"] = Value::Null;
+    data["chars"] = json!(text.chars().count());
     Ok((None, path, data))
 }
 
