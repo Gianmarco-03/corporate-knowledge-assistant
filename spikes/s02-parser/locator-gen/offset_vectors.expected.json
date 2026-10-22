@@ -1,0 +1,89 @@
+{
+  "class": "derivazione-documentata",
+  "author": "test-write",
+  "plan": "01-09",
+  "signed": "Modifica: Claude (test-write, Anthropic) - 2026-10-22 - oracolo a mano dei vettori di offset scalar -> UTF-16, scritto prima del codice e dei risultati",
+  "semantics": "text e' testo canonico cka-text-v1 (gia' NFC). scalar_range = [s,e) in Unicode scalar value (char di Rust, elementi di Array.from in JS). utf16_range = [s16,e16) in code unit UTF-16 (indici di String.prototype.slice). s16 = somma delle code unit dei primi s scalar; e16 idem per e. Code unit per scalar: 1 se U+0000..U+FFFF (BMP), 2 se U+10000..U+10FFFF. expected = testo dei scalar [s,e). I non ASCII sono escape \\uXXXX, i fuori BMP come coppia surrogata.",
+  "vectors": [
+    {
+      "case_id": "bmp",
+      "text": "Ricavi è alti",
+      "scalar_range": [7, 13],
+      "utf16_range": [7, 13],
+      "expected": "è alti",
+      "derivation": "R(1) i(1) c(1) a(1) v(1) i(1) spazio(1) e-grave U+00E8(1) spazio(1) a(1) l(1) t(1) i(1); 13 scalar tutti BMP. s=7: somma dei primi 7 = 7. e=13: somma dei 13 = 13. [7,13) scalar = [7,13) utf16; expected = scalar 7..12 = 'e-grave spazio a l t i'."
+    },
+    {
+      "case_id": "astral-before",
+      "text": "😀 Ricavi",
+      "scalar_range": [2, 8],
+      "utf16_range": [3, 9],
+      "expected": "Ricavi",
+      "derivation": "U+1F600(2: surrogate D83D DE00) spazio(1) R(1) i(1) c(1) a(1) v(1) i(1); 8 scalar. s=2: 2+1 = 3. e=8: 3 + 6 = 9. [2,8) scalar = [3,9) utf16: l'emoji prima dell'intervallo sposta entrambi gli estremi di 1."
+    },
+    {
+      "case_id": "astral-inside",
+      "text": "A😀e",
+      "scalar_range": [1, 3],
+      "utf16_range": [1, 4],
+      "expected": "😀e",
+      "derivation": "A(1) U+1F600(2) e(1); 3 scalar. s=1: 1. e=3: 1+2+1 = 4. [1,3) scalar = [1,4) utf16: l'emoji dentro l'intervallo lo allunga di 1; l'inizio cade sul surrogato alto, la fine dopo e."
+    },
+    {
+      "case_id": "astral-end",
+      "text": "x😀y",
+      "scalar_range": [0, 2],
+      "utf16_range": [0, 3],
+      "expected": "x😀",
+      "derivation": "x(1) U+1F600(2) y(1); 3 scalar. s=0: 0. e=2: 1+2 = 3. [0,2) scalar = [0,3) utf16: la fine cade subito dopo il surrogato basso, mai fra i due surrogati."
+    },
+    {
+      "case_id": "astral-two",
+      "text": "😀𝔸ab😀",
+      "scalar_range": [2, 5],
+      "utf16_range": [4, 8],
+      "expected": "ab😀",
+      "derivation": "U+1F600(2) U+1D538 MATHEMATICAL DOUBLE-STRUCK A(2: surrogate D835 DD38) a(1) b(1) U+1F600(2); 5 scalar. s=2: 2+2 = 4. e=5: 4+1+1+2 = 8. [2,5) scalar = [4,8) utf16: due fuori BMP prima (spostamento 2) e uno in coda all'intervallo (allungamento 1)."
+    },
+    {
+      "case_id": "combining",
+      "text": "q́x",
+      "scalar_range": [0, 2],
+      "utf16_range": [0, 2],
+      "expected": "q́",
+      "derivation": "q(1) U+0301 COMBINING ACUTE ACCENT(1) x(1); q + acuto non ha forma precomposta, quindi resta di 2 scalar anche dopo NFC. s=0: 0. e=2: 1+1 = 2. [0,2) scalar = [0,2) utf16."
+    },
+    {
+      "case_id": "combining-split",
+      "text": "q́x",
+      "scalar_range": [1, 3],
+      "utf16_range": [1, 3],
+      "expected": "́x",
+      "derivation": "stesso testo di combining. s=1: 1. e=3: 1+1+1 = 3. [1,3) scalar = [1,3) utf16. Documenta che l'unita' e' lo scalar, non il grafema: un intervallo puo' iniziare sul segno combinante."
+    },
+    {
+      "case_id": "cjk",
+      "text": "収益は増加",
+      "scalar_range": [0, 2],
+      "utf16_range": [0, 2],
+      "expected": "収益",
+      "derivation": "U+53CE(1) U+76CA(1) U+306F(1) U+5897(1) U+52A0(1); 5 scalar, tutti BMP (CJK e hiragana stanno sotto U+FFFF). s=0: 0. e=2: 1+1 = 2. [0,2) scalar = [0,2) utf16: offset uguali."
+    },
+    {
+      "case_id": "empty",
+      "text": "A😀e",
+      "scalar_range": [2, 2],
+      "utf16_range": [3, 3],
+      "expected": "",
+      "derivation": "A(1) U+1F600(2) e(1). s=e=2: 1+2 = 3. [2,2) scalar = [3,3) utf16, intervallo vuoto subito dopo l'emoji; expected = stringa vuota."
+    },
+    {
+      "case_id": "empty-end",
+      "text": "A😀e",
+      "scalar_range": [3, 3],
+      "utf16_range": [4, 4],
+      "expected": "",
+      "derivation": "A(1) U+1F600(2) e(1). s=e=3 (fine del testo): 1+2+1 = 4 = lunghezza UTF-16. [3,3) scalar = [4,4) utf16; expected = stringa vuota."
+    }
+  ]
+}
