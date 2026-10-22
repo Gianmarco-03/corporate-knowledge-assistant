@@ -308,7 +308,10 @@ async fn support_for(
         };
         match jev.support_claim(role, &claim.text, p).await {
             Ok(v) => min = min.min(v),
-            Err(_) => return ClaimSupport::Unavailable,
+            Err(e) => {
+                eprintln!("JEV support_claim non disponibile: {}", e.label());
+                return ClaimSupport::Unavailable;
+            }
         }
     }
     ClaimSupport::Noul(min)
