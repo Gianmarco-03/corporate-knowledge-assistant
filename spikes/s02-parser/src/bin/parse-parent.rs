@@ -1375,4 +1375,251 @@ mod tests {
         );
         assert!(!hostile_verdict("ok", &[], &quarantined(&["javascript"]), true).0);
     }
+
+    // ---- gap-closure 1.4 (piano 01.4-01, Task 1): contratti nuovi di `overhead` ----------
+    // Test rossi sulla base: i simboli (`InProcessError`, `in_process_status`, `RepOutcome`,
+    // `overhead_row`, `in_process_reps`, `child_per_doc_error`) non esistono ancora.
+    // Il guasto di una sola ripetizione si inietta con la closure di `in_process_reps`, senza
+    // ganci nel driver (hard_rules 5). TEST-6..TEST-9 di `01.4-01-TEST-DESIGN.md`.
+
+    use pdfium_render::prelude::{PdfiumError, PdfiumInternalError};
+    use s02_parser::job::JobErrorCode;
+
+    fn internal(e: PdfiumInternalError) -> InProcessError {
+        InProcessError::Pdfium(PdfiumError::PdfiumLibraryInternalError(e))
+    }
+
+    fn report(outcome: ChildOutcome) -> anyhow::Result<RunReport> {
+        Ok(RunReport {
+            job_id: "j".into(),
+            outcome,
+            exit_signal: None,
+            peak_rss_kb: None,
+            wall_ms: 10,
+            oom_kill_delta: 0,
+            leftover_procs: 0,
+            oom_adj_set: true,
+        })
+    }
+
+    fn results(v: Vec<anyhow::Result<RunReport>>) -> Vec<(String, anyhow::Result<RunReport>)> {
+        v.into_iter()
+            .enumerate()
+            .map(|(i, r)| (format!("j{i}"), r))
+            .collect()
+    }
+
+    /// TEST-6: tabella completa dei tipi d'errore in-process (esaustiva sulle sei varianti).
+    #[test]
+    fn in_process_status_table() {
+        let cases = [
+            (
+                internal(PdfiumInternalError::FileError),
+                "error:pdfium_file",
+            ),
+            (
+                internal(PdfiumInternalError::FormatError),
+                "error:pdfium_format",
+            ),
+            (
+                internal(PdfiumInternalError::PasswordError),
+                "error:pdfium_password",
+            ),
+            (
+                internal(PdfiumInternalError::SecurityError),
+                "error:pdfium_security",
+            ),
+            (
+                internal(PdfiumInternalError::PageError),
+                "error:pdfium_page",
+            ),
+            (
+                internal(PdfiumInternalError::Unknown),
+                "error:pdfium_unknown",
+            ),
+            (
+                InProcessError::Pdfium(PdfiumError::PageIndexOutOfBounds),
+                "error:pdfium_other",
+            ),
+            (InProcessError::ThreadPanic, "error:thread_panic"),
+        ];
+        for (e, want) in &cases {
+            assert_eq!(in_process_status(e), *want, "stato di {e:?}");
+        }
+    }
+
+    /// TEST-6: forma delle righe di `overhead.csv`, sempre 8 campi, campi di tempo vuoti in
+    /// errore, formati `{:.1}` e `{:.2}` come prima della 1.4.
+    #[test]
+    fn overhead_row_shapes() {
+        let ok_init = RepOutcome::Ok {
+            wall: Duration::from_millis(800),
+            spawn_init_ms: Some(4.97),
+        };
+        assert_eq!(
+            overhead_row("child-per-doc", 1, 1, &ok_init),
+            s(&["child-per-doc", "1", "1", "16", "800", "5.0", "20.00", "ok"])
+        );
+        let ok_none = RepOutcome::Ok {
+            wall: Duration::from_millis(800),
+            spawn_init_ms: None,
+        };
+        assert_eq!(
+            overhead_row("child-per-doc", 1, 1, &ok_none),
+            s(&["child-per-doc", "1", "1", "16", "800", "", "20.00", "ok"])
+        );
+        let err = RepOutcome::Error("error:pdfium_format".to_owned());
+        assert_eq!(
+            overhead_row("in-process-mutex", 8, 7, &err),
+            s(&[
+                "in-process-mutex",
+                "8",
+                "7",
+                "16",
+                "",
+                "",
+                "",
+                "error:pdfium_format"
+            ])
+        );
+        for o in [&ok_init, &ok_none, &err] {
+            assert_eq!(
+                overhead_row("in-process-mutex", 4, 2, o).len(),
+                OVERHEAD_HEADER.split(',').count(),
+                "una riga ha i campi dell'header"
+            );
+        }
+        assert_eq!(OVERHEAD_HEADER.split(',').count(), 8);
+    }
+
+    /// TEST-7: l'errore di una sola ripetizione non interrompe né contamina le altre (D-02).
+    #[test]
+    fn in_process_reps_single_failure_keeps_all_rows() {
+        let mut calls: Vec<(usize, u32)> = Vec::new();
+        let mut rows: Vec<Vec<String>> = Vec::new();
+        let errors = in_process_reps(
+            &[1, 4, 8],
+            20,
+            |n, run| {
+                calls.push((n, run));
+                if (n, run) == (8, 7) {
+                    Err(internal(PdfiumInternalError::FormatError))
+                } else {
+                    Ok(Duration::from_millis(700))
+                }
+            },
+            |row| {
+                rows.push(row);
+                Ok(())
+            },
+        )
+        .expect("nessun errore del sink");
+        assert_eq!(errors, 1, "ripetizioni in errore");
+        assert_eq!(calls.len(), 60, "ogni ripetizione chiamata una volta");
+        assert_eq!(rows.len(), 60, "una riga per ripetizione");
+        let mut expected_order = Vec::new();
+        for n in [1usize, 4, 8] {
+            for run in 1..=20u32 {
+                expected_order.push((n, run));
+            }
+        }
+        assert_eq!(calls, expected_order, "ordine livello, poi run");
+        for (row, (n, run)) in rows.iter().zip(&expected_order) {
+            assert_eq!(row.len(), 8, "riga {row:?}");
+            assert_eq!(row[0], "in-process-mutex");
+            assert_eq!(row[1], n.to_string());
+            assert_eq!(row[2], run.to_string());
+            assert_eq!(row[3], "16");
+        }
+        let bad: Vec<&Vec<String>> = rows.iter().filter(|r| r[7] != "ok").collect();
+        assert_eq!(bad.len(), 1, "una sola riga in errore: {bad:?}");
+        assert_eq!(
+            *bad[0],
+            s(&[
+                "in-process-mutex",
+                "8",
+                "7",
+                "16",
+                "",
+                "",
+                "",
+                "error:pdfium_format"
+            ])
+        );
+        for r in rows.iter().filter(|r| r[7] == "ok") {
+            assert_eq!(r[4], "700", "wall_ms delle righe ok: {r:?}");
+            assert_eq!(r[5], "", "spawn_init_ms vuoto in-process: {r:?}");
+            assert!(!r[6].is_empty(), "docs_per_s delle righe ok: {r:?}");
+        }
+    }
+
+    /// TEST-8: un errore del sink (CSV) resta fatale e ferma le ripetizioni (D-02, T-01.4-03).
+    #[test]
+    fn in_process_reps_sink_error_is_fatal() {
+        let mut calls = 0u32;
+        let mut written = 0u32;
+        let r = in_process_reps(
+            &[1, 4, 8],
+            20,
+            |_, _| {
+                calls += 1;
+                Ok(Duration::from_millis(700))
+            },
+            |_| {
+                written += 1;
+                if written == 2 {
+                    Err(anyhow::anyhow!("csv"))
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert!(r.is_err(), "errore del sink propagato: {r:?}");
+        assert_eq!(calls, 2, "nessuna ripetizione dopo l'errore del sink");
+    }
+
+    /// TEST-9: stato delle righe `child-per-doc`, primo risultato non riuscito nell'ordine.
+    #[test]
+    fn child_per_doc_error_table() {
+        assert_eq!(
+            child_per_doc_error(&results(vec![report(ok()), report(ok()), report(ok())])),
+            None
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![
+                report(ok()),
+                report(failed(Kind::Corrupt)),
+                report(ok())
+            ])),
+            Some("error:Corrupt".to_owned())
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![
+                report(ok()),
+                report(quarantined(&["javascript"]))
+            ])),
+            Some("error:quarantined".to_owned())
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![report(ok()), Err(anyhow::anyhow!("x"))])),
+            Some("error:launch".to_owned())
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![Err(anyhow::Error::new(JobError::new(
+                JobErrorCode::PathNotAllowed,
+                "x"
+            )))])),
+            Some("error:job_error".to_owned())
+        );
+        // il primo non riuscito, non il più grave
+        assert_eq!(
+            child_per_doc_error(&results(vec![
+                report(ok()),
+                report(failed(Kind::Timeout)),
+                Err(anyhow::anyhow!("x")),
+                report(quarantined(&["javascript"]))
+            ])),
+            Some("error:Timeout".to_owned())
+        );
+    }
 }

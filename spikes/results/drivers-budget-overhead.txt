@@ -1,0 +1,271 @@
+# drivers-budget-overhead — driver budget e overhead di parse-parent (fase 1.4, D-01..D-05)
+# data UTC: 2026-10-22T19:33:54Z  git_rev base: ce6584ad386df57c6800813b55e7c963de213191
+# La parte RED usa parse-parent.rs di base (codice non di test identico a BASE); la parte GREEN la correzione del Task 2.
+# Identificativo di piano per session.sh: 01-4-01, perché new-id, acquire e la regex del run_id rifiutano il punto di 01.4-01.
+
+run_id = 01-4-01-20261022t193409z-32aa
+
+## Linea di base
+(albero di BASE: tests/drivers.rs assente, parse-parent.rs di BASE)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo clippy -p s02-parser --all-targets --locked -- -D warnings
+ Container cka-spikes-runner-run-b36638998f90 Creating 
+ Container cka-spikes-runner-run-b36638998f90 Created 
+error: 'cargo-clippy' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'.
+help: run `rustup component add clippy` to install it
+
+[exit 1]
+
+linea di base clippy: exit=1 avvisi=1
+
+## Prova RED (base)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test drivers
+ Container cka-spikes-runner-run-b752419d6fbb Creating 
+ Container cka-spikes-runner-run-b752419d6fbb Created 
+   Compiling common v0.0.0 (/src/common)
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.31s
+     Running tests/drivers.rs (/target/debug/deps/drivers-ea487dbc1c9a6896)
+
+running 4 tests
+test budget_budget_error_cleans_work_root ... FAILED
+test budget_csv_error_cleans_work_root ... FAILED
+test budget_success_cleans_work_root ... ok
+test overhead_in_process_errors_keep_all_rows ... FAILED
+
+failures:
+
+---- budget_budget_error_cleans_work_root stdout ----
+
+thread 'budget_budget_error_cleans_work_root' (1481) panicked at s02-parser/tests/drivers.rs:181:5:
+radice dei job non vuota dopo il driver: voci ["selftest-input-dr1b0001"]; stderr del driver: parse-parent: S02_BUDGET_TOTAL_BYTES non è un intero di byte: invalid digit found in string
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- budget_csv_error_cleans_work_root stdout ----
+
+thread 'budget_csv_error_cleans_work_root' (1482) panicked at s02-parser/tests/drivers.rs:181:5:
+radice dei job non vuota dopo il driver: voci ["selftest-input-dr1a0001"]; stderr del driver: parse-parent: CSV /work/tmp/s02-drivers-1480/budget-csv-error/out/budget.csv rifiutato: manca un manifest hardware valido accanto: manifest hardware /work/tmp/s02-drivers-1480/budget-csv-error/out/hw.json assente o illeggibile: No such file or directory (os error 2)
+
+
+---- overhead_in_process_errors_keep_all_rows stdout ----
+
+thread 'overhead_in_process_errors_keep_all_rows' (1484) panicked at s02-parser/tests/drivers.rs:324:5:
+assertion `left == right` failed: exit di overhead; stderr: parse-parent: pdfium: PdfiumLibraryInternalError(
+    FormatError,
+)
+
+csv:
+mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s
+child-per-doc,1,1,16,28,,565.37
+child-per-doc,1,2,16,23,,689.79
+child-per-doc,2,1,16,13,,1177.59
+child-per-doc,2,2,16,13,,1175.23
+
+  left: Some(1)
+ right: Some(0)
+
+
+failures:
+    budget_budget_error_cleans_work_root
+    budget_csv_error_cleans_work_root
+    overhead_in_process_errors_keep_all_rows
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p s02-parser --test drivers`
+
+[exit 101]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --bin parse-parent
+ Container cka-spikes-runner-run-5102d911215f Creating 
+ Container cka-spikes-runner-run-5102d911215f Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+error[E0425]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1388:44
+     |
+1388 |     fn internal(e: PdfiumInternalError) -> InProcessError {
+     |                                            ^^^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1389:9
+     |
+1389 |         InProcessError::Pdfium(PdfiumError::PdfiumLibraryInternalError(e))
+     |         ^^^^^^^^^^^^^^ use of undeclared type `InProcessError`
+
+error[E0433]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1441:17
+     |
+1441 |                 InProcessError::Pdfium(PdfiumError::PageIndexOutOfBounds),
+     |                 ^^^^^^^^^^^^^^ use of undeclared type `InProcessError`
+
+error[E0433]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1444:14
+     |
+1444 |             (InProcessError::ThreadPanic, "error:thread_panic"),
+     |              ^^^^^^^^^^^^^^ use of undeclared type `InProcessError`
+
+error[E0425]: cannot find function `in_process_status` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1447:24
+     |
+1128 | / fn in_process_run(
+1129 | |     pdfium: &pdfium_render::prelude::Pdfium,
+1130 | |     bytes: &[u8],
+1131 | |     docs: usize,
+...    |
+1156 | |     })
+1157 | | }
+     | |_- similarly named function `in_process_run` defined here
+...
+1447 |               assert_eq!(in_process_status(e), *want, "stato di {e:?}");
+     |                          ^^^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1447 -             assert_eq!(in_process_status(e), *want, "stato di {e:?}");
+1447 +             assert_eq!(in_process_run(e), *want, "stato di {e:?}");
+     |
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1460:13
+     |
+1460 |             overhead_row("child-per-doc", 1, 1, &ok_init),
+     |             ^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1468:13
+     |
+1468 |             overhead_row("child-per-doc", 1, 1, &ok_none),
+     |             ^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `RepOutcome` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1471:19
+     |
+1471 |         let err = RepOutcome::Error("error:pdfium_format".to_owned());
+     |                   ^^^^^^^^^^ use of undeclared type `RepOutcome`
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1473:13
+     |
+1473 |             overhead_row("in-process-mutex", 8, 7, &err),
+     |             ^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1487:17
+     |
+1487 |                 overhead_row("in-process-mutex", 4, 2, o).len(),
+     |                 ^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `in_process_reps` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1500:22
+     |
+1128 | / fn in_process_run(
+1129 | |     pdfium: &pdfium_render::prelude::Pdfium,
+1130 | |     bytes: &[u8],
+1131 | |     docs: usize,
+...    |
+1156 | |     })
+1157 | | }
+     | |_- similarly named function `in_process_run` defined here
+...
+1500 |           let errors = in_process_reps(
+     |                        ^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1500 -         let errors = in_process_reps(
+1500 +         let errors = in_process_run(
+     |
+
+error[E0425]: cannot find function `in_process_reps` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1561:17
+     |
+1128 | / fn in_process_run(
+1129 | |     pdfium: &pdfium_render::prelude::Pdfium,
+1130 | |     bytes: &[u8],
+1131 | |     docs: usize,
+...    |
+1156 | |     })
+1157 | | }
+     | |_- similarly named function `in_process_run` defined here
+...
+1561 |           let r = in_process_reps(
+     |                   ^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1561 -         let r = in_process_reps(
+1561 +         let r = in_process_run(
+     |
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1585:13
+     |
+1585 |             child_per_doc_error(&results(vec![report(ok()), report(ok()), report(ok())])),
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1589:13
+     |
+1589 |             child_per_doc_error(&results(vec![
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1597:13
+     |
+1597 |             child_per_doc_error(&results(vec![
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1604:13
+     |
+1604 |             child_per_doc_error(&results(vec![report(ok()), Err(anyhow::anyhow!("x"))])),
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1608:13
+     |
+1608 |             child_per_doc_error(&results(vec![Err(anyhow::Error::new(JobError::new(
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1616:13
+     |
+1616 |             child_per_doc_error(&results(vec![
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `RepOutcome` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1455:23
+     |
+1455 |         let ok_init = RepOutcome::Ok {
+     |                       ^^^^^^^^^^ use of undeclared type `RepOutcome`
+
+error[E0433]: cannot find type `RepOutcome` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1463:23
+     |
+1463 |         let ok_none = RepOutcome::Ok {
+     |                       ^^^^^^^^^^ use of undeclared type `RepOutcome`
+
+Some errors have detailed explanations: E0425, E0433.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `s02-parser` (bin "parse-parent" test) due to 20 previous errors
+
+[exit 101]
+
+## Linea di base, deviazione: clippy assente nel runner
+Il componente clippy manca nel runner (rust:1.99.1-slim-trixie), come previsto dalle preconditions: deviazione registrata, linea di base con cargo check sull'albero di BASE (tests/drivers.rs assente, parse-parent.rs di BASE).
+run_id = 01-4-01-20261022t193458z-e48f
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked
+    Checking reqwest v0.13.5
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.59s
+[exit 0]
+
+linea di base cargo check (deviazione, clippy assente): exit=0 avvisi=0
+
+## Esito RED
+esito RED drivers: budget_csv_error_cleans_work_root=FAILED budget_budget_error_cleans_work_root=FAILED overhead_in_process_errors_keep_all_rows=FAILED budget_success_cleans_work_root=ok (atteso: tre FAILED, uno ok)
+esito RED residuo D-01: selftest-input-dr1a0001 presente (atteso presente)
+esito RED unit: cargo test --bin parse-parent exit=101 (atteso diverso da 0, simboli nuovi assenti sulla base)
+Motivo dei rossi: budget_csv_error e budget_budget_error cadono sull'ultima asserzione (exit 1 e stderr come atteso, residuo selftest-input-dr1a0001 e selftest-input-dr1b0001 nella radice dei job); overhead esce 1 con «parse-parent: pdfium: PdfiumLibraryInternalError(FormatError)» dopo le sole 4 righe child-per-doc, con l'header vecchio a 7 colonne; i test unitari non compilano (E0425/E0433: InProcessError, in_process_status, RepOutcome, overhead_row, in_process_reps, child_per_doc_error assenti).
+Nota clippy: la riga «linea di base clippy» conta come avviso l'errore «cargo-clippy is not installed»; il riferimento per il Task 2 è la linea di base cargo check (exit 0, 0 avvisi), deviazione prevista dalle preconditions.
+
