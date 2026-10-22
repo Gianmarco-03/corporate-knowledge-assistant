@@ -310,8 +310,11 @@ cmd_probes() {
   probe disconnect "$device" "$BIG_PAGES" all --input "$BIG_INPUT" --abort-after 3
   # (c) page_range: la pagina da sola, poi la stessa pagina seguita da BIG_PAGES-1 pagine,
   # ciascuna su un container appena ricreato (il picco di memoria del cgroup parte da zero).
-  probe outside_range "$device" 1 1-1 --input "$BENIGN_INPUT" --page-range 1-1
-  probe outside_range "$device" "$BIG_PAGES" 1-1 --input "$OUTSIDE_INPUT" --page-range 1-1
+  # Il JSON grezzo resta in raw/docling/<dispositivo>/ per il processing_time del servizio.
+  probe outside_range "$device" 1 1-1 --input "$BENIGN_INPUT" --page-range 1-1 \
+    --out-prefix "/src/s02-parser/results/raw/docling/$device/probe-outside-1-r$PROBE_RUN"
+  probe outside_range "$device" "$BIG_PAGES" 1-1 --input "$OUTSIDE_INPUT" --page-range 1-1 \
+    --out-prefix "/src/s02-parser/results/raw/docling/$device/probe-outside-400-r$PROBE_RUN"
   finish "$device"
 }
 
