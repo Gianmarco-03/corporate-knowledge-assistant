@@ -121,7 +121,7 @@ peak_of() {
 wait_ready() {
   local device=$1 i
   for i in $(seq 1 60); do
-    if bash "$TOOLS"/session.sh oneshot "$RID" -- "$CLIENT" --extract-runs "$RUNS" --device "$device" \
+    if bash "$TOOLS"/session.sh oneshot "$RID" -- "$CLIENT" --extract-runs "$RUNS" --extract-jobs "$JOBS" --device "$device" \
         --get version --data-root /src/data --results-raw /src/s02-parser/results/raw \
         --out-prefix "/src/s02-parser/results/raw/docling/$device/version" >/dev/null 2>&1; then
       return 0
