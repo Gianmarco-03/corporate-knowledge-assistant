@@ -1,0 +1,336 @@
+[
+  {
+    "case_id": "encrypted-user",
+    "file": "encrypted-user.pdf",
+    "generator_args": [
+      "--only",
+      "encrypted-user"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Encrypted"
+    ],
+    "sha256": "53d3718e6180234d802ac797a98c7d173c9f849ab64e9c1fbd122946b168694c"
+  },
+  {
+    "case_id": "encrypted-owner-only",
+    "file": "encrypted-owner-only.pdf",
+    "generator_args": [
+      "--only",
+      "encrypted-owner-only"
+    ],
+    "expected_status": "ok",
+    "expected_kind_or_reasons": [],
+    "sha256": "11bde92b154b26f22da83b8b43de15c7823c422fcf080ae601d989e4713e4b81"
+  },
+  {
+    "case_id": "encrypted-pubsec",
+    "file": "encrypted-pubsec.pdf",
+    "generator_args": [
+      "--only",
+      "encrypted-pubsec"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Encrypted"
+    ],
+    "sha256": "346bce9476801f6e4210ef9a5b34ccc1776ca726a8cefca29077bf69c27978cd"
+  },
+  {
+    "case_id": "encrypted-object-dropped",
+    "file": "encrypted-object-dropped.pdf",
+    "generator_args": [
+      "--only",
+      "encrypted-object-dropped"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Corrupt"
+    ],
+    "sha256": "300855849fb3cd1318d104d56de4cfa9ab2d55e666f7676c164911c5b4d41879"
+  },
+  {
+    "case_id": "encrypted-objstm-quota",
+    "file": "encrypted-objstm-quota.pdf",
+    "generator_args": [
+      "--only",
+      "encrypted-objstm-quota"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "sha256": "d63d9bb367212dd029a27d4e9ccce64e892734dc0873581db2d90f2da1e9daae"
+  },
+  {
+    "case_id": "truncated",
+    "file": "truncated.pdf",
+    "generator_args": [
+      "--only",
+      "truncated"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Corrupt"
+    ],
+    "sha256": "1956de9cdf771e7bbdb72f4f75dc7541b15f65c2d7580c28c3d39d5e5d18b90e"
+  },
+  {
+    "case_id": "flate-bomb",
+    "file": "flate-bomb.pdf",
+    "generator_args": [
+      "--only",
+      "flate-bomb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "sha256": "0543b96cf30149894feac5d1a9a157ec17c84684e717ea0e57a3ed8e62e05b7d"
+  },
+  {
+    "case_id": "objstm-bomb",
+    "file": "objstm-bomb.pdf",
+    "generator_args": [
+      "--only",
+      "objstm-bomb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "sha256": "4f6986a35ff285f81843aaa985c854b69ee9b86c4f6f3e68c6b7760150fe7085"
+  },
+  {
+    "case_id": "objstm-many",
+    "file": "objstm-many.pdf",
+    "generator_args": [
+      "--only",
+      "objstm-many"
+    ],
+    "expected_status": "ok",
+    "expected_kind_or_reasons": [],
+    "sha256": "89e4fcf5a8c2adcef2f6fc9d98973f74e02f0da9e3bd00f54a333f74ac532d6d"
+  },
+  {
+    "case_id": "objstm-sum-bomb",
+    "file": "objstm-sum-bomb.pdf",
+    "generator_args": [
+      "--only",
+      "objstm-sum-bomb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "sha256": "23c908d610a3775ae5df4ba57dcb3281a72897e6deccf3df6938a883e3ae78ef"
+  },
+  {
+    "case_id": "filter-chain-bomb",
+    "file": "filter-chain-bomb.pdf",
+    "generator_args": [
+      "--only",
+      "filter-chain-bomb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "sha256": "317b543f644d65194ef6d92cf211efd9efd66f3f1ce184c3a3749d616f1a2a0e"
+  },
+  {
+    "case_id": "lzw-stream",
+    "file": "lzw-stream.pdf",
+    "generator_args": [
+      "--only",
+      "lzw-stream"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Unsupported"
+    ],
+    "sha256": "f9647e0769a7a2c2a8bb5c43ef58e7a0ec73f4b0eff460b561d3c983adf7f1a2"
+  },
+  {
+    "case_id": "pages-10k",
+    "file": "pages-10k.pdf",
+    "generator_args": [
+      "--only",
+      "pages-10k"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "ResourceLimit"
+    ],
+    "sha256": "77d7fde5b2a6e3910d17329b36198a79aa17dbeaaab3ac9749e6d739ae3efb6a"
+  },
+  {
+    "case_id": "deep-nesting",
+    "file": "deep-nesting.pdf",
+    "generator_args": [
+      "--only",
+      "deep-nesting"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Corrupt",
+      "Crashed"
+    ],
+    "sha256": "b2213454d34041fbbb2b22cfd0098ae2d837fb1369da10ed0f4c87d9db4fee43"
+  },
+  {
+    "case_id": "jbig2-malformed",
+    "file": "jbig2-malformed.pdf",
+    "generator_args": [
+      "--only",
+      "jbig2-malformed"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Corrupt",
+      "Crashed"
+    ],
+    "sha256": "5542f10e79bbc0918954a4290c49f94a07623ef7fabadbc248dc9c65e35320e6"
+  },
+  {
+    "case_id": "docx-zip-bomb",
+    "file": "docx-zip-bomb.docx",
+    "generator_args": [
+      "--only",
+      "docx-zip-bomb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "sha256": "b140f1dab0ecb1a8338a07fb0194189a978c1cbfd0e82a8a1c233b2616bc1a06"
+  },
+  {
+    "case_id": "docx-xml-bomb",
+    "file": "docx-xml-bomb.docx",
+    "generator_args": [
+      "--only",
+      "docx-xml-bomb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Corrupt"
+    ],
+    "sha256": "1248fda4f8c98cca3d0a5dd946c50dfc276b49a6be5f1a31f7f89a58d37fc108"
+  },
+  {
+    "case_id": "docm-macro",
+    "file": "docm-macro.docm",
+    "generator_args": [
+      "--only",
+      "docm-macro"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Unsupported"
+    ],
+    "sha256": "040700e20633d9557afb5a923ba35f409f01756bf8b1ee6298b884b03cd6e84f"
+  },
+  {
+    "case_id": "docx-external-link",
+    "file": "docx-external-link.docx",
+    "generator_args": [
+      "--only",
+      "docx-external-link"
+    ],
+    "expected_status": "quarantined",
+    "expected_kind_or_reasons": [
+      "external_link"
+    ],
+    "sha256": "e4d5657f7c1691afb220220c29b973165e8bcb7b883c83a05e78a82ef8b57dcc"
+  },
+  {
+    "case_id": "magic-mismatch",
+    "file": "magic-mismatch.pdf",
+    "generator_args": [
+      "--only",
+      "magic-mismatch"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Unsupported"
+    ],
+    "sha256": "15aa38038d8d42eab15c810b000330d8e9653a7e76171e86666e0c59bf6b5fcb"
+  },
+  {
+    "case_id": "pdf-javascript",
+    "file": "pdf-javascript.pdf",
+    "generator_args": [
+      "--only",
+      "pdf-javascript"
+    ],
+    "expected_status": "quarantined",
+    "expected_kind_or_reasons": [
+      "javascript"
+    ],
+    "sha256": "5fd351f64311deb1235ff0405854534ea4251b6e0fb3978cfbf0c0c00e213538"
+  },
+  {
+    "case_id": "pdf-launch",
+    "file": "pdf-launch.pdf",
+    "generator_args": [
+      "--only",
+      "pdf-launch"
+    ],
+    "expected_status": "quarantined",
+    "expected_kind_or_reasons": [
+      "launch"
+    ],
+    "sha256": "d44041ba149d4e9d999a64d75a6b4ce00ba3ddf9f2a995f475c0f61cbdd8f72f"
+  },
+  {
+    "case_id": "pdf-embedded-file",
+    "file": "pdf-embedded-file.pdf",
+    "generator_args": [
+      "--only",
+      "pdf-embedded-file"
+    ],
+    "expected_status": "ok",
+    "expected_kind_or_reasons": [],
+    "sha256": "841f989ad1cce425ef19600c66713183644bea9c4c7d859bebc2c657c13bcf42"
+  },
+  {
+    "case_id": "pdf-embedded-launch",
+    "file": "pdf-embedded-launch.pdf",
+    "generator_args": [
+      "--only",
+      "pdf-embedded-launch"
+    ],
+    "expected_status": "quarantined",
+    "expected_kind_or_reasons": [
+      "launch"
+    ],
+    "sha256": "ff039fdc7653ab1b7ae66a45121c8fa46b37edae1f84fd236b3eff98d65c5bf1"
+  },
+  {
+    "case_id": "pdf-embedded-bomb",
+    "file": "pdf-embedded-bomb.pdf",
+    "generator_args": [
+      "--only",
+      "pdf-embedded-bomb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "sha256": "67be555365bc8ccb657f6e82b5a90a1c61cb17b80e4e9ee874772442ccc5692b"
+  },
+  {
+    "case_id": "pdf-objstm-hidden-js",
+    "file": "pdf-objstm-hidden-js.pdf",
+    "generator_args": [
+      "--only",
+      "pdf-objstm-hidden-js"
+    ],
+    "expected_status": "quarantined",
+    "expected_kind_or_reasons": [
+      "javascript"
+    ],
+    "sha256": "a4faae924e33f122c74e050515a09ddc9451ed4668018f94f6aa9cef4bcb0315"
+  }
+]

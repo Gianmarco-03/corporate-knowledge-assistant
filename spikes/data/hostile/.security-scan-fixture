@@ -1,0 +1,3 @@
+Marcatore del security-scanner (skills/security-scanner/SKILL.md §3): questa cartella contiene solo i file ostili generati per il test di isolamento S-02 (piano 01-18) e il loro manifest con gli esiti attesi; nessun codice. I file generati stanno in generated/, ignorata da git. Il generatore sta in spikes/s02-parser/hostile-gen/ ed è scansionato normalmente (01-WIRING.md §4, W18).
+
+**Modifica:** Claude (Anthropic) · 2026-10-22 · marcatore delle fixture ostili di 01-18
