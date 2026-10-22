@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-22T15:56:08.440Z"
-last_activity: "2026-10-22 -- piano 01-07 completato (prescan v6, calibrazione 10/10); prossima onda 5: 01-18 + 01-08"
+last_updated: "2026-10-22T19:24:09.467Z"
+last_activity: 2026-10-22 — 01-18 completato (bridge)
 progress:
-  total_phases: 18
+  total_phases: 19
   completed_phases: 3
-  total_plans: 21
-  completed_plans: 12
-  percent: 17
+  total_plans: 22
+  completed_plans: 14
+  percent: 16
 ---
 
 # Project State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 9 of 18 in current phase
 Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-22 -- piano 01-07 completato (prescan v6, calibrazione 10/10); prossima onda 5: 01-18 + 01-08
+Last activity: 2026-10-22 — 01-18 completato (bridge)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -135,6 +135,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01.3]: TEST-5 e TEST-13 del design 01.3-01 difettosi (regex non ancorata, conflitto su «nessun down -v»): da correggere se riusati → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#deviations-from-plan`
 - [Phase ?]: Fase 01: Sonnet 5.5 anche sulle query simple (D-33), dopo regola D-31 fallita e misura D-32 (1,00 vs 0,72) → `phases/01-spike-tecnici/01-12-SUMMARY.md#decisions-made`
 - [Phase ?]: Fase 01: prescan v6 e prenotazione su 3×VmHWM, calibrazione 10/10 PDF benigni, 2 job parse nel budget → `phases/01-spike-tecnici/01-07-SUMMARY.md#decisions-made`
+- [Phase ?]: M8 di 01-18 dichiarata non raggiunta 24/26 (D-34, JBIG2 a 01-13); driver budget/overhead di 01-07 alla gap-closure 1.4 (D-35) → `phases/01-spike-tecnici/01-18-SUMMARY.md#decisions-made`
 
 ### Pending Todos
 
