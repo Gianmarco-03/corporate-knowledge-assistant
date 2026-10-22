@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 04 / — / — / discuss completato (traccia discuss; traccia Spike: fase 01 onda 4 parziale, 01-11 fuso, 01-07 fermo su 3 blocchi) · aggiornato: 2026-10-21T16:57Z
+fase 01 / onda 4-bis / slice 01-12 / exec completato (01-12 chiuso d8b6227; 01-07 v6 e 01-18 v5 APPROVED_WITH_WARNINGS, test design GPT in attesa) · aggiornato: 2026-10-22T14:30Z
 
 ## Prossima azione
 
-Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s05-cancel), poi ripasso /plan di 01-07 (soglie prescan nuove, audit+test design GPT), poi ripresa execute 01-07 dal Task 3 (patch in TEMP/cka-0107-wip); bridge 01-11 in corso; traccia discuss: /discuss 5 (plan 2/3/4 solo dopo discuss 4-15 e fine Spike, ROADMAP «Strategia di consegna»).
+READ+ACK test_design_11 (01-07 v6) e test_design_12 (01-18 v5), trascrivere, READ-GATE TEST_SPEC_READY; poi test-write delta 01-07 e /execute 1 --piano 01-07 dal Task 3 (patch .planning/tmp/task3-uncommitted.patch); poi onda 5 (01-18 + 01-08); traccia discuss: /discuss 5.
 
 ## Findings
 
@@ -70,7 +70,11 @@ Traccia Spike: gap-closure 1.3 (compose.yaml: tmpfs /work uid 10001; commento s0
 - 04 snapshot OpenAPI JEV sha256 ee599512…; forma A rank + guardia ACL (ADR-0008); inference_geo global, nessun dato utente (D-11..D-13) · fonte Area B/D
 - 04 AuditSink PG append-only per servizio (identity/document/rag), evento tipizzato, IdempotencyConflict; hash chain contro raccomandazione, testa FOR UPDATE, no ancoraggio, verify_chain → 11 (D-14..D-19) · fonte Area F
 - 04 NoOpCache + fake con scope (fase 10); replay wiremock CI + gate locale 0,50 USD; no-leak a sentinelle, OTel senza contenuti (D-20..D-23) · fonte Area G/H/I
+- 01-12 v2 ripasso D-31: Sonnet solo complex/no_answer, fallback 15 fallback_ids, tetto 2 USD (locale portato 5→2); routing = Haiku ≥ Sonnet−0,05 su complex + Haiku ≥ 0,85 su simple, altrimenti utente; gate giro 9 verdi; test design Claude RISK-13/14, TEST-20..23; anticipato da onda 7 · utente 2026-10-22 → 01-CONTEXT D-31, 01-GATE.md, bdc3d8f
 
+- onda 4-bis chiusa: 01-12 (merge 6d1f090, bridge d8b6227), gate onda verde (fmt/clippy/35 test s06-llm, proprieta-file, scanner); regola D-31 → utente, D-32 misura Sonnet simple 1,00 vs Haiku 0,72, D-33 Sonnet su tutto (emenda D-18); spesa 0,598/2 USD; p95 Haiku 3,744 s > 3 s dichiarata → 01-12-SUMMARY.md, ADR-0011
+- deviazioni 01-12: b-segnalazione hw-manifest.sh (01-02) vs common::manifest (01-01) già nota, normalizzazione come 01-04/05/11; da verify: format! per URL http nei test (anthropic.rs:651, jev.rs:466), loopback per prefisso con userinfo, unauthorized_in_prompt 0 per costruzione (garanzia vera TEST-1) → 01-12-SUMMARY.md
+- 01-07 v6 (7ce2183) e 01-18 v5 (9f3d78d) APPROVED_WITH_WARNINGS (risk_audit_24/25, MEDIUM prenotazione memoria non rigida → prova OOM 01-18); 4° giro audit 01-07 autorizzato utente → 01-07-RISK-AUDIT-v6.md, 01-18-RISK-AUDIT-v5.md
 ## Limiti trovati
 
 - 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7

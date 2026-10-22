@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["answer", "claims", "refusal"],
+  "properties": {
+    "answer": { "type": "string" },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "citations"],
+        "properties": {
+          "text": { "type": "string" },
+          "citations": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "refusal": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+  }
+}

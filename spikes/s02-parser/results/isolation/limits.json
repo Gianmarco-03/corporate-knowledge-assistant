@@ -1,0 +1,40 @@
+{
+  "_meta_parse": {
+    "anomalies": [],
+    "budget_total_bytes": 2147483648,
+    "docs": 10,
+    "formula": "memory_reservation_bytes = 3 × max VmHWM; address_space_bytes = min(3 × max VmPeak, totale − riserva del padre); out_quota_bytes = 2 × max byte scritti nell'out_dir; file_size_bytes = max(quota, 1 MiB); cpu_seconds 60, wall_timeout 120 s, max_open_files 64 fissi",
+    "inputs": "/data/corpus/raw",
+    "max_objstm_count": 312,
+    "max_out_bytes": 684833,
+    "max_vm_hwm_kb": 267240,
+    "max_vm_peak_kb": 756876,
+    "ok_docs": 10,
+    "parent_reserve_bytes": 268435456,
+    "run_tag": "842z5359"
+  },
+  "default": {
+    "address_space_bytes": 1879048192,
+    "cpu_seconds": 60,
+    "file_size_bytes": 1369666,
+    "max_open_files": 64,
+    "memory_reservation_bytes": 820961280,
+    "out_quota_bytes": 1369666,
+    "wall_timeout": {
+      "nanos": 0,
+      "secs": 120
+    }
+  },
+  "parse": {
+    "address_space_bytes": 1879048192,
+    "cpu_seconds": 60,
+    "file_size_bytes": 1369666,
+    "max_open_files": 64,
+    "memory_reservation_bytes": 820961280,
+    "out_quota_bytes": 1369666,
+    "wall_timeout": {
+      "nanos": 0,
+      "secs": 120
+    }
+  }
+}

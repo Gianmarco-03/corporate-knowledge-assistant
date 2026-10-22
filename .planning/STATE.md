@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-21T17:10:52.031Z"
-last_activity: 2026-10-21 -- fase 1.3 verificata (passed) e chiusa
+last_updated: "2026-10-22T15:56:08.440Z"
+last_activity: "2026-10-22 -- piano 01-07 completato (prescan v6, calibrazione 10/10); prossima onda 5: 01-18 + 01-08"
 progress:
   total_phases: 18
   completed_phases: 3
   total_plans: 21
-  completed_plans: 10
+  completed_plans: 12
   percent: 17
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 7 of 18 in current phase
-Status: Executing — fasi 1.1-1.3 chiuse; 01-07 in ripasso di plan
-Last activity: 2026-10-21 -- fase 1.3 verificata (passed) e chiusa
+Plan: 9 of 18 in current phase
+Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
+Last activity: 2026-10-22 -- piano 01-07 completato (prescan v6, calibrazione 10/10); prossima onda 5: 01-18 + 01-08
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -133,6 +133,8 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01.3]: tmpfs /work del worker con uid/gid 10001 e mode=0700 in sintassi corta; scartati 1777, /work nell'immagine e sintassi lunga → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#decisions-made`
 - [Phase 01.3]: Docker monta il tmpfs con noexec/nosuid/nodev: per 01-07 nessun binario si esegue da /work → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#punti-aperti`
 - [Phase 01.3]: TEST-5 e TEST-13 del design 01.3-01 difettosi (regex non ancorata, conflitto su «nessun down -v»): da correggere se riusati → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#deviations-from-plan`
+- [Phase ?]: Fase 01: Sonnet 5.5 anche sulle query simple (D-33), dopo regola D-31 fallita e misura D-32 (1,00 vs 0,72) → `phases/01-spike-tecnici/01-12-SUMMARY.md#decisions-made`
+- [Phase ?]: Fase 01: prescan v6 e prenotazione su 3×VmHWM, calibrazione 10/10 PDF benigni, 2 job parse nel budget → `phases/01-spike-tecnici/01-07-SUMMARY.md#decisions-made`
 
 ### Pending Todos
 

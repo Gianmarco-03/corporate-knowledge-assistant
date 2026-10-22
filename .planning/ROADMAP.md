@@ -79,7 +79,7 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
 **Depends on:** Phase 1
-**Plans:** 1/1 plans complete
+**Plans:** 9/18 plans executed
 
 Plans:
 
@@ -442,7 +442,7 @@ Discuss di tutte le fasi, poi Spike, poi plan di Fondazione e Provider, plan dei
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Spike tecnici | 7/18 | In Progress|  |
+| 1. Spike tecnici | 9/18 | In Progress|  |
 | 2. Fondazione | 0/TBD | Not started | - |
 | 3. Provider di ingestion e indice | 0/TBD | Not started | - |
 | 4. Provider di decisione, risposta e trasversali | 0/TBD | Not started | - |
