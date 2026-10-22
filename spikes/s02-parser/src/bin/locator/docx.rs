@@ -1,24 +1,331 @@
 //! Lettore DOCX (`word/document.xml`) → blocchi `cka-text-v1` (piano 01-09, Task 1).
 //!
-//! STUB di `test-write`: firme minime perché i test rossi compilino. L'implementazione è
-//! dell'esecutore: [`parse_file`] chiama `s02_parser::prescan::check_docx` prima di leggere
-//! l'XML, poi legge `word/document.xml` in streaming (`zip` con `take`, `quick-xml` a
-//! eventi, nessuna DTD né entità). Si esegue solo nel figlio `locator locate`.
+//! [`parse_file`] chiama `s02_parser::prescan::check_docx` prima di leggere l'XML, poi legge
+//! `word/document.xml` in streaming (`zip` con `take`, `quick-xml` a eventi, nessuna DTD né
+//! entità). Si esegue solo nel figlio `locator locate`. Le relazioni del pacchetto non si
+//! leggono mai: la destinazione di un hyperlink non entra nel testo.
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
-use s02_parser::prescan::{Caps, Rejection};
+use quick_xml::Reader;
+use quick_xml::events::{BytesStart, Event};
+use s02_parser::prescan::{self, Caps, Rejection};
+use s02_parser::protocol::Kind;
+use unicode_normalization::UnicodeNormalization;
 
-use crate::canon::Parsed;
+use crate::canon::{Block, Parsed};
+
+/// Stili di paragrafo esclusi, simmetrici al front matter del Markdown.
+const EXCLUDED_STYLES: [&str; 4] = ["Title", "Subtitle", "Author", "Date"];
 
 /// Blocchi canonici dell'XML di `word/document.xml`. DTD o entità → `Err`.
-pub(crate) fn parse_document_xml(_xml: &[u8]) -> Result<Parsed, String> {
-    todo!("01-09: docx::parse_document_xml")
+///
+/// Lettura in memoria, usata dai test sull'XML scritto a mano; il figlio passa da [`parse_file`].
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn parse_document_xml(xml: &[u8]) -> Result<Parsed, String> {
+    parse_reader(xml)
 }
 
 /// Prescan (`check_docx`) e poi lettura di `word/document.xml`; un `Rejection` del prescan
 /// torna invariato, senza leggere l'XML.
-pub(crate) fn parse_file(_path: &Path, _caps: &Caps) -> Result<Parsed, Rejection> {
-    todo!("01-09: docx::parse_file")
+pub(crate) fn parse_file(path: &Path, caps: &Caps) -> Result<Parsed, Rejection> {
+    prescan::check_docx(path, caps)?;
+    let corrupt = |d: String| Rejection::Failed(Kind::Corrupt, d);
+    let file = std::fs::File::open(path).map_err(|e| corrupt(format!("open: {e}")))?;
+    let mut z = zip::ZipArchive::new(file).map_err(|e| corrupt(format!("zip: {e}")))?;
+    let entry = z
+        .by_name("word/document.xml")
+        .map_err(|e| corrupt(format!("document_xml: {e}")))?;
+    if entry.size() > caps.docx_max_total_bytes {
+        return Err(Rejection::Failed(
+            Kind::DecompressionLimit,
+            "document_xml_size".to_owned(),
+        ));
+    }
+    // Il prescan ha già contato i byte reali; `take` resta come tetto in profondità.
+    let limited = entry.take(caps.docx_max_total_bytes);
+    parse_reader(BufReader::new(limited)).map_err(corrupt)
+}
+
+/// Paragrafo in costruzione.
+#[derive(Default)]
+struct Para {
+    style: Option<String>,
+    text: String,
+}
+
+/// Tabella in costruzione: righe di celle, ogni cella come lista di paragrafi.
+#[derive(Default)]
+struct Table {
+    rows: Vec<Vec<String>>,
+    row: Vec<String>,
+    cell: Vec<String>,
+}
+
+#[derive(Default)]
+struct State {
+    blocks: Vec<Block>,
+    unsupported: Vec<String>,
+    para: Option<Para>,
+    tables: Vec<Table>,
+    /// Profondità dentro `w:r` (run), `w:t`, `w:del`, `w:pPr`, contenuti saltati.
+    in_run: u32,
+    in_t: u32,
+    in_del: u32,
+    in_ppr: u32,
+    skip: u32,
+}
+
+fn local(e: &BytesStart<'_>) -> String {
+    e.local_name().as_ref().to_owned()
+}
+
+fn attr(e: &BytesStart<'_>, name: &str) -> Option<String> {
+    e.attributes()
+        .flatten()
+        .find_map(|a| (a.key.local_name().as_ref() == name).then(|| a.value.clone().into_owned()))
+}
+
+/// Contenitori il cui contenuto non è testo del documento: disegni e caselle di testo,
+/// oggetti incorporati, il ramo `Choice` dei contenuti alternativi (vale `Fallback`).
+fn skipped(name: &str) -> Option<&'static str> {
+    match name {
+        "drawing" | "pict" => Some("drawing"),
+        "object" => Some("object"),
+        "Choice" => Some("alternate_content"),
+        _ => None,
+    }
+}
+
+impl State {
+    fn push_text(&mut self, s: &str) {
+        if self.skip > 0 || self.in_del > 0 || self.in_t == 0 {
+            return;
+        }
+        if let Some(p) = self.para.as_mut() {
+            p.text.push_str(s);
+        }
+    }
+
+    fn push_char(&mut self, c: char) {
+        if self.skip > 0 || self.in_del > 0 || self.in_run == 0 {
+            return;
+        }
+        if let Some(p) = self.para.as_mut() {
+            p.text.push(c);
+        }
+    }
+
+    fn start(&mut self, e: &BytesStart<'_>, empty: bool) {
+        let name = local(e);
+        if self.skip > 0 {
+            if !empty {
+                self.skip += 1;
+            }
+            return;
+        }
+        if let Some(what) = skipped(&name) {
+            self.unsupported.push(what.to_owned());
+            if !empty {
+                self.skip = 1;
+            }
+            return;
+        }
+        match name.as_str() {
+            "p" if !empty => self.para = Some(Para::default()),
+            "pPr" if !empty => self.in_ppr += 1,
+            "pStyle" if self.in_ppr > 0 => {
+                if let Some(p) = self.para.as_mut() {
+                    p.style = attr(e, "val");
+                }
+            }
+            "r" if !empty => self.in_run += 1,
+            "t" if !empty => self.in_t += 1,
+            "del" if !empty => self.in_del += 1,
+            "tab" if self.in_ppr == 0 => self.push_char('\t'),
+            // Interruzione di pagina: non è testo.
+            "br" if attr(e, "type").as_deref() == Some("page") => {}
+            "br" => self.push_char('\n'),
+            "cr" => self.push_char('\n'),
+            "tbl" if !empty => self.tables.push(Table::default()),
+            "tr" if !empty => {
+                if let Some(t) = self.tables.last_mut() {
+                    t.row.clear();
+                }
+            }
+            "tc" if !empty => {
+                if let Some(t) = self.tables.last_mut() {
+                    t.cell.clear();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn end(&mut self, name: &str) {
+        if self.skip > 0 {
+            self.skip -= 1;
+            return;
+        }
+        match name {
+            "p" => self.end_para(),
+            "pPr" => self.in_ppr = self.in_ppr.saturating_sub(1),
+            "r" => self.in_run = self.in_run.saturating_sub(1),
+            "t" => self.in_t = self.in_t.saturating_sub(1),
+            "del" => self.in_del = self.in_del.saturating_sub(1),
+            "tc" => {
+                if let Some(t) = self.tables.last_mut() {
+                    let cell = compress(&t.cell.join(" "));
+                    t.row.push(cell);
+                    t.cell.clear();
+                }
+            }
+            "tr" => {
+                if let Some(t) = self.tables.last_mut() {
+                    let row = std::mem::take(&mut t.row);
+                    t.rows.push(row);
+                }
+            }
+            "tbl" => {
+                if let Some(t) = self.tables.pop() {
+                    let text = t
+                        .rows
+                        .iter()
+                        .map(|r| r.join("\t"))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    match self.tables.last_mut() {
+                        Some(outer) => {
+                            self.unsupported.push("nested_table".to_owned());
+                            outer.cell.push(text);
+                        }
+                        None => self.push_block(Block::Text(text)),
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn end_para(&mut self) {
+        let Some(p) = self.para.take() else {
+            return;
+        };
+        let style = p.style.as_deref().unwrap_or("");
+        if EXCLUDED_STYLES.contains(&style) {
+            return;
+        }
+        if let Some(t) = self.tables.last_mut() {
+            t.cell.push(p.text);
+            return;
+        }
+        if let Some(level) = heading_level(style) {
+            let text = compress(&p.text);
+            self.blocks.push(Block::Heading {
+                level,
+                text: text.nfc().collect(),
+            });
+            return;
+        }
+        let text = if style == "SourceCode" {
+            p.text
+        } else {
+            compress(&p.text)
+        };
+        self.push_block(Block::Text(text));
+    }
+
+    fn push_block(&mut self, b: Block) {
+        if let Block::Text(t) = b {
+            let t: String = t.replace("\r\n", "\n").replace('\r', "\n").nfc().collect();
+            if !t.is_empty() {
+                self.blocks.push(Block::Text(t));
+            }
+        } else {
+            self.blocks.push(b);
+        }
+    }
+}
+
+/// `Heading1`..`Heading6` → livello.
+fn heading_level(style: &str) -> Option<u8> {
+    let n = style.strip_prefix("Heading")?;
+    let level: u8 = n.parse().ok()?;
+    (1..=6).contains(&level).then_some(level)
+}
+
+/// Sequenze di spazi ASCII compresse in uno, estremi tolti (`\t` e `\n` restano).
+fn compress(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut prev_space = false;
+    for c in s.chars() {
+        if c == ' ' {
+            if !prev_space {
+                out.push(' ');
+            }
+            prev_space = true;
+        } else {
+            out.push(c);
+            prev_space = false;
+        }
+    }
+    out.trim_matches(' ').to_owned()
+}
+
+/// Entità predefinite di XML; ogni altra entità è un errore (nessuna espansione).
+fn predefined(name: &str) -> Option<char> {
+    match name {
+        "amp" => Some('&'),
+        "lt" => Some('<'),
+        "gt" => Some('>'),
+        "quot" => Some('"'),
+        "apos" => Some('\''),
+        _ => None,
+    }
+}
+
+fn parse_reader<R: BufRead>(input: R) -> Result<Parsed, String> {
+    let mut reader = Reader::from_reader(input);
+    let mut buf = Vec::new();
+    let mut st = State::default();
+    loop {
+        let ev = reader
+            .read_event_into(&mut buf)
+            .map_err(|e| format!("xml: {e}"))?;
+        match ev {
+            Event::DocType(_) => return Err("xml_doctype".to_owned()),
+            Event::Start(e) => st.start(&e, false),
+            Event::Empty(e) => st.start(&e, true),
+            Event::End(e) => st.end(e.local_name().as_ref()),
+            Event::Text(t) => st.push_text(&t.xml10_content()),
+            Event::CData(c) => {
+                let s = c.into_inner().into_owned();
+                st.push_text(&s);
+            }
+            Event::GeneralRef(r) => {
+                let c = if r.is_char_ref() {
+                    r.resolve_char_ref()
+                        .map_err(|e| format!("xml_char_ref: {e}"))?
+                } else {
+                    predefined(&r.xml10_content())
+                };
+                match c {
+                    Some(c) => st.push_text(c.encode_utf8(&mut [0; 4])),
+                    None => return Err("xml_entity".to_owned()),
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+    let mut unsupported = st.unsupported;
+    unsupported.sort();
+    unsupported.dedup();
+    Ok(Parsed {
+        blocks: st.blocks,
+        unsupported,
+    })
 }
 
 #[cfg(test)]

@@ -1,8 +1,7 @@
 //! Testo canonico `cka-text-v1`, sezioni, locator `Text` e conversione degli offset
 //! (piano 01-09, Task 1).
 //!
-//! STUB di `test-write`: tipi e firme minime perché i test rossi compilino; ogni funzione è
-//! `todo!()`. L'implementazione è dell'esecutore. Interfaccia fissata dai test:
+//! Interfaccia fissata dai test di `test-write`:
 //! - `md::parse` e `docx::parse_document_xml` producono la stessa sequenza di [`Block`]
 //!   (testo inline già canonico, NFC, senza `\r`); [`sections`] costruisce le sezioni;
 //! - [`TextLocator`] porta sempre `projection`, `doc_sha256` e `section_text_sha256`
@@ -10,7 +9,11 @@
 //!   restituire testo (RISK-001 di risk_audit_12);
 //! - gli offset sono Unicode scalar value, semiaperti; [`to_utf16_range`] li converte in
 //!   code unit UTF-16 per `String.prototype.slice`.
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use unicode_normalization::UnicodeNormalization;
 
 /// Nome e versione della proiezione testuale. Una modifica delle regole è una nuova versione.
 pub(crate) const PROJECTION: &str = "cka-text-v1";
@@ -90,43 +93,196 @@ pub(crate) enum ResolveError {
 }
 
 /// CRLF e CR → `\n`, poi NFC. Usato per portare un excerpt in `cka-text-v1`.
-pub(crate) fn canon_text(_s: &str) -> String {
-    todo!("01-09: canon_text")
+pub(crate) fn canon_text(s: &str) -> String {
+    let unified = s.replace("\r\n", "\n").replace('\r', "\n");
+    unified.nfc().collect()
 }
 
 /// Sha256 esadecimale minuscolo dei byte.
-pub(crate) fn sha256_hex(_bytes: &[u8]) -> String {
-    todo!("01-09: sha256_hex")
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
+}
+
+/// Esadecimale minuscolo di un digest.
+pub(crate) fn hex(digest: &[u8]) -> String {
+    use std::fmt::Write as _;
+    digest
+        .iter()
+        .fold(String::with_capacity(digest.len() * 2), |mut out, b| {
+            let _ = write!(out, "{b:02x}");
+            out
+        })
+}
+
+/// Titolo aperto nella pila: livello, passo del percorso e contatori dei figli per titolo.
+struct Open {
+    level: u8,
+    step: SectionStep,
+    children: HashMap<String, u32>,
 }
 
 /// Sezioni dai blocchi: un titolo apre una sezione figlia dell'ultimo titolo di livello
 /// minore; il testo è dei blocchi fino al titolo successivo di qualunque livello.
-pub(crate) fn sections(_parsed: &Parsed) -> Projection {
-    todo!("01-09: sections")
+///
+/// I blocchi vuoti non contano; una sezione con il solo titolo ha testo vuoto. Il testo che
+/// precede il primo titolo, se c'è, forma una sezione di percorso vuoto.
+pub(crate) fn sections(parsed: &Parsed) -> Projection {
+    let mut out: Vec<Section> = Vec::new();
+    let mut stack: Vec<Open> = Vec::new();
+    let mut root_children: HashMap<String, u32> = HashMap::new();
+    let mut preamble: Vec<&str> = Vec::new();
+    let mut blocks: Vec<&str> = Vec::new();
+
+    for block in &parsed.blocks {
+        match block {
+            Block::Heading { level, text } => {
+                if let Some(last) = out.last_mut() {
+                    last.text = blocks.join("\n");
+                }
+                blocks.clear();
+                while stack.last().is_some_and(|o| o.level >= *level) {
+                    stack.pop();
+                }
+                let siblings = match stack.last_mut() {
+                    Some(parent) => &mut parent.children,
+                    None => &mut root_children,
+                };
+                let ordinal = siblings.entry(text.clone()).or_insert(0);
+                *ordinal += 1;
+                let step = SectionStep {
+                    title: text.clone(),
+                    ordinal: *ordinal,
+                };
+                stack.push(Open {
+                    level: *level,
+                    step,
+                    children: HashMap::new(),
+                });
+                out.push(Section {
+                    path: stack.iter().map(|o| o.step.clone()).collect(),
+                    text: String::new(),
+                });
+            }
+            Block::Text(t) if t.is_empty() => {}
+            Block::Text(t) if out.is_empty() => preamble.push(t),
+            Block::Text(t) => blocks.push(t),
+        }
+    }
+    if let Some(last) = out.last_mut() {
+        last.text = blocks.join("\n");
+    }
+    if !preamble.is_empty() {
+        out.insert(
+            0,
+            Section {
+                path: Vec::new(),
+                text: preamble.join("\n"),
+            },
+        );
+    }
+    Projection {
+        sections: out,
+        unsupported: parsed.unsupported.clone(),
+    }
 }
 
 /// Tutte le occorrenze dell'excerpt (portato in `cka-text-v1`) nei testi di sezione.
-pub(crate) fn locate(_p: &Projection, _doc_sha256: &str, _excerpt: &str) -> Vec<TextLocator> {
-    todo!("01-09: locate")
+///
+/// Le occorrenze sovrapposte contano tutte; un excerpt vuoto non ne ha nessuna.
+pub(crate) fn locate(p: &Projection, doc_sha256: &str, excerpt: &str) -> Vec<TextLocator> {
+    let needle = canon_text(excerpt);
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    let len = needle.chars().count();
+    let mut found = Vec::new();
+    for s in &p.sections {
+        let mut section_hash: Option<String> = None;
+        let mut from = 0usize;
+        while let Some(rel) = s.text[from..].find(&needle) {
+            let byte = from + rel;
+            let start = s.text[..byte].chars().count();
+            let hash = section_hash
+                .get_or_insert_with(|| sha256_hex(s.text.as_bytes()))
+                .clone();
+            found.push(TextLocator {
+                projection: PROJECTION.to_owned(),
+                doc_sha256: doc_sha256.to_owned(),
+                section_path: s.path.clone(),
+                char_range: CharRange {
+                    start,
+                    end: start + len,
+                },
+                section_text_sha256: hash,
+            });
+            // Avanza di uno scalar: anche le occorrenze sovrapposte restano visibili.
+            let step = s.text[byte..].chars().next().map_or(1, char::len_utf8);
+            from = byte + step;
+        }
+    }
+    found
 }
 
 /// Testo dell'intervallo, dopo i controlli di proiezione, versione e hash di sezione.
+///
+/// Ordine dei controlli: proiezione, versione del documento, percorso, hash del testo di
+/// sezione, intervallo. Nessun testo esce prima che tutti siano passati.
 pub(crate) fn resolve(
-    _loc: &TextLocator,
-    _p: &Projection,
-    _doc_sha256: &str,
+    loc: &TextLocator,
+    p: &Projection,
+    doc_sha256: &str,
 ) -> Result<String, ResolveError> {
-    todo!("01-09: resolve")
+    if loc.projection != PROJECTION {
+        return Err(ResolveError::ProjectionMismatch);
+    }
+    if loc.doc_sha256 != doc_sha256 {
+        return Err(ResolveError::VersionMismatch);
+    }
+    let section = p
+        .sections
+        .iter()
+        .find(|s| s.path == loc.section_path)
+        .ok_or(ResolveError::SectionNotFound)?;
+    if sha256_hex(section.text.as_bytes()) != loc.section_text_sha256 {
+        return Err(ResolveError::SectionHashMismatch);
+    }
+    slice_scalars(&section.text, loc.char_range).ok_or(ResolveError::RangeOutOfBounds)
 }
 
 /// Scalar `[start, end)` → code unit UTF-16; `None` se fuori dal testo o `start > end`.
-pub(crate) fn to_utf16_range(_text: &str, _r: CharRange) -> Option<CharRange> {
-    todo!("01-09: to_utf16_range")
+///
+/// `utf16_start` è la somma di `len_utf16` dei primi `start` scalar (1 nel BMP, 2 da
+/// U+10000 in su); lo stesso per `end`. Un confine di scalar non cade mai dentro una coppia
+/// surrogata.
+pub(crate) fn to_utf16_range(text: &str, r: CharRange) -> Option<CharRange> {
+    if r.start > r.end {
+        return None;
+    }
+    let mut start = (r.start == 0).then_some(0);
+    let mut end = (r.end == 0).then_some(0);
+    let mut units = 0usize;
+    for (i, c) in text.chars().enumerate() {
+        units += c.len_utf16();
+        if i + 1 == r.start {
+            start = Some(units);
+        }
+        if i + 1 == r.end {
+            end = Some(units);
+            break;
+        }
+    }
+    Some(CharRange {
+        start: start?,
+        end: end?,
+    })
 }
 
 /// Testo degli scalar `[start, end)`; `None` se fuori dal testo o `start > end`.
-pub(crate) fn slice_scalars(_text: &str, _r: CharRange) -> Option<String> {
-    todo!("01-09: slice_scalars")
+pub(crate) fn slice_scalars(text: &str, r: CharRange) -> Option<String> {
+    if r.start > r.end || r.end > text.chars().count() {
+        return None;
+    }
+    Some(text.chars().skip(r.start).take(r.end - r.start).collect())
 }
 
 #[cfg(test)]

@@ -1,24 +1,82 @@
 //! Trasformazione pura dei rettangoli PDF (piano 01-09, Task 1).
 //!
-//! STUB di `test-write`: firme minime perché i test rossi compilino. L'implementazione è
-//! dell'esecutore. Rettangoli `[x0, y0, x1, y1]` in punti.
+//! Rettangoli `[x0, y0, x1, y1]` in punti. Funzione pura: nessun PDFium, nessuna metrica di
+//! font; un errore della bbox di un glifo non la tocca mai. La viewport è la CropBox (la
+//! regione visibile della pagina, PDF 32000 §14.11.2); la MediaBox resta nella firma perché
+//! la CropBox efficace è la sua intersezione con la MediaBox: le pagine misurate hanno la
+//! CropBox dentro la MediaBox, e qui la si interseca comunque.
+
+/// `/Rotate` normalizzato in `{0, 90, 180, 270}`. Un valore non multiplo di 90 vale 0,
+/// come in PDF.js, che lo ignora.
+fn norm_rotate(rotate: i32) -> i32 {
+    match rotate.rem_euclid(360) {
+        r @ (90 | 180 | 270) => r,
+        _ => 0,
+    }
+}
+
+/// CropBox efficace: intersezione normalizzata di CropBox e MediaBox.
+fn effective_crop(mediabox: [f64; 4], cropbox: [f64; 4]) -> [f64; 4] {
+    let m = normalize(mediabox);
+    let c = normalize(cropbox);
+    [
+        m[0].max(c[0]),
+        m[1].max(c[1]),
+        m[2].min(c[2]),
+        m[3].min(c[3]),
+    ]
+}
+
+fn normalize(r: [f64; 4]) -> [f64; 4] {
+    [
+        r[0].min(r[2]),
+        r[1].min(r[3]),
+        r[0].max(r[2]),
+        r[1].max(r[3]),
+    ]
+}
 
 /// Da spazio utente PDF (origine in basso a sinistra, prima di `/Rotate`) a viewport non
 /// scalata con origine in alto a sinistra, come PDF.js `convertToViewportRectangle` a scala
 /// 1; risultato normalizzato `x0 < x1`, `y0 < y1`. `rotate` multiplo di 90, anche negativo
 /// o ≥ 360 (normalizzato modulo 360).
+///
+/// Passi per ogni vertice: (1) traslazione nell'origine della CropBox; (2) ribaltamento
+/// dell'asse y (`v = H - y'`); (3) rotazione oraria della pagina: 0 → `(u, v)`, 90 →
+/// `(H - v, u)`, 180 → `(W - u, H - v)`, 270 → `(v, W - u)`; (4) normalizzazione.
 pub(crate) fn to_viewport(
-    _rect: [f64; 4],
-    _mediabox: [f64; 4],
-    _cropbox: [f64; 4],
-    _rotate: i32,
+    rect: [f64; 4],
+    mediabox: [f64; 4],
+    cropbox: [f64; 4],
+    rotate: i32,
 ) -> [f64; 4] {
-    todo!("01-09: pdfrect::to_viewport")
+    let crop = effective_crop(mediabox, cropbox);
+    let (w, h) = (crop[2] - crop[0], crop[3] - crop[1]);
+    let rot = norm_rotate(rotate);
+    let point = |x: f64, y: f64| {
+        let u = x - crop[0];
+        let v = h - (y - crop[1]);
+        match rot {
+            90 => (h - v, u),
+            180 => (w - u, h - v),
+            270 => (v, w - u),
+            _ => (u, v),
+        }
+    };
+    let (ax, ay) = point(rect[0], rect[1]);
+    let (bx, by) = point(rect[2], rect[3]);
+    [ax.min(bx), ay.min(by), ax.max(bx), ay.max(by)]
 }
 
 /// Larghezza e altezza della viewport (scambiate a 90 e 270).
-pub(crate) fn viewport_size(_mediabox: [f64; 4], _cropbox: [f64; 4], _rotate: i32) -> (f64, f64) {
-    todo!("01-09: pdfrect::viewport_size")
+pub(crate) fn viewport_size(mediabox: [f64; 4], cropbox: [f64; 4], rotate: i32) -> (f64, f64) {
+    let crop = effective_crop(mediabox, cropbox);
+    let (w, h) = (crop[2] - crop[0], crop[3] - crop[1]);
+    if norm_rotate(rotate) % 180 == 0 {
+        (w, h)
+    } else {
+        (h, w)
+    }
 }
 
 #[cfg(test)]

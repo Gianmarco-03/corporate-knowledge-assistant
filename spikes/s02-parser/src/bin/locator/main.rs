@@ -1,29 +1,44 @@
 //! Bin `locator` (piano 01-09, spike S-02 / A-10 locator di citazione).
 //!
-//! STUB di `test-write`: tipi e firme minime perché i test rossi compilino; ogni funzione è
-//! `todo!()`. L'implementazione è dell'esecutore. Sottocomandi: `locate` (solo come figlio,
-//! job `op: locate` del contratto di 01-07), `roundtrip prepare|check`, `rects`, `offsets`
-//! (bin normali che non aprono DOCX né MD).
-#![allow(dead_code)] // stub di test-write: l'esecutore lo rimuove con l'implementazione
-
+//! Sottocomandi:
+//! - `locate --input <md|docx> --excerpt-file <f>`: l'unico che apre un documento non fidato;
+//!   gira solo come figlio isolato, via job `op: locate` del contratto di 01-07 (argv
+//!   costruito da `job::resolve`), stampa una riga con `protocol::emit` e non scrive file;
+//! - `roundtrip prepare|check`: bin normali che compongono job `locate` e ne leggono i
+//!   `RunReport`, senza mai aprire DOCX o Markdown;
+//! - `rects`: tre stadi di verifica dei rettangoli sui PDF sintetici di `gen_pages.py`;
+//! - `offsets`: conversione scalar → UTF-16 dei vettori della fixture, solo campi `got_*`.
 mod canon;
 mod docx;
 mod md;
 mod pdfrect;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
-use s02_parser::protocol::ChildOutcome;
-use serde::Deserialize;
+use s02_parser::prescan::{Caps, Rejection};
+use s02_parser::protocol::{ChildOutcome, Kind, emit};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
-use crate::canon::SectionStep;
+use crate::canon::{CharRange, Projection, SectionStep};
 
 /// Tetto di lettura di un Markdown in `locate`.
 pub(crate) const MAX_MD_BYTES: u64 = 8 * 1024 * 1024;
 /// Tetto di lettura del file excerpt in `locate`.
 pub(crate) const MAX_EXCERPT_BYTES: u64 = 64 * 1024;
+
+/// Radice dei documenti sintetici nel worker (mount `./data:/data:ro` di compose).
+const SYNTHETIC_ROOT: &str = "/data/corpus/synthetic";
+/// Manifest del corpus (piano 01-03) nel worker; `S02_CORPUS_MANIFEST` lo sostituisce.
+const CORPUS_MANIFEST: &str = "/data/corpus/manifest.json";
+/// File esistente fuori dalle radici ammesse: `excerpt_file` del job negativo. Il padre lo
+/// rifiuta in `resolve` (`PathNotAllowed`) e non lo legge mai.
+const NEG_EXCERPT: &str = "/etc/hostname";
 
 /// Sottocomandi. Solo `Locate` gira come figlio isolato (argv di `job::resolve`:
 /// `locate --input <input> --excerpt-file <excerpt_file>`), senza alcun percorso di output.
@@ -55,17 +70,212 @@ pub(crate) enum Cmd {
     },
 }
 
+/// Coppie `--flag valore` di `rest`: ogni flag di `names` esattamente una volta, nient'altro.
+fn flags<const N: usize>(rest: &[OsString], names: [&str; N]) -> Result<[PathBuf; N], String> {
+    if rest.len() != 2 * N {
+        return Err(format!("attesi esattamente i flag {names:?}"));
+    }
+    let mut got: [Option<PathBuf>; N] = std::array::from_fn(|_| None);
+    for pair in rest.chunks(2) {
+        let flag = pair[0].to_str().unwrap_or("");
+        let i = names
+            .iter()
+            .position(|n| *n == flag)
+            .ok_or_else(|| format!("flag sconosciuto: {flag:?}"))?;
+        if got[i].replace(PathBuf::from(&pair[1])).is_some() {
+            return Err(format!("flag ripetuto: {flag}"));
+        }
+    }
+    let mut out: [PathBuf; N] = std::array::from_fn(|_| PathBuf::new());
+    for (i, g) in got.into_iter().enumerate() {
+        out[i] = g.ok_or_else(|| format!("flag mancante: {}", names[i]))?;
+    }
+    Ok(out)
+}
+
 /// Argomenti senza il nome del programma. Argomenti non riconosciuti → `Err`.
-pub(crate) fn parse_cli(_args: Vec<OsString>) -> Result<Cmd, String> {
-    todo!("01-09: CLI di locator")
+pub(crate) fn parse_cli(args: Vec<OsString>) -> Result<Cmd, String> {
+    let Some((sub, rest)) = args.split_first() else {
+        return Err("sottocomando assente: locate | roundtrip | rects | offsets".into());
+    };
+    match sub.to_str() {
+        Some("locate") => match rest {
+            [a, input, b, ex] if a == "--input" && b == "--excerpt-file" => Ok(Cmd::Locate {
+                input: PathBuf::from(input),
+                excerpt_file: PathBuf::from(ex),
+            }),
+            _ => Err("locate: attesi esattamente --input <file> --excerpt-file <file>".into()),
+        },
+        Some("roundtrip") => match rest.split_first() {
+            Some((p, r)) if p == "prepare" => {
+                let [samples, excerpt_dir, jobs_out, run_tag] =
+                    flags(r, ["--samples", "--excerpt-dir", "--jobs-out", "--run-tag"])?;
+                Ok(Cmd::RoundtripPrepare {
+                    samples,
+                    excerpt_dir,
+                    jobs_out,
+                    run_tag: run_tag.to_string_lossy().into_owned(),
+                })
+            }
+            Some((c, r)) if c == "check" => {
+                let [samples, reports, out_dir] =
+                    flags(r, ["--samples", "--reports", "--out-dir"])?;
+                Ok(Cmd::RoundtripCheck {
+                    samples,
+                    reports,
+                    out_dir,
+                })
+            }
+            _ => Err("roundtrip: atteso prepare | check".into()),
+        },
+        Some("rects") => {
+            let [cases, pdf_dir, out] = flags(rest, ["--cases", "--pdf-dir", "--out"])?;
+            Ok(Cmd::Rects {
+                cases,
+                pdf_dir,
+                out,
+            })
+        }
+        Some("offsets") => {
+            let [vectors, out] = flags(rest, ["--vectors", "--out"])?;
+            Ok(Cmd::Offsets { vectors, out })
+        }
+        _ => Err(format!("sottocomando sconosciuto: {sub:?}")),
+    }
+}
+
+// ---- locate (figlio) -------------------------------------------------------------------
+
+fn rejection(r: Rejection) -> ChildOutcome {
+    match r {
+        Rejection::Failed(kind, detail) => ChildOutcome::Failed { kind, detail },
+        Rejection::Quarantined(reasons) => ChildOutcome::Quarantined { reasons },
+    }
+}
+
+/// Legge al più `cap` byte; oltre → `failed/ResourceLimit`.
+fn read_capped(path: &Path, cap: u64, what: &str) -> Result<Vec<u8>, ChildOutcome> {
+    let mut buf = Vec::new();
+    read_bounded(path, cap, what, |chunk| buf.extend_from_slice(chunk))?;
+    Ok(buf)
+}
+
+/// Lettura a blocchi di 64 KiB, al più `cap` byte (`take(cap + 1)` per vedere lo sforamento):
+/// ogni blocco va a `sink`; oltre il tetto → `failed/ResourceLimit`.
+fn read_bounded(
+    path: &Path,
+    cap: u64,
+    what: &str,
+    mut sink: impl FnMut(&[u8]),
+) -> Result<(), ChildOutcome> {
+    let file = std::fs::File::open(path)
+        .map_err(|e| ChildOutcome::failed(Kind::Corrupt, format!("{what}_open: {e}")))?;
+    let mut r = file.take(cap + 1);
+    let mut chunk = vec![0u8; 64 * 1024];
+    let mut n = 0u64;
+    loop {
+        let k = r
+            .read(&mut chunk)
+            .map_err(|e| ChildOutcome::failed(Kind::Corrupt, format!("{what}_read: {e}")))?;
+        if k == 0 {
+            return Ok(());
+        }
+        n += k as u64;
+        if n > cap {
+            return Err(ChildOutcome::failed(
+                Kind::ResourceLimit,
+                format!("{what}_over_{cap}_bytes"),
+            ));
+        }
+        sink(&chunk[..k]);
+    }
+}
+
+fn utf8(bytes: Vec<u8>, what: &str) -> Result<String, ChildOutcome> {
+    String::from_utf8(bytes)
+        .map_err(|_| ChildOutcome::failed(Kind::Corrupt, format!("{what}_not_utf8")))
+}
+
+/// Sha256 dei byte del file, letti in streaming entro `cap`.
+fn file_sha256(path: &Path, cap: u64) -> Result<String, ChildOutcome> {
+    let mut h = Sha256::new();
+    read_bounded(path, cap, "input", |chunk| h.update(chunk))?;
+    Ok(canon::hex(&h.finalize()))
+}
+
+/// Proiezione `cka-text-v1` del documento e sha256 dei suoi byte. È l'unico punto che legge
+/// un MD o un DOCX; `run_locate` la chiama due volte, per cercare e per risolvere.
+fn project(input: &Path) -> Result<(&'static str, Projection, String), ChildOutcome> {
+    let ext = input
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    match ext.as_deref() {
+        Some("md") => {
+            let bytes = read_capped(input, MAX_MD_BYTES, "input")?;
+            let sha = canon::sha256_hex(&bytes);
+            let text = utf8(bytes, "input")?;
+            Ok(("md", canon::sections(&md::parse(&text)), sha))
+        }
+        Some("docx") => {
+            let caps = Caps::default();
+            // Prescan prima di tutto (dentro `parse_file`), poi l'hash dei byte.
+            let parsed = docx::parse_file(input, &caps).map_err(rejection)?;
+            let sha = file_sha256(input, caps.docx_max_total_bytes)?;
+            Ok(("docx", canon::sections(&parsed), sha))
+        }
+        _ => Err(ChildOutcome::failed(
+            Kind::Unsupported,
+            "format_not_md_or_docx",
+        )),
+    }
 }
 
 /// Sottocomando `locate` (figlio): esito da stampare con `protocol::emit`. `ok` con
 /// `data = {projection, format, doc_sha256, matches: [{section_path, char_range,
 /// section_text_sha256, reextracted}], unsupported}`; mai il testo completo del documento.
-pub(crate) fn run_locate(_input: &Path, _excerpt_file: &Path) -> ChildOutcome {
-    todo!("01-09: locate")
+pub(crate) fn run_locate(input: &Path, excerpt_file: &Path) -> ChildOutcome {
+    match locate_inner(input, excerpt_file) {
+        Ok(o) | Err(o) => o,
+    }
 }
+
+fn locate_inner(input: &Path, excerpt_file: &Path) -> Result<ChildOutcome, ChildOutcome> {
+    let excerpt = utf8(
+        read_capped(excerpt_file, MAX_EXCERPT_BYTES, "excerpt")?,
+        "excerpt",
+    )?;
+    let (format, found_in, sha) = project(input)?;
+    let locators = canon::locate(&found_in, &sha, &excerpt);
+    // `resolve` riparte dai byte del file: seconda lettura e seconda proiezione, percorso di
+    // codice distinto dalla ricerca.
+    let (_, fresh, fresh_sha) = project(input)?;
+    let matches: Vec<Value> = locators
+        .iter()
+        .map(|l| {
+            let again = canon::resolve(l, &fresh, &fresh_sha).ok();
+            json!({
+                "section_path": l.section_path,
+                "char_range": l.char_range,
+                "section_text_sha256": l.section_text_sha256,
+                "reextracted": again,
+            })
+        })
+        .collect();
+    Ok(ChildOutcome::Ok {
+        pages: None,
+        output: None,
+        data: Some(json!({
+            "projection": canon::PROJECTION,
+            "format": format,
+            "doc_sha256": sha,
+            "matches": matches,
+            "unsupported": found_in.unsupported,
+        })),
+    })
+}
+
+// ---- roundtrip prepare -----------------------------------------------------------------
 
 /// Campione scritto a mano in `locator-gen/expected_samples.json`.
 #[derive(Debug, Clone, Deserialize)]
@@ -84,35 +294,641 @@ pub(crate) struct Prepared {
     pub(crate) excerpts: Vec<(String, String)>,
 }
 
+/// Riga di un job sul filo, nell'ordine dei campi del contratto di 01-07:
+/// `{"job_id":"…","op":"locate","input":"…","out_dir":null,"params":{"excerpt_file":"…"}}`.
+#[derive(Serialize)]
+struct LocateJob<'a> {
+    job_id: &'a str,
+    op: &'static str,
+    input: &'a str,
+    out_dir: Option<&'a str>,
+    params: LocateParams<'a>,
+}
+
+#[derive(Serialize)]
+struct LocateParams<'a> {
+    excerpt_file: &'a str,
+}
+
+fn job_line(job_id: &str, input: &str, excerpt_file: &str) -> String {
+    serde_json::to_string(&LocateJob {
+        job_id,
+        op: "locate",
+        input,
+        out_dir: None,
+        params: LocateParams { excerpt_file },
+    })
+    .expect("serializzazione del job")
+}
+
+fn valid_run_tag(t: &str) -> bool {
+    t.len() == 8
+        && t.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+}
+
 /// Un job `op: locate` per campione e formato (`job_id` = `<sample_id>-<format>-<run_tag>`,
 /// `out_dir: null`, input `/data/corpus/synthetic/<doc_id>.<format>`), più il job negativo
 /// `neg-path-<run_tag>` con `excerpt_file` fuori dalle radici ammesse. `run_tag` fuori da
 /// `[a-z0-9]{8}`, `job_id` non valido o duplicato → `Err` (exit 2).
 pub(crate) fn prepare_jobs(
-    _samples: &[Sample],
-    _excerpt_dir: &str,
-    _run_tag: &str,
+    samples: &[Sample],
+    excerpt_dir: &str,
+    run_tag: &str,
 ) -> Result<Prepared, String> {
-    todo!("01-09: roundtrip prepare")
+    if !valid_run_tag(run_tag) {
+        return Err(format!("run_tag {run_tag:?} fuori da [a-z0-9]{{8}}"));
+    }
+    let dir = excerpt_dir.trim_end_matches('/');
+    let mut seen = BTreeSet::new();
+    let mut check_id = |id: &str| -> Result<(), String> {
+        if !s02_parser::job::valid_job_id(id) {
+            return Err(format!("job_id {id:?} fuori da [a-z0-9-]{{1,64}}"));
+        }
+        if !seen.insert(id.to_owned()) {
+            return Err(format!("job_id duplicato: {id}"));
+        }
+        Ok(())
+    };
+    let mut jobs = Vec::new();
+    let mut excerpts = Vec::new();
+    for (i, s) in samples.iter().enumerate() {
+        if !s02_parser::job::valid_job_id(&s.sample_id) {
+            return Err(format!("sample_id {:?} non valido", s.sample_id));
+        }
+        // Il primo file ha spazi e caratteri non ASCII nel nome: il percorso attraversa
+        // padre e figlio senza shell e senza perdere byte.
+        let name = if i == 0 {
+            format!("{} estratto città.txt", s.sample_id)
+        } else {
+            format!("{}.txt", s.sample_id)
+        };
+        let path = format!("{dir}/{name}");
+        for f in &s.formats {
+            if f != "md" && f != "docx" {
+                return Err(format!("{}: formato {f:?} non ammesso", s.sample_id));
+            }
+            let id = format!("{}-{f}-{run_tag}", s.sample_id);
+            check_id(&id)?;
+            let input = format!("{SYNTHETIC_ROOT}/{}.{f}", s.doc_id);
+            jobs.push(job_line(&id, &input, &path));
+        }
+        excerpts.push((path, s.excerpt.clone()));
+    }
+    let neg = format!("neg-path-{run_tag}");
+    check_id(&neg)?;
+    let first = samples.first().ok_or("nessun campione")?;
+    let input = format!("{SYNTHETIC_ROOT}/{}.md", first.doc_id);
+    jobs.push(job_line(&neg, &input, NEG_EXCERPT));
+    Ok(Prepared { jobs, excerpts })
 }
 
-/// Lega ogni riga di `reports.jsonl` al proprio job per `job_id`, uno a uno: mancante,
-/// duplicato o sconosciuto → `Err`.
-pub(crate) fn bind_reports(
-    _job_ids: &[String],
-    _lines: &[String],
-) -> Result<BTreeMap<String, serde_json::Value>, String> {
-    todo!("01-09: roundtrip check, legame dei RunReport")
+fn run_prepare(
+    samples: &Path,
+    excerpt_dir: &Path,
+    jobs_out: &Path,
+    run_tag: &str,
+) -> anyhow::Result<()> {
+    let s: Vec<Sample> = serde_json::from_slice(&std::fs::read(samples)?)?;
+    let dir = excerpt_dir.to_string_lossy();
+    let p = prepare_jobs(&s, &dir, run_tag).map_err(|e| anyhow::anyhow!(e))?;
+    std::fs::create_dir_all(excerpt_dir)?;
+    for (path, content) in &p.excerpts {
+        std::fs::write(path, content)?;
+    }
+    let mut body = p.jobs.join("\n");
+    body.push('\n');
+    std::fs::write(jobs_out, body)?;
+    eprintln!(
+        "roundtrip prepare: {} job, {} excerpt",
+        p.jobs.len(),
+        p.excerpts.len()
+    );
+    Ok(())
 }
+
+// ---- roundtrip check -------------------------------------------------------------------
+
+/// Lega ogni riga di `reports.jsonl` al proprio job per `job_id`, uno a uno: mancante,
+/// duplicato o sconosciuto → `Err`. La riga finale `batch_summary` del padre non è un job.
+pub(crate) fn bind_reports(
+    job_ids: &[String],
+    lines: &[String],
+) -> Result<BTreeMap<String, Value>, String> {
+    let wanted: BTreeSet<&str> = job_ids.iter().map(String::as_str).collect();
+    let mut out = BTreeMap::new();
+    for line in lines.iter().filter(|l| !l.trim().is_empty()) {
+        let v: Value = serde_json::from_str(line).map_err(|e| format!("riga non JSON: {e}"))?;
+        if v["status"] == "batch_summary" {
+            continue;
+        }
+        let id = v["job_id"]
+            .as_str()
+            .ok_or_else(|| format!("riga senza job_id: {line}"))?
+            .to_owned();
+        if !wanted.contains(id.as_str()) {
+            return Err(format!("job_id sconosciuto: {id}"));
+        }
+        if out.insert(id.clone(), v).is_some() {
+            return Err(format!("job_id duplicato: {id}"));
+        }
+    }
+    if let Some(missing) = wanted.iter().find(|id| !out.contains_key(**id)) {
+        return Err(format!("rapporto mancante: {missing}"));
+    }
+    Ok(out)
+}
+
+/// sha256 del manifest di 01-03 per `(doc_id, formato)`: la voce MD ha `doc_id` uguale, la
+/// voce DOCX ha `derived_from` uguale e `format: docx`.
+fn manifest_sha(manifest: &Value, doc_id: &str, format: &str) -> Option<String> {
+    manifest.as_array()?.iter().find_map(|d| {
+        let hit = d["format"] == format
+            && match format {
+                "md" => d["doc_id"] == doc_id,
+                _ => d["derived_from"] == doc_id,
+            };
+        hit.then(|| d["sha256"].as_str().map(str::to_owned))
+            .flatten()
+    })
+}
+
+/// Riga di evidenza per un job `locate`.
+struct Measured {
+    sample_id: String,
+    doc_id: String,
+    format: String,
+    job_id: String,
+    excerpt: String,
+    expected: Vec<SectionStep>,
+    status: String,
+    sha_ok: bool,
+    match_count: usize,
+    section_path: Option<Vec<SectionStep>>,
+    char_range: Option<CharRange>,
+    section_hash: Option<String>,
+    reextracted: Option<String>,
+    unsupported: Vec<String>,
+}
+
+impl Measured {
+    fn equal(&self) -> bool {
+        self.status == "ok"
+            && self.sha_ok
+            && self.match_count == 1
+            && self.reextracted.as_deref() == Some(self.excerpt.as_str())
+    }
+
+    fn path_matches(&self) -> bool {
+        self.section_path.as_ref() == Some(&self.expected)
+    }
+}
+
+fn measure(s: &Sample, format: &str, job_id: &str, report: &Value, manifest: &Value) -> Measured {
+    let outcome = &report["outcome"];
+    let status = outcome["status"]
+        .as_str()
+        .or(report["status"].as_str())
+        .unwrap_or("missing")
+        .to_owned();
+    let data = &outcome["data"];
+    let expected_sha = manifest_sha(manifest, &s.doc_id, format);
+    let sha_ok = expected_sha.is_some() && data["doc_sha256"].as_str() == expected_sha.as_deref();
+    let matches = data["matches"].as_array().cloned().unwrap_or_default();
+    let first = matches.first();
+    let decode = |k: &str| first.map(|m| m[k].clone());
+    Measured {
+        sample_id: s.sample_id.clone(),
+        doc_id: s.doc_id.clone(),
+        format: format.to_owned(),
+        job_id: job_id.to_owned(),
+        excerpt: s.excerpt.clone(),
+        expected: s.expected_section_path.clone(),
+        status,
+        sha_ok,
+        match_count: matches.len(),
+        section_path: decode("section_path").and_then(|v| serde_json::from_value(v).ok()),
+        char_range: decode("char_range").and_then(|v| serde_json::from_value(v).ok()),
+        section_hash: decode("section_text_sha256").and_then(|v| v.as_str().map(str::to_owned)),
+        reextracted: decode("reextracted").and_then(|v| v.as_str().map(str::to_owned)),
+        unsupported: data["unsupported"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+fn csv_field(s: &str) -> String {
+    if s.contains([',', '"', '\n', '\t']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_owned()
+    }
+}
+
+fn opt_bool(b: Option<bool>) -> &'static str {
+    match b {
+        Some(true) => "true",
+        Some(false) => "false",
+        None => "",
+    }
+}
+
+fn run_check(samples: &Path, reports: &Path, out_dir: &Path) -> anyhow::Result<()> {
+    let s: Vec<Sample> = serde_json::from_slice(&std::fs::read(samples)?)?;
+    let lines: Vec<String> = std::fs::read_to_string(reports)?
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    // Il run_tag si ricava dal job negativo: è l'unico job senza campione.
+    let run_tag = lines
+        .iter()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .find_map(|v| {
+            v["job_id"]
+                .as_str()
+                .and_then(|id| id.strip_prefix("neg-path-"))
+                .map(str::to_owned)
+        })
+        .ok_or_else(|| anyhow::anyhow!("rapporto del job neg-path assente"))?;
+    let neg_id = format!("neg-path-{run_tag}");
+    let mut ids: Vec<String> = s
+        .iter()
+        .flat_map(|x| {
+            x.formats
+                .iter()
+                .map(|f| format!("{}-{f}-{run_tag}", x.sample_id))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    ids.push(neg_id.clone());
+    let bound = bind_reports(&ids, &lines).map_err(|e| anyhow::anyhow!(e))?;
+
+    let neg = &bound[&neg_id];
+    let neg_ok = neg["status"] == "job_error" && neg["code"] == "PathNotAllowed";
+    let out_dir_exists = bound
+        .values()
+        .any(|v| v["detail"].as_str() == Some("out_dir_exists"));
+
+    let manifest_path =
+        std::env::var("S02_CORPUS_MANIFEST").unwrap_or_else(|_| CORPUS_MANIFEST.to_owned());
+    let manifest: Value = serde_json::from_slice(&std::fs::read(&manifest_path)?)?;
+
+    let mut rows: Vec<Measured> = Vec::new();
+    for x in &s {
+        for f in &x.formats {
+            let id = format!("{}-{f}-{run_tag}", x.sample_id);
+            rows.push(measure(x, f, &id, &bound[&id], &manifest));
+        }
+    }
+
+    // Concordanza MD/DOCX per campione.
+    let twin = |r: &Measured| -> Option<&Measured> {
+        rows.iter()
+            .find(|o| o.sample_id == r.sample_id && o.format != r.format)
+    };
+    let mut csv = String::from(
+        "doc_id,format,sample_id,job_id,section_path_depth,char_start,char_end,match_count,equal,same_path_md_docx,same_range_md_docx,same_section_hash_md_docx,path_matches_expected\n",
+    );
+    let mut samples_json = Vec::new();
+    for r in &rows {
+        let t = twin(r);
+        let same_path = t.map(|o| o.section_path.is_some() && o.section_path == r.section_path);
+        let same_range = t.map(|o| o.char_range.is_some() && o.char_range == r.char_range);
+        let same_hash = t.map(|o| o.section_hash.is_some() && o.section_hash == r.section_hash);
+        let (cs, ce) = r.char_range.map_or((String::new(), String::new()), |c| {
+            (c.start.to_string(), c.end.to_string())
+        });
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            csv_field(&r.doc_id),
+            r.format,
+            r.sample_id,
+            r.job_id,
+            r.section_path.as_ref().map_or(0, Vec::len),
+            cs,
+            ce,
+            r.match_count,
+            r.equal(),
+            opt_bool(same_path),
+            opt_bool(same_range),
+            opt_bool(same_hash),
+            r.path_matches(),
+        ));
+        samples_json.push(json!({
+            "sample_id": r.sample_id,
+            "doc_id": r.doc_id,
+            "format": r.format,
+            "job_id": r.job_id,
+            "status": r.status,
+            "doc_sha256_matches_manifest": r.sha_ok,
+            "excerpt": r.excerpt,
+            "expected_section_path": r.expected,
+            "section_path": r.section_path,
+            "char_range": r.char_range,
+            "section_text_sha256": r.section_hash,
+            "reextracted": r.reextracted,
+            "equal": r.equal(),
+            "unsupported": r.unsupported,
+        }));
+    }
+    std::fs::create_dir_all(out_dir)?;
+    std::fs::write(out_dir.join("roundtrip.csv"), csv)?;
+    let mut js = serde_json::to_string_pretty(&samples_json)?;
+    js.push('\n');
+    std::fs::write(out_dir.join("locator_samples.json"), js)?;
+
+    let with_docx: Vec<&Measured> = rows
+        .iter()
+        .filter(|r| r.format == "md" && twin(r).is_some())
+        .collect();
+    let count = |f: &dyn Fn(&Measured) -> bool| rows.iter().filter(|r| f(r)).count();
+    let summary = json!({
+        "run_tag": run_tag,
+        "jobs": rows.len(),
+        "samples": s.len(),
+        "status_ok": count(&|r| r.status == "ok"),
+        "doc_sha256_matches_manifest": count(&|r| r.sha_ok),
+        "roundtrip_equal": count(&Measured::equal),
+        "path_matches_expected": count(&Measured::path_matches),
+        "pairs_md_docx": with_docx.len(),
+        "pairs_same_path": with_docx.iter().filter(|r| twin(r).is_some_and(|o| o.section_path.is_some() && o.section_path == r.section_path)).count(),
+        "pairs_same_range": with_docx.iter().filter(|r| twin(r).is_some_and(|o| o.char_range.is_some() && o.char_range == r.char_range)).count(),
+        "pairs_same_section_hash": with_docx.iter().filter(|r| twin(r).is_some_and(|o| o.section_hash.is_some() && o.section_hash == r.section_hash)).count(),
+        "neg_path": {"status": neg["status"], "code": neg["code"], "detail": neg["detail"], "ok": neg_ok},
+        "out_dir_exists_seen": out_dir_exists,
+    });
+    println!("{summary}");
+    if !neg_ok || out_dir_exists {
+        anyhow::bail!("contratto del lanciatore non rispettato (neg-path o out_dir_exists)");
+    }
+    Ok(())
+}
+
+// ---- offsets ---------------------------------------------------------------------------
 
 /// Sottocomando `offsets`: dalla fixture legge solo `case_id`, `text`, `scalar_range` e
 /// produce per caso soltanto `{case_id, got_utf16_range, got_text}`.
-pub(crate) fn offsets_rows(_fixture_json: &str) -> Result<Vec<serde_json::Value>, String> {
-    todo!("01-09: offsets")
+pub(crate) fn offsets_rows(fixture_json: &str) -> Result<Vec<Value>, String> {
+    #[derive(Deserialize)]
+    struct Fixture {
+        vectors: Vec<Vector>,
+    }
+    // Campi letti: nessun valore atteso (`utf16_range`, `expected`) entra nel bin.
+    #[derive(Deserialize)]
+    struct Vector {
+        case_id: String,
+        text: String,
+        scalar_range: [usize; 2],
+    }
+    let f: Fixture = serde_json::from_str(fixture_json).map_err(|e| format!("fixture: {e}"))?;
+    Ok(f.vectors
+        .into_iter()
+        .map(|v| {
+            let r = CharRange {
+                start: v.scalar_range[0],
+                end: v.scalar_range[1],
+            };
+            let got = canon::to_utf16_range(&v.text, r).map(|u| [u.start, u.end]);
+            json!({
+                "case_id": v.case_id,
+                "got_utf16_range": got,
+                "got_text": canon::slice_scalars(&v.text, r),
+            })
+        })
+        .collect())
 }
 
-fn main() {
-    todo!("01-09: bin locator")
+fn run_offsets(vectors: &Path, out: &Path) -> anyhow::Result<()> {
+    let rows = offsets_rows(&std::fs::read_to_string(vectors)?).map_err(|e| anyhow::anyhow!(e))?;
+    let mut body = serde_json::to_string_pretty(&rows)?;
+    body.push('\n');
+    if let Some(dir) = out.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(out, body)?;
+    eprintln!("offsets: {} vettori", rows.len());
+    Ok(())
+}
+
+// ---- rects -----------------------------------------------------------------------------
+
+/// Caso di `cases.json` (copia verbatim della fixture più `pdf_file`).
+#[derive(Deserialize)]
+struct RectCase {
+    case_id: String,
+    rotate: i32,
+    mediabox: [f64; 4],
+    cropbox: [f64; 4],
+    user_rect: [f64; 4],
+    expected_viewport_rect: [f64; 4],
+    pdf_file: String,
+}
+
+const TOL_PT: f64 = 0.5;
+
+fn max_err(a: [f64; 4], b: [f64; 4]) -> f64 {
+    a.iter()
+        .zip(b.iter())
+        .map(|(x, y)| (x - y).abs())
+        .fold(0.0, f64::max)
+}
+
+fn rect_row(c: &RectCase, stage: &str, got: Option<[f64; 4]>, extra_err: f64) -> String {
+    let e = c.expected_viewport_rect;
+    let differs = c.cropbox != c.mediabox;
+    let (g, err, pass) = match got {
+        Some(g) => {
+            let err = max_err(g, e).max(extra_err);
+            (
+                g.iter().map(|v| format!("{v:.3}")).collect::<Vec<_>>(),
+                format!("{err:.3}"),
+                err <= TOL_PT,
+            )
+        }
+        None => (vec![String::new(); 4], String::new(), false),
+    };
+    format!(
+        "{},{stage},{},{differs},{},{},{},{},{},{},{},{},{err},{pass}\n",
+        c.case_id, c.rotate, e[0], e[1], e[2], e[3], g[0], g[1], g[2], g[3]
+    )
+}
+
+/// Bounds grezzi (spazio utente) del tracciato e dei glifi della pagina 1, con la geometria
+/// della pagina letta da PDFium: `(path, text, mediabox, cropbox, rotate)`.
+type PageGeometry = (Option<[f64; 4]>, Option<[f64; 4]>, [f64; 4], [f64; 4], i32);
+
+fn pdf_geometry(
+    pdfium: &pdfium_render::prelude::Pdfium,
+    path: &Path,
+) -> anyhow::Result<PageGeometry> {
+    use pdfium_render::prelude::*;
+    let r4 = |r: PdfRect| {
+        [
+            r.left().value as f64,
+            r.bottom().value as f64,
+            r.right().value as f64,
+            r.top().value as f64,
+        ]
+    };
+    let unite = |acc: Option<[f64; 4]>, b: [f64; 4]| {
+        Some(match acc {
+            None => b,
+            Some(a) => [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[2].max(b[2]),
+                a[3].max(b[3]),
+            ],
+        })
+    };
+    let doc = pdfium.load_pdf_from_file(path, None)?;
+    let page = doc.pages().get(0)?;
+    let rotate = match page.rotation()? {
+        PdfPageRenderRotation::None => 0,
+        PdfPageRenderRotation::Degrees90 => 90,
+        PdfPageRenderRotation::Degrees180 => 180,
+        PdfPageRenderRotation::Degrees270 => 270,
+    };
+    let media = r4(page.boundaries().media()?.bounds);
+    let crop = page
+        .boundaries()
+        .crop()
+        .map(|b| r4(b.bounds))
+        .unwrap_or(media);
+    let mut path_box = None;
+    for obj in page.objects().iter() {
+        if obj.object_type() == PdfPageObjectType::Path {
+            path_box = unite(path_box, r4(obj.bounds()?.to_rect()));
+        }
+    }
+    let mut text_box = None;
+    for ch in page.text()?.chars().iter() {
+        let s = ch.unicode_string().unwrap_or_default();
+        if s.trim().is_empty() {
+            continue;
+        }
+        if let Ok(b) = ch.tight_bounds() {
+            text_box = unite(text_box, r4(b));
+        }
+    }
+    Ok((path_box, text_box, media, crop, rotate))
+}
+
+fn run_rects(cases: &Path, pdf_dir: &Path, out: &Path) -> anyhow::Result<()> {
+    let raw: Value = serde_json::from_slice(&std::fs::read(cases)?)?;
+    let list = raw.get("cases").cloned().unwrap_or(raw);
+    let cases: Vec<RectCase> = serde_json::from_value(list)?;
+    let dir = std::env::var_os("PDFIUM_DIR")
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/opt/pdfium/lib".into());
+    let pdfium =
+        pdfium_render::prelude::Pdfium::new(pdfium_render::prelude::Pdfium::bind_to_library(
+            pdfium_render::prelude::Pdfium::pdfium_platform_library_name_at_path(&dir),
+        )?);
+    let mut csv = String::from(
+        "case_id,stage,rotate,cropbox_differs,expected_x0,expected_y0,expected_x1,expected_y1,got_x0,got_y0,got_x1,got_y1,max_abs_err_pt,pass\n",
+    );
+    let mut text_rows = String::new();
+    let mut notes = Vec::new();
+    for c in &cases {
+        // Stadio 1: trasformazione pura, nessun PDFium.
+        let t = pdfrect::to_viewport(c.user_rect, c.mediabox, c.cropbox, c.rotate);
+        csv.push_str(&rect_row(c, "transform", Some(t), 0.0));
+
+        let (path_box, text_box, media, crop, rotate) =
+            pdf_geometry(&pdfium, &pdf_dir.join(&c.pdf_file))?;
+        // Stadio 2: bounds grezzi del tracciato contro il rettangolo disegnato (spazio
+        // utente), poi una sola trasformazione con la geometria letta da PDFium.
+        let raw_err = path_box.map_or(f64::INFINITY, |b| max_err(b, c.user_rect));
+        let got = path_box.map(|b| pdfrect::to_viewport(b, media, crop, rotate));
+        csv.push_str(&rect_row(c, "extract_path", got, raw_err));
+        notes.push(json!({
+            "case_id": c.case_id,
+            "pdfium_rotate": rotate,
+            "pdfium_mediabox": media,
+            "pdfium_cropbox": crop,
+            "viewport_size": pdfrect::viewport_size(media, crop, rotate),
+            "path_bounds_raw": path_box,
+            "path_raw_err_vs_user_rect_pt": path_box.map(|b| max_err(b, c.user_rect)),
+            "text_bounds_raw": text_box,
+        }));
+        // Stadio 3 (informativo): unione dei char box della stringa marcatore. Il valore
+        // atteso resta quello della fixture: la riga misura quanto la bbox dei glifi si
+        // discosta dal rettangolo.
+        let got_text = text_box.map(|b| pdfrect::to_viewport(b, media, crop, rotate));
+        text_rows.push_str(&rect_row(c, "extract_text", got_text, 0.0));
+    }
+    csv.push_str(&text_rows);
+    if let Some(d) = out.parent() {
+        std::fs::create_dir_all(d)?;
+    }
+    std::fs::write(out, csv)?;
+    println!("{}", json!({"rects": notes}));
+    Ok(())
+}
+
+fn main() -> ExitCode {
+    let args: Vec<OsString> = std::env::args_os().skip(1).collect();
+    let cmd = match parse_cli(args) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("locator: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let result = match cmd {
+        Cmd::Locate {
+            input,
+            excerpt_file,
+        } => {
+            let outcome = run_locate(&input, &excerpt_file);
+            return match emit(&outcome) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(_) => ExitCode::from(1),
+            };
+        }
+        Cmd::RoundtripPrepare {
+            samples,
+            excerpt_dir,
+            jobs_out,
+            run_tag,
+        } => {
+            if !valid_run_tag(&run_tag) {
+                eprintln!("locator: --run-tag fuori da [a-z0-9]{{8}}");
+                return ExitCode::from(2);
+            }
+            match run_prepare(&samples, &excerpt_dir, &jobs_out, &run_tag) {
+                Ok(()) => return ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("locator: roundtrip prepare: {e:#}");
+                    return ExitCode::from(2);
+                }
+            }
+        }
+        Cmd::RoundtripCheck {
+            samples,
+            reports,
+            out_dir,
+        } => run_check(&samples, &reports, &out_dir),
+        Cmd::Rects {
+            cases,
+            pdf_dir,
+            out,
+        } => run_rects(&cases, &pdf_dir, &out),
+        Cmd::Offsets { vectors, out } => run_offsets(&vectors, &out),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("locator: {e:#}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 #[cfg(test)]
