@@ -1,0 +1,79 @@
+# prescan-image-filter-benigno — falso positivo image_filter_on_non_image su OTC_NSANY_2004 (fase 1.4, piano 01.4-02, D-07..D-09)
+# data UTC: 2026-10-23T13:39:31Z  git_rev base: 7c443f4eea20b55379af7dac107a9250e843716e
+# Identificativo di piano per session.sh: 01-4-02, perché new-id, acquire e la regex del run_id rifiutano il punto di 01.4-02.
+# Nomi dei file DocLayNet e sha256 troncati a 16 caratteri (regola 3).
+
+## Dataset
+
+$ bash spikes/data/s02/fetch.sh  (righe finali)
+fetch.sh: 84/84 già presenti con sha256 ok
+fetch.sh: ok: 84 voci verificate in raw/
+[exit 0]
+
+voce dln-otc-nsany-2004-p97 p97 T file=02a094caf73f02f6 sha256=273983b7f0bfb11c ok
+voce dln-otc-nsany-2004-p75 p75 T file=2e187f57fef8982e sha256=6665329ae756a176 ok
+voce dln-otc-nsany-2004-p47 p47 C file=61b1b96c92838d58 sha256=7ecf55a4e4e56959 ok
+voce dln-otc-nsany-2004-p105 p105 C file=1b53aa85278bc24c sha256=4c83d4d33340c13c ok
+
+## Diagnosi
+
+nota: un primo tentativo (run_id 01-4-02-20261023t134006z-a5c5) è uscito 1 prima del comando perché Docker Desktop non era avviato; prenotazione rilasciata da with (DOWN rimossi 0, residui 0). Docker Desktop avviato e prova ripetuta.
+
+nota: un secondo tentativo (run_id 01-4-02-20261023t134035z-b146, exit 0) ha prodotto il JSON del solo primo file, perché nel ciclo del driver oneshot consumava lo stdin con l'elenco delle voci; il driver ora passa /dev/null come stdin a oneshot e la prova è ripetuta per intero qui sotto.
+
+sessione: run_id=01-4-02-20261023t134055z-959a (session.sh with 01-4-02 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- qpdf --version
+ Container cka-spikes-runner-run-c69dff1d75b5 Creating 
+ Container cka-spikes-runner-run-c69dff1d75b5 Created 
+qpdf version 12.2.0
+Run qpdf --copyright to see copyright and license information.
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- sh -c 'qpdf --json --json-stream-data=none /src/data/s02/raw/doclaynet/02a094caf73f02f6….pdf > /src/s02-parser/results/raw/p1402-diag/dln-otc-nsany-2004-p97.json'
+ Container cka-spikes-runner-run-70affa3b6fe6 Creating 
+ Container cka-spikes-runner-run-70affa3b6fe6 Created 
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- sh -c 'qpdf --json --json-stream-data=none /src/data/s02/raw/doclaynet/2e187f57fef8982e….pdf > /src/s02-parser/results/raw/p1402-diag/dln-otc-nsany-2004-p75.json'
+ Container cka-spikes-runner-run-c0b8b3f24235 Creating 
+ Container cka-spikes-runner-run-c0b8b3f24235 Created 
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- sh -c 'qpdf --json --json-stream-data=none /src/data/s02/raw/doclaynet/61b1b96c92838d58….pdf > /src/s02-parser/results/raw/p1402-diag/dln-otc-nsany-2004-p47.json'
+ Container cka-spikes-runner-run-1e2916c05ffe Creating 
+ Container cka-spikes-runner-run-1e2916c05ffe Created 
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- sh -c 'qpdf --json --json-stream-data=none /src/data/s02/raw/doclaynet/1b53aa85278bc24c….pdf > /src/s02-parser/results/raw/p1402-diag/dln-otc-nsany-2004-p105.json'
+ Container cka-spikes-runner-run-d35a665fd10e Creating 
+ Container cka-spikes-runner-run-d35a665fd10e Created 
+[exit 0]
+
+analisi sull'host: script Python del driver (python -I, fuori dal repo) sui 4 JSON; mappa degli oggetti = dizionario con chiavi obj:* (trovata in tutti e 4); regola di check_chain riapplicata: catena = /Filter nome o array, un filtro fra /DCTDecode /JPXDecode /JBIG2Decode /CCITTFaxDecode scatta se /Subtype non è il nome /Image o se non è l'ultimo della catena. Referente cercato come stringa "N G R" nei valori di tutti gli altri oggetti, ricorsivamente.
+versione PDF dei 4 file: 1.3, nessun object stream (/Type /ObjStm) presente: la lettura di qpdf coincide con quella della prima passata di check_pdf anche con defer_objstm.
+
+stream dln-otc-nsany-2004-p97 obj=6 0 filtri=["/ASCII85Decode","/DCTDecode"] indice_filtro_immagine=1/2 subtype=assente type=assente chiavi=BitsPerComponent,ColorSpace,Filter,Height,Length,Width width=74 height=105 colorspace="13 0 R" bpc=8 riferito_da=obj=3 /Page /Thumb forma=T
+stream dln-otc-nsany-2004-p75 obj=6 0 filtri=["/ASCII85Decode","/DCTDecode"] indice_filtro_immagine=1/2 subtype=assente type=assente chiavi=BitsPerComponent,ColorSpace,Filter,Height,Length,Width width=74 height=105 colorspace="16 0 R" bpc=8 riferito_da=obj=3 /Page /Thumb forma=T
+stream dln-otc-nsany-2004-p47 obj=6 0 filtri=["/ASCII85Decode","/DCTDecode"] indice_filtro_immagine=1/2 subtype=assente type=assente chiavi=BitsPerComponent,ColorSpace,Filter,Height,Length,Width width=74 height=105 colorspace="17 0 R" bpc=8 riferito_da=obj=3 /Page /Thumb forma=T
+stream dln-otc-nsany-2004-p105 obj=6 0 filtri=["/ASCII85Decode","/DCTDecode"] indice_filtro_immagine=1/2 subtype=assente type=assente chiavi=BitsPerComponent,ColorSpace,Filter,Height,Length,Width width=74 height=105 colorspace="15 0 R" bpc=8 riferito_da=obj=3 /Page /Thumb forma=T
+
+dizionari grezzi degli stream che scattano (chiavi e valori come li riporta qpdf, per la fixture del Task 2), con l'oggetto puntato da /ColorSpace e le chiavi del referente:
+dizionario grezzo dln-otc-nsany-2004-p97 obj=6 0: {"/BitsPerComponent": 8, "/ColorSpace": "13 0 R", "/Filter": ["/ASCII85Decode", "/DCTDecode"], "/Height": 105, "/Length": 2288, "/Width": 74}
+  referenziato 13 0 R (oggetto): "/DeviceRGB"
+  referente obj=3: chiavi=Contents,CropBox,MediaBox,Parent,Resources,Rotate,Thumb,Type
+dizionario grezzo dln-otc-nsany-2004-p75 obj=6 0: {"/BitsPerComponent": 8, "/ColorSpace": "16 0 R", "/Filter": ["/ASCII85Decode", "/DCTDecode"], "/Height": 105, "/Length": 2305, "/Width": 74}
+  referenziato 16 0 R (oggetto): "/DeviceRGB"
+  referente obj=3: chiavi=Contents,CropBox,MediaBox,Parent,Resources,Rotate,Thumb,Type
+dizionario grezzo dln-otc-nsany-2004-p47 obj=6 0: {"/BitsPerComponent": 8, "/ColorSpace": "17 0 R", "/Filter": ["/ASCII85Decode", "/DCTDecode"], "/Height": 105, "/Length": 2407, "/Width": 74}
+  referenziato 17 0 R (oggetto): "/DeviceRGB"
+  referente obj=3: chiavi=Contents,CropBox,MediaBox,Parent,Resources,Rotate,Thumb,Type
+dizionario grezzo dln-otc-nsany-2004-p105 obj=6 0: {"/BitsPerComponent": 8, "/ColorSpace": "15 0 R", "/Filter": ["/ASCII85Decode", "/DCTDecode"], "/Height": 105, "/Length": 2272, "/Width": 74}
+  referenziato 15 0 R (oggetto): "/DeviceRGB"
+  referente obj=3: chiavi=Contents,CropBox,MediaBox,Parent,Resources,Rotate,Thumb,Type
+
+nota per la fixture: /ColorSpace è un riferimento indiretto a un oggetto che vale il nome /DeviceRGB (non ICCBased); image_bytes di prescan.rs, che non risolve i riferimenti, conta quindi 4 componenti: 74 × 105 × 4 = 31080 byte, sotto max_image_bytes (64 MiB), quindi niente image_without_size. La catena ha ASCII85Decode prima di DCTDecode; senza FlateDecode flate_expansion non decodifica lo stream, quindi i dati della fixture non devono essere ASCII85 valido.
+
+esito diagnosi: file=4 (atteso 4) stream_che_scattano=4 (atteso >= 4, almeno uno per file) forma_T=4 altre_forme=0 filtri_immagine_osservati={DCTDecode} chiavi_osservate={BitsPerComponent,ColorSpace,Filter,Height,Length,Width} referenti={/Thumb}
+esito diagnosi forma: T (dizionario d'immagine senza /Subtype), filtri ammessi per la forma T = {DCTDecode}
+
