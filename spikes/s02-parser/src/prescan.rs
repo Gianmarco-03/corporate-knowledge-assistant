@@ -855,6 +855,10 @@ fn image_prefix(
             }
             b"FlateDecode" => {
                 // Copia limitata da `take`: al più IMAGE_HEADER_SCAN_BYTES + 1 byte in memoria.
+                // Equivale a `read_to_end` sullo stesso `Take`, che il piano prescriveva:
+                // `io::copy` è stato scelto perché la regola lessicale `upload-in-memory`
+                // dello scanner segnala `read_to_end` senza vedere il `take` (falso
+                // positivo, verify della fase 1.5).
                 let mut limited =
                     flate2::read::ZlibDecoder::new(cur).take(IMAGE_HEADER_SCAN_BYTES as u64 + 1);
                 let mut out = Vec::new();
