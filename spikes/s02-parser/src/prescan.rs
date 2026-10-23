@@ -3008,4 +3008,221 @@ mod tests {
         let r = reasons_of(check_docx(&write_docx(&e), &caps()));
         assert!(r.contains(&"external_link".to_owned()), "motivi {r:?}");
     }
+
+    // ---- gap-closure 1.4: forma T senza /Subtype (piano 01.4-02) ----------------------
+    //
+    // Modifica: Claude (agente test-write 01.4-02) · 2026-10-23 · test rossi della forma T,
+    // in coda al modulo senza toccare righe esistenti.
+    //
+    // La diagnosi (spikes/results/prescan-image-filter-benigno.txt, sezione «Diagnosi») ha
+    // trovato su OTC_NSANY_2004 uno stream miniatura riferito da `/Thumb` della pagina, con
+    // dizionario `{BitsPerComponent 8, ColorSpace <N> 0 R, Filter [/ASCII85Decode
+    // /DCTDecode], Height 105, Length, Width 74}`: niente `/Subtype` né `/Type`, `/ColorSpace`
+    // indiretto verso il nome `/DeviceRGB`. Le fixture qui sotto riproducono quel dizionario
+    // tale e quale (riferimento indiretto compreso), con `/Width 8 /Height 8`. Senza
+    // FlateDecode lo stream non viene decodificato, quindi i dati non serve che siano ASCII85.
+
+    /// Chiavi e catena del dizionario osservato, senza dimensioni (`/ColorSpace` indiretto
+    /// verso l'oggetto 6, che vale `/DeviceRGB`, come nel file reale).
+    const T_OBSERVED: &str =
+        "/BitsPerComponent 8 /ColorSpace 6 0 R /Filter [/ASCII85Decode /DCTDecode]";
+    /// Dati della fixture: inizio di un JPEG, mai decodificato dal prescan.
+    const T_DATA: &[u8] = b"\xFF\xD8\xFF\xE0junk";
+
+    /// Una pagina con `/<referrer> 5 0 R` nel proprio dizionario e lo stream 5 con il
+    /// dizionario `dict_extra` (`/Length` lo aggiunge `stream`). L'oggetto 6 è il nome
+    /// `/DeviceRGB` del `/ColorSpace` indiretto, l'oggetto 7 l'intero 8 (dimensioni
+    /// indirette), l'oggetto 8 il nome `/Image` (`/Subtype` indiretto). Il referente è messo
+    /// nella pagina anche se la regola non lo guarda: la forma T si riconosce dal solo
+    /// dizionario dello stream.
+    fn subtypeless_doc(referrer: &str, dict_extra: &str, data: &[u8]) -> Vec<u8> {
+        build(
+            &[
+                (1, dict("<< /Type /Catalog /Pages 2 0 R >>")),
+                (2, dict("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")),
+                (
+                    3,
+                    dict(&format!(
+                        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+                         /Contents 4 0 R /{referrer} 5 0 R >>"
+                    )),
+                ),
+                (4, stream("", b"BT /F1 12 Tf 72 712 Td (Ciao) Tj ET")),
+                (5, stream(dict_extra, data)),
+                (6, dict("/DeviceRGB")),
+                (7, dict("8")),
+                (8, dict("/Image")),
+            ],
+            "",
+        )
+    }
+
+    /// La forma T osservata con dimensioni scelte dal test.
+    fn thumb_dict(w: &str, h: &str) -> String {
+        format!("{T_OBSERVED} /Width {w} /Height {h}")
+    }
+
+    /// `Failed(Unsupported, "image_filter_on_non_image")`, con `what` nel messaggio.
+    fn assert_non_image_detail(pdf: &[u8], what: &str) {
+        let (k, d) = failed_of(check_pdf(pdf, &caps()));
+        assert_eq!(
+            (k, d.split_whitespace().next()),
+            (Kind::Unsupported, Some("image_filter_on_non_image")),
+            "{what}: detail {d:?}"
+        );
+    }
+
+    #[test]
+    fn image_filter_on_subtypeless_image_dict_passes() {
+        let pdf = subtypeless_doc("Thumb", &thumb_dict("8", "8"), T_DATA);
+        assert_ok(check_pdf(&pdf, &caps()));
+    }
+
+    #[test]
+    fn image_filter_on_subtypeless_image_dict_over_cap_is_rejected() {
+        // 10.000 × 10.000 × 3 byte ≈ 286 MiB, oltre i 64 MiB di max_image_bytes.
+        let d = "/BitsPerComponent 8 /ColorSpace /DeviceRGB \
+                 /Filter [/ASCII85Decode /DCTDecode] /Width 10000 /Height 10000";
+        let pdf = subtypeless_doc("Thumb", d, T_DATA);
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "image_declared",
+        );
+    }
+
+    #[test]
+    fn subtypeless_dict_with_foreign_key_keeps_image_filter_rejection() {
+        let d = format!("{} /Resources << >>", thumb_dict("8", "8"));
+        assert_non_image_detail(&subtypeless_doc("Thumb", &d, T_DATA), "/Resources");
+    }
+
+    #[test]
+    fn subtypeless_dict_with_image_filter_not_last_is_rejected() {
+        let d = "/BitsPerComponent 8 /ColorSpace 6 0 R /Filter [/DCTDecode /FlateDecode] \
+                 /Width 8 /Height 8";
+        assert_non_image_detail(
+            &subtypeless_doc("Thumb", d, &zlib(T_DATA)),
+            "[/DCTDecode /FlateDecode]",
+        );
+    }
+
+    #[test]
+    fn subtypeless_dict_without_size_keeps_image_filter_rejection() {
+        let d = format!("{T_OBSERVED} /Height 8");
+        assert_non_image_detail(&subtypeless_doc("Thumb", &d, T_DATA), "senza /Width");
+    }
+
+    #[test]
+    fn subtypeless_dict_with_unobserved_image_filter_is_rejected() {
+        let d = "/BitsPerComponent 8 /ColorSpace 6 0 R /Filter [/ASCII85Decode /JBIG2Decode] \
+                 /Width 8 /Height 8";
+        assert_non_image_detail(&subtypeless_doc("Thumb", d, T_DATA), "/JBIG2Decode");
+    }
+
+    #[test]
+    fn content_stream_with_image_filter_keeps_detail() {
+        // Stesso input di image_filter_on_non_image_stream_is_rejected (01-07), ma sul detail.
+        let pdf = doc_with_content("/Filter /DCTDecode", b"\xFF\xD8\xFF\xE0junk");
+        assert_non_image_detail(&pdf, "contenuto di pagina");
+    }
+
+    // Confini aggiuntivi del test design (TEST-7): verdi sulla base e dopo la correzione.
+
+    #[test]
+    fn subtypeless_dict_with_type_other_than_xobject_is_rejected() {
+        for t in ["/Page", "/ObjStm"] {
+            let d = format!("/Type {t} {}", thumb_dict("8", "8"));
+            assert_non_image_detail(&subtypeless_doc("Thumb", &d, T_DATA), &format!("/Type {t}"));
+        }
+    }
+
+    #[test]
+    fn subtypeless_dict_with_subtype_not_image_or_indirect_is_rejected() {
+        // La forma T vuole /Subtype assente: /Form e un riferimento indiretto a /Image no.
+        for s in ["/Form", "8 0 R"] {
+            let d = format!("/Subtype {s} {}", thumb_dict("8", "8"));
+            assert_non_image_detail(
+                &subtypeless_doc("Thumb", &d, T_DATA),
+                &format!("/Subtype {s}"),
+            );
+        }
+    }
+
+    #[test]
+    fn subtypeless_dict_with_non_positive_or_indirect_size_is_rejected() {
+        // Dimensioni ammesse solo come interi positivi diretti.
+        for w in ["0", "-8", "8.0", "7 0 R"] {
+            assert_non_image_detail(
+                &subtypeless_doc("Thumb", &thumb_dict(w, "8"), T_DATA),
+                &format!("/Width {w}"),
+            );
+        }
+    }
+
+    #[test]
+    fn subtypeless_dict_with_ccitt_filter_is_rejected() {
+        let d = "/BitsPerComponent 8 /ColorSpace 6 0 R \
+                 /Filter [/ASCII85Decode /CCITTFaxDecode] /Width 8 /Height 8";
+        assert_non_image_detail(&subtypeless_doc("Thumb", d, T_DATA), "/CCITTFaxDecode");
+    }
+
+    #[test]
+    fn subtypeless_dict_with_overflowing_size_is_rejected() {
+        // (2^32 - 1)^2 × 4 componenti × 2 byte va in overflow in checked_mul: mai Ok.
+        let d = "/BitsPerComponent 16 /ColorSpace /DeviceCMYK \
+                 /Filter [/ASCII85Decode /DCTDecode] /Width 4294967295 /Height 4294967295";
+        let pdf = subtypeless_doc("Thumb", d, T_DATA);
+        let (k, det) = failed_of(check_pdf(&pdf, &caps()));
+        assert!(
+            matches!(k, Kind::Unsupported | Kind::DecompressionLimit),
+            "kind {k:?} detail {det:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "richiede spikes/data/s02/raw (fetch.sh di 01-08)"]
+    fn nsany_pages_pass_prescan() {
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../data/s02"));
+        let manifest = std::fs::read(root.join("manifest.json")).expect("manifest.json di s02");
+        let entries: serde_json::Value =
+            serde_json::from_slice(&manifest).expect("manifest.json non è JSON");
+        let pages: Vec<(String, String)> = entries
+            .as_array()
+            .expect("manifest.json non è un array")
+            .iter()
+            .filter(|e| e["doc_id"] == "otc-nsany-2004" && e["role"] == "pdf")
+            .map(|e| {
+                (
+                    e["item_id"].as_str().unwrap_or("?").to_owned(),
+                    e["file"].as_str().expect("voce senza file").to_owned(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            pages.len(),
+            4,
+            "attese 4 pagine otc-nsany-2004 nel manifest"
+        );
+        let mut outcomes = Vec::new();
+        let mut failed = 0;
+        for (item, file) in &pages {
+            let path = root.join("raw").join(file);
+            let bytes = std::fs::read(&path).unwrap_or_else(|e| {
+                panic!("{item}: file assente ({e}); lanciare spikes/data/s02/fetch.sh")
+            });
+            match check_pdf(&bytes, &Caps::default()) {
+                Ok(_) => outcomes.push(format!("{item}: Ok")),
+                Err(e) => {
+                    failed += 1;
+                    outcomes.push(format!("{item}: {e:?}"));
+                }
+            }
+        }
+        assert!(
+            failed == 0,
+            "{failed} su 4 pagine respinte dal prescan:\n{}",
+            outcomes.join("\n")
+        );
+    }
 }

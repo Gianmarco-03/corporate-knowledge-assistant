@@ -77,3 +77,178 @@ nota per la fixture: /ColorSpace è un riferimento indiretto a un oggetto che va
 esito diagnosi: file=4 (atteso 4) stream_che_scattano=4 (atteso >= 4, almeno uno per file) forma_T=4 altre_forme=0 filtri_immagine_osservati={DCTDecode} chiavi_osservate={BitsPerComponent,ColorSpace,Filter,Height,Length,Width} referenti={/Thumb}
 esito diagnosi forma: T (dizionario d'immagine senza /Subtype), filtri ammessi per la forma T = {DCTDecode}
 
+## Linea di base
+
+sessione: run_id=01-4-02-20261023t134808z-75df (session.sh with 01-4-02 --wait 3600)
+nota: clippy lanciato su prescan.rs di BASE (i test nuovi tolti dall'albero per la sola durata di clippy e rimessi subito dopo).
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo clippy -p s02-parser --all-targets --locked -- -D warnings
+ Container cka-spikes-runner-run-e69c6d4443ff Creating 
+ Container cka-spikes-runner-run-e69c6d4443ff Created 
+error: 'cargo-clippy' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'.
+help: run `rustup component add clippy` to install it
+
+[exit 1]
+
+linea di base clippy: exit=1 avvisi=1
+
+## Prova RED (base)
+
+test nuovi in coda al modulo dei test di prescan.rs (agente test-write fresco, distinto dall'esecutore); codice non di test invariato rispetto a BASE.
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib prescan::tests
+ Container cka-spikes-runner-run-b9187993caa4 Creating 
+ Container cka-spikes-runner-run-b9187993caa4 Created 
+   Compiling common v0.0.0 (/src/common)
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.56s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-bbcbe4e3205477da)
+
+running 74 tests
+test prescan::tests::c1_resolved_lopdf_is_0_45_0 ... ok
+test prescan::tests::c6_pubsec_handler_is_password_required ... ok
+test prescan::tests::benign_docx_passes_with_none_and_zero_schema ... ok
+test prescan::tests::default_caps_are_the_launcher_thresholds ... ok
+test prescan::tests::docx_with_doctype_is_corrupt ... ok
+test prescan::tests::docx_with_entity_in_any_part_is_corrupt ... ok
+test prescan::tests::c7_undecodable_flate_stream_is_corrupt ... ok
+test prescan::tests::docx_with_declared_total_over_cap_is_rejected ... ok
+test prescan::tests::content_stream_with_image_filter_keeps_detail ... ok
+test prescan::tests::c2_defer_objstm_returns_other_objects_unchanged ... ok
+test prescan::tests::docx_with_external_relationship_is_quarantined ... ok
+test prescan::tests::docx_with_vba_project_is_unsupported ... ok
+test prescan::tests::benign_pdf_passes_with_unencrypted_schema ... ok
+test prescan::tests::encrypt_declared_with_corrupt_body_is_never_ok ... ok
+test prescan::tests::docx_with_macro_content_type_is_unsupported ... ok
+test prescan::tests::bare_js_key_is_javascript ... ok
+test prescan::tests::docx_with_too_many_entries_is_rejected ... ok
+test prescan::tests::embedded_file_is_counted_not_quarantined ... ok
+test prescan::tests::escaped_encrypt_name_is_never_ok ... ok
+test prescan::tests::filter_chain_longer_than_two_is_rejected ... ok
+test prescan::tests::c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load ... ok
+test prescan::tests::filter_chain_of_two_allowed_filters_passes ... ok
+test prescan::tests::garbage_pdf_is_corrupt ... ok
+test prescan::tests::flate_ratio_over_limit_is_decompression_limit ... ok
+test prescan::tests::embedded_file_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::flate_stream_at_per_stream_cap_passes ... ok
+test prescan::tests::flate_stream_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::image_filter_on_image_within_cap_passes ... ok
+test prescan::tests::image_filter_on_non_image_stream_is_rejected ... ok
+test prescan::tests::i2_work_counts_every_xref_stream ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected ... FAILED
+test prescan::tests::image_filter_on_image_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_passes ... FAILED
+test prescan::tests::javascript_hidden_in_compressed_objstm_is_quarantined ... ok
+test prescan::tests::launch_action_is_quarantined ... ok
+test prescan::tests::launch_pointing_to_embedded_file_is_quarantined_as_launch ... ok
+test prescan::tests::launch_with_escaped_name_is_quarantined ... ok
+test prescan::tests::lzw_runlength_and_unknown_filters_are_unsupported ... ok
+test prescan::tests::many_small_objstm_are_not_rejected_by_count ... ok
+test prescan::tests::non_zip_docx_is_corrupt ... ok
+test prescan::tests::nsany_pages_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::i1_shared_stream_is_counted_once ... ok
+test prescan::tests::objstm_count_uses_normalized_names ... ok
+test prescan::tests::incompressible_flate_under_ratio_passes ... ok
+test prescan::tests::objstm_within_caps_passes ... ok
+test prescan::tests::open_action_javascript_is_quarantined_with_both_reasons ... ok
+test prescan::tests::empty_user_password_is_admitted_as_empty_password ... ok
+test prescan::tests::pages_over_limit_is_resource_limit ... ok
+test prescan::tests::pages_at_limit_pass ... ok
+test prescan::tests::standard_handler_without_empty_password_is_password_required ... ok
+test prescan::tests::subtypeless_dict_with_ccitt_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_foreign_key_keeps_image_filter_rejection ... ok
+test prescan::tests::subtypeless_dict_with_image_filter_not_last_is_rejected ... ok
+test prescan::tests::c6_user_password_is_password_required_never_object_dropped ... ok
+test prescan::tests::subtypeless_dict_with_subtype_not_image_or_indirect_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_non_positive_or_indirect_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_type_other_than_xobject_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_unobserved_image_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_overflowing_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_without_size_keeps_image_filter_rejection ... ok
+test prescan::tests::c3_encrypted_load_ignores_filter_and_expands_members ... ok
+test prescan::tests::javascript_hidden_in_encrypted_objstm_is_quarantined ... ok
+test prescan::tests::objstm_expanding_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::encrypted_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::user_password_is_encrypted_password_required ... ok
+test prescan::tests::i1_objstm_reexpansion_is_not_counted_twice ... ok
+test prescan::tests::flate_total_over_cap_is_decompression_limit ... ok
+test prescan::tests::objstm_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::encrypted_many_small_objstm_are_admitted ... ok
+test prescan::tests::c3_encrypted_objstm_over_quota_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_corrupt_objstm_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_unreadable_object_is_object_dropped ... ok
+test prescan::tests::i1_encrypted_counts_distinct_streams_once ... ok
+test prescan::tests::c4_xref_forms_and_incremental_update_have_no_false_drops ... ok
+
+failures:
+
+---- prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected stdout ----
+
+thread 'prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected' (471) panicked at s02-parser/src/prescan.rs:1764:9:
+assertion `left == right` failed: detail "image_filter_on_non_image"
+  left: (Unsupported, Some("image_filter_on_non_image"))
+ right: (DecompressionLimit, Some("image_declared"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- prescan::tests::image_filter_on_subtypeless_image_dict_passes stdout ----
+
+thread 'prescan::tests::image_filter_on_subtypeless_image_dict_passes' (472) panicked at s02-parser/src/prescan.rs:1782:23:
+atteso Ok, ottenuto Failed(Unsupported, "image_filter_on_non_image")
+
+
+failures:
+    prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected
+    prescan::tests::image_filter_on_subtypeless_image_dict_passes
+
+test result: FAILED. 71 passed; 2 failed; 1 ignored; 0 measured; 23 filtered out; finished in 0.81s
+
+error: test failed, to rerun pass `-p s02-parser --lib`
+
+[exit 101]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::nsany_pages_pass_prescan
+ Container cka-spikes-runner-run-b37361e33558 Creating 
+ Container cka-spikes-runner-run-b37361e33558 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.30s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-bbcbe4e3205477da)
+
+running 1 test
+test prescan::tests::nsany_pages_pass_prescan ... FAILED
+
+failures:
+
+---- prescan::tests::nsany_pages_pass_prescan stdout ----
+
+thread 'prescan::tests::nsany_pages_pass_prescan' (19) panicked at s02-parser/src/prescan.rs:3222:9:
+4 su 4 pagine respinte dal prescan:
+dln-otc-nsany-2004-p97: Failed(Unsupported, "image_filter_on_non_image")
+dln-otc-nsany-2004-p75: Failed(Unsupported, "image_filter_on_non_image")
+dln-otc-nsany-2004-p47: Failed(Unsupported, "image_filter_on_non_image")
+dln-otc-nsany-2004-p105: Failed(Unsupported, "image_filter_on_non_image")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    prescan::tests::nsany_pages_pass_prescan
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 96 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p s02-parser --lib`
+
+[exit 101]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo clippy -p s02-parser --all-targets --locked -- -D warnings  (con i test nuovi, solo informativo)
+ Container cka-spikes-runner-run-eda672127609 Creating 
+ Container cka-spikes-runner-run-eda672127609 Created 
+error: 'cargo-clippy' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'.
+help: run `rustup component add clippy` to install it
+
+[exit 1]
+
+nota clippy: il componente clippy manca nel runner (rust:1.99.1-slim-trixie), stessa deviazione già registrata da 01.4-01 in drivers-budget-overhead.txt; la riga «linea di base clippy» conta come avviso l'errore «cargo-clippy is not installed». Controllo informativo sull'host, albero con i test nuovi: cargo clippy -p s02-parser --all-targets --locked --offline -- -D warnings → exit=0 avvisi=0.
+
+conteggio prescan::tests (base + test nuovi): running 74 tests, 71 passed, 2 failed, 1 ignored (nsany_pages_pass_prescan); nsany con il filtro esatto: running 1 test, 0 passed, 1 failed.
+test nuovi verdi sulla base: content_stream_with_image_filter_keeps_detail, subtypeless_dict_with_foreign_key_keeps_image_filter_rejection, subtypeless_dict_with_image_filter_not_last_is_rejected, subtypeless_dict_without_size_keeps_image_filter_rejection, subtypeless_dict_with_unobserved_image_filter_is_rejected, più i confini aggiuntivi del test design (TEST-7) subtypeless_dict_with_type_other_than_xobject_is_rejected, subtypeless_dict_with_subtype_not_image_or_indirect_is_rejected, subtypeless_dict_with_non_positive_or_indirect_size_is_rejected, subtypeless_dict_with_ccitt_filter_is_rejected, subtypeless_dict_with_overflowing_size_is_rejected.
+esito RED: image_filter_on_subtypeless_image_dict_passes=FAILED image_filter_on_subtypeless_image_dict_over_cap_is_rejected=FAILED nsany_pages_pass_prescan=FAILED altri_test_nuovi=ok test_esistenti=ok (atteso: tre FAILED, il resto ok)
+esito RED dettaglio nsany: 4 su 4 Unsupported image_filter_on_non_image (atteso 4 su 4)
+
