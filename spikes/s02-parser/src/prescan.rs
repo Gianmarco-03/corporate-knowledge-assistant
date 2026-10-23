@@ -16,7 +16,9 @@
 //!    (`password_required`, `encrypt_state`, riconciliazione con la xref, contenuto);
 //! 3. pagine (tetto → `ResourceLimit`), catene di filtri, tetti per stream, totale e
 //!    rapporto, contenuti attivi → quarantena con motivi fissi; gli allegati incorporati si
-//!    contano e non causano quarantena.
+//!    contano e non causano quarantena. I filtri immagine sono ammessi, come ultimo filtro
+//!    e con il tetto `max_image_bytes`, su `/Subtype /Image` e, dalla gap-closure 1.4, sulla
+//!    forma T: il dizionario d'immagine miniatura senza `/Subtype` (`is_subtypeless_image`).
 //!
 //! I2 (lavoro cumulativo di tutte le passate) è `decompress_work_bytes`: byte contati più i
 //! limiti analitici delle espansioni del loader, mai una stima più bassa del reale; oltre il
@@ -24,6 +26,8 @@
 //! (`Corrupt`, detail `work_bound`).
 //!
 //! DOCX: voci, somma dichiarata, macro, `<!DOCTYPE`/`<!ENTITY`, relazioni esterne.
+
+// Modifica: Claude (gsd-executor 01.4-02) · 2026-10-23 · filtri immagine ammessi anche sulla forma T senza /Subtype, con lo stesso tetto (gap-closure 1.4, D-07)
 use std::collections::BTreeSet;
 use std::io::{self, Read};
 use std::path::Path;
@@ -493,6 +497,65 @@ fn is_image(dict: &lopdf::Dictionary) -> bool {
     matches!(dict.get(b"Subtype"), Ok(Object::Name(n)) if n == b"Image")
 }
 
+/// Chiavi ammesse nel dizionario di uno stream della forma T: quelle di un'immagine
+/// miniatura, niente di più.
+const IMAGE_LIKE_KEYS: [&[u8]; 9] = [
+    b"Type",
+    b"Length",
+    b"Filter",
+    b"DecodeParms",
+    b"Width",
+    b"Height",
+    b"ColorSpace",
+    b"BitsPerComponent",
+    b"Decode",
+];
+
+/// Filtri immagine ammessi sulla forma T: i soli osservati dalla diagnosi. `JBIG2Decode` e
+/// `CCITTFaxDecode` restano fuori per costruzione, perché quei decoder leggono le dimensioni
+/// dai segmenti incorporati o da `/DecodeParms` e non da `/Width` e `/Height`: il tetto
+/// `max_image_bytes` non li limiterebbe davvero.
+const SUBTYPELESS_IMAGE_FILTERS: [&[u8]; 1] = [b"DCTDecode"];
+
+/// Vero se la chiave è un intero diretto e positivo (un riferimento indiretto, un reale, lo
+/// zero o un negativo non bastano).
+fn positive_int(dict: &lopdf::Dictionary, key: &[u8]) -> bool {
+    matches!(dict.get(key), Ok(Object::Integer(v)) if *v > 0)
+}
+
+/// Forma T: dizionario d'immagine senza `/Subtype`, con un filtro immagine ammesso.
+///
+/// Motivo. La gap-closure 1.4 (piano 01.4-02) ha diagnosticato sulle 4 pagine DocLayNet di
+/// `OTC_NSANY_2004` (01-08) uno stream miniatura di pagina: oggetto `6 0`, riferito dalla
+/// chiave `/Thumb` della pagina (oggetto 3), dizionario `/BitsPerComponent 8 /ColorSpace
+/// <ref a /DeviceRGB> /Filter [/ASCII85Decode /DCTDecode] /Width 74 /Height 105 /Length`,
+/// senza `/Type` né `/Subtype`, come il formato PDF descrive le miniature. La regola di 01-07
+/// lo respingeva con `image_filter_on_non_image`; l'utente l'ha classificato come falso
+/// positivo (D-37 di `01-CONTEXT.md`) e la regola si allarga solo a questa forma (D-07 di
+/// `01.4-CONTEXT.md`): `/Subtype` assente, `/Type` assente o `/XObject`, `/Width` e
+/// `/Height` interi positivi diretti, chiavi solo fra `IMAGE_LIKE_KEYS`, filtro fra
+/// `SUBTYPELESS_IMAGE_FILTERS`. Che il filtro sia l'ultimo della catena lo controlla
+/// `check_chain`, che poi applica lo stesso tetto `max_image_bytes` del ramo `/Image`.
+///
+/// La forma si riconosce dal solo dizionario e non dal riferimento `/Thumb`: la prima
+/// passata del ramo non cifrato tiene compressi gli object stream (`defer_objstm`), quindi
+/// un dizionario di pagina dentro un object stream non sarebbe visibile al momento del
+/// controllo.
+fn is_subtypeless_image(dict: &lopdf::Dictionary, filter: &[u8]) -> bool {
+    SUBTYPELESS_IMAGE_FILTERS.contains(&filter)
+        && dict.get(b"Subtype").is_err()
+        && match dict.get(b"Type") {
+            Err(_) => true,
+            Ok(Object::Name(n)) => n == b"XObject",
+            Ok(_) => false,
+        }
+        && positive_int(dict, b"Width")
+        && positive_int(dict, b"Height")
+        && dict
+            .iter()
+            .all(|(k, _)| IMAGE_LIKE_KEYS.contains(&k.as_slice()))
+}
+
 fn int(dict: &lopdf::Dictionary, key: &[u8]) -> Option<u64> {
     dict.get(key)
         .ok()
@@ -682,7 +745,7 @@ fn check_chain(chain: &[Vec<u8>], dict: &lopdf::Dictionary, caps: &Caps) -> Resu
         match f.as_slice() {
             b"FlateDecode" | b"ASCIIHexDecode" | b"ASCII85Decode" => {}
             f if IMAGE_FILTERS.contains(&f) => {
-                if !is_image(dict) || i + 1 != chain.len() {
+                if !(is_image(dict) || is_subtypeless_image(dict, f)) || i + 1 != chain.len() {
                     return Err(fail(Kind::Unsupported, "image_filter_on_non_image"));
                 }
                 let declared = image_bytes(dict)

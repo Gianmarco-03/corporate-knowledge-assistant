@@ -252,3 +252,485 @@ test nuovi verdi sulla base: content_stream_with_image_filter_keeps_detail, subt
 esito RED: image_filter_on_subtypeless_image_dict_passes=FAILED image_filter_on_subtypeless_image_dict_over_cap_is_rejected=FAILED nsany_pages_pass_prescan=FAILED altri_test_nuovi=ok test_esistenti=ok (atteso: tre FAILED, il resto ok)
 esito RED dettaglio nsany: 4 su 4 Unsupported image_filter_on_non_image (atteso 4 su 4)
 
+GREEN: prescan.rs con la correzione nell'albero (5c07320 + diff)
+
+## Prova GREEN
+
+sessione: run_id=01-4-02-20261023t135433z-63fe (session.sh with 01-4-02 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib
+ Container cka-spikes-runner-run-0085ad40794f Creating 
+ Container cka-spikes-runner-run-0085ad40794f Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.52s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-bbcbe4e3205477da)
+
+running 97 tests
+test isolate::tests::exit_zero_with_valid_failed_line_keeps_child_kind ... ok
+test isolate::tests::exit_zero_with_valid_ok_line_returns_child_outcome ... ok
+test isolate::tests::exit_zero_with_valid_quarantined_line_keeps_reasons ... ok
+test isolate::tests::malformed_json_line_is_crashed ... ok
+test isolate::tests::missing_json_line_is_crashed ... ok
+test isolate::tests::parent_kill_is_evaluated_before_signal_and_oom ... ok
+test isolate::tests::parent_kill_out_quota_is_resource_limit_out_quota ... ok
+test isolate::tests::parent_kill_output_limit_is_output_limit ... ok
+test isolate::tests::parent_kill_timeout_is_timeout ... ok
+test isolate::tests::sigabrt_with_bad_alloc_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_with_rust_alloc_failure_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_without_alloc_marker_is_crashed ... ok
+test isolate::tests::sigkill_with_oom_delta_is_resource_limit_cgroup_oom ... ok
+test isolate::tests::sigkill_without_oom_delta_is_crashed ... ok
+test isolate::tests::sigsegv_is_crashed ... ok
+test isolate::tests::sigxcpu_is_timeout ... ok
+test job::tests::ancestors_start_at_root ... ok
+test job::tests::job_error_line_has_contract_fields ... ok
+test job::tests::known_ops_parse_and_unknown_is_unknown_op ... ok
+test job::tests::numeric_selftest_modes_need_decimal_arg ... ok
+test job::tests::out_dir_must_be_exact_form ... ok
+test prescan::tests::default_caps_are_the_launcher_thresholds ... ok
+test prescan::tests::c1_resolved_lopdf_is_0_45_0 ... ok
+test prescan::tests::c6_pubsec_handler_is_password_required ... ok
+test prescan::tests::docx_with_declared_total_over_cap_is_rejected ... ok
+test prescan::tests::benign_docx_passes_with_none_and_zero_schema ... ok
+test prescan::tests::docx_with_doctype_is_corrupt ... ok
+test prescan::tests::content_stream_with_image_filter_keeps_detail ... ok
+test prescan::tests::c2_defer_objstm_returns_other_objects_unchanged ... ok
+test prescan::tests::c7_undecodable_flate_stream_is_corrupt ... ok
+test prescan::tests::c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load ... ok
+test prescan::tests::bare_js_key_is_javascript ... ok
+test prescan::tests::docx_with_macro_content_type_is_unsupported ... ok
+test prescan::tests::docx_with_entity_in_any_part_is_corrupt ... ok
+test prescan::tests::docx_with_external_relationship_is_quarantined ... ok
+test prescan::tests::encrypt_declared_with_corrupt_body_is_never_ok ... ok
+test prescan::tests::benign_pdf_passes_with_unencrypted_schema ... ok
+test prescan::tests::docx_with_vba_project_is_unsupported ... ok
+test prescan::tests::embedded_file_is_counted_not_quarantined ... ok
+test prescan::tests::escaped_encrypt_name_is_never_ok ... ok
+test prescan::tests::docx_with_too_many_entries_is_rejected ... ok
+test prescan::tests::filter_chain_longer_than_two_is_rejected ... ok
+test prescan::tests::garbage_pdf_is_corrupt ... ok
+test prescan::tests::filter_chain_of_two_allowed_filters_passes ... ok
+test prescan::tests::flate_ratio_over_limit_is_decompression_limit ... ok
+test prescan::tests::flate_stream_at_per_stream_cap_passes ... ok
+test prescan::tests::flate_stream_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::image_filter_on_image_over_cap_is_rejected ... ok
+test prescan::tests::i2_work_counts_every_xref_stream ... ok
+test prescan::tests::embedded_file_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::image_filter_on_non_image_stream_is_rejected ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_passes ... ok
+test prescan::tests::image_filter_on_image_within_cap_passes ... ok
+test prescan::tests::javascript_hidden_in_compressed_objstm_is_quarantined ... ok
+test prescan::tests::launch_action_is_quarantined ... ok
+test prescan::tests::launch_pointing_to_embedded_file_is_quarantined_as_launch ... ok
+test prescan::tests::launch_with_escaped_name_is_quarantined ... ok
+test prescan::tests::lzw_runlength_and_unknown_filters_are_unsupported ... ok
+test prescan::tests::many_small_objstm_are_not_rejected_by_count ... ok
+test prescan::tests::non_zip_docx_is_corrupt ... ok
+test prescan::tests::nsany_pages_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::i1_shared_stream_is_counted_once ... ok
+test prescan::tests::objstm_count_uses_normalized_names ... ok
+test prescan::tests::incompressible_flate_under_ratio_passes ... ok
+test prescan::tests::objstm_within_caps_passes ... ok
+test prescan::tests::open_action_javascript_is_quarantined_with_both_reasons ... ok
+test prescan::tests::pages_at_limit_pass ... ok
+test prescan::tests::pages_over_limit_is_resource_limit ... ok
+test prescan::tests::standard_handler_without_empty_password_is_password_required ... ok
+test prescan::tests::objstm_expanding_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::subtypeless_dict_with_ccitt_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_foreign_key_keeps_image_filter_rejection ... ok
+test prescan::tests::subtypeless_dict_with_image_filter_not_last_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_overflowing_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_non_positive_or_indirect_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_subtype_not_image_or_indirect_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_unobserved_image_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_type_other_than_xobject_is_rejected ... ok
+test prescan::tests::subtypeless_dict_without_size_keeps_image_filter_rejection ... ok
+test protocol::tests::emitted_line_round_trips ... ok
+test protocol::tests::status_value_is_read_in_kib ... ok
+test prescan::tests::c6_user_password_is_password_required_never_object_dropped ... ok
+test prescan::tests::c3_encrypted_load_ignores_filter_and_expands_members ... ok
+test prescan::tests::empty_user_password_is_admitted_as_empty_password ... ok
+test prescan::tests::i1_objstm_reexpansion_is_not_counted_twice ... ok
+test prescan::tests::javascript_hidden_in_encrypted_objstm_is_quarantined ... ok
+test prescan::tests::encrypted_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::flate_total_over_cap_is_decompression_limit ... ok
+test prescan::tests::user_password_is_encrypted_password_required ... ok
+test prescan::tests::objstm_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::c3_encrypted_objstm_over_quota_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_unreadable_object_is_object_dropped ... ok
+test prescan::tests::encrypted_many_small_objstm_are_admitted ... ok
+test prescan::tests::c5_encrypted_corrupt_objstm_is_objstm_dropped ... ok
+test prescan::tests::i1_encrypted_counts_distinct_streams_once ... ok
+test prescan::tests::c4_xref_forms_and_incremental_update_have_no_false_drops ... ok
+
+test result: ok. 96 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.23s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::nsany_pages_pass_prescan
+ Container cka-spikes-runner-run-99daf4af2327 Creating 
+ Container cka-spikes-runner-run-99daf4af2327 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.72s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-bbcbe4e3205477da)
+
+running 1 test
+test prescan::tests::nsany_pages_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 96 filtered out; finished in 0.16s
+
+[exit 0]
+
+esito GREEN lib: 96 passed; 0 failed (atteso 0 failed, test nuovi compresi; running 97 tests, 1 ignored = nsany_pages_pass_prescan; base 84 + 13 nuovi)
+esito GREEN nsany: 4 su 4 ok (atteso 4 su 4; running 1 test, 1 passed)
+
+## Regressione (D-08)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --bins
+ Container cka-spikes-runner-run-8ea266aca962 Creating 
+ Container cka-spikes-runner-run-8ea266aca962 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.55s
+     Running unittests src/bin/docling-client/main.rs (/target/debug/deps/docling_client-d5a396dd8a1556cf)
+
+running 9 tests
+test tests::caller_timeout_is_document_timeout_plus_15s ... ok
+test tests::only_extract_pdf_jobs_with_ok_report_are_admitted ... ok
+test tests::statuses_and_exit_codes_are_distinct ... ok
+test tests::bench_script_restarts_with_stop_and_up_never_down_or_profiles ... ok
+test tests::abort_after_is_client_abort_exit_3 ... ok
+test tests::service_error_is_error_not_timeout ... ok
+test tests::request_carries_page_range_and_fixed_options ... ok
+test tests::not_prescanned_input_never_reaches_docling ... ok
+test tests::caller_timeout_is_client_timeout_exit_3 ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running unittests src/bin/extract/main.rs (/target/debug/deps/extract-143266b45c856427)
+
+running 31 tests
+test score::tests::cells_are_a_multiset_matched_once_each ... ok
+test score::tests::iou_basics ... ok
+test score::tests::cer_is_levenshtein_over_expected_chars ... ok
+test score::tests::identical_numbers_are_matched_one_to_one ... ok
+test score::tests::low_iou_match_is_counted_but_not_in_share ... ok
+test score::tests::region_recall_is_one_to_one_with_iou_ge_05 ... ok
+test score::tests::missing_column_counts_as_missed_and_lowers_share ... ok
+test score::tests::bbox_iou_csv_has_fixed_header_and_consistent_counts ... ok
+test score::tests::split_token_is_merged_with_union_bbox ... ok
+test score::tests::tatdqa_pixels_top_left_to_pdf_points_bottom_left ... ok
+test score::tests::tables_pair_by_page_and_max_iou_and_unmatched_expected_is_all_miss ... ok
+test score::tests::text_must_match_after_normalization ... ok
+test score::tests::three_pieces_merge_but_other_lines_do_not ... ok
+test tables::tests::band_boundaries_and_uncertain_pages_go_to_docling ... ok
+test score::tests::unscorable_words_are_counted_but_out_of_denominator ... ok
+test pdf::tests::garbage_is_failed_by_prescan_and_writes_nothing ... ok
+test tables::tests::splits_are_disjoint_by_item_and_document ... ok
+test score::tests::text_cer_csv_has_fixed_header_and_rows ... ok
+test tables::tests::recall_precision_per_document ... ok
+test score::tests::tables_csv_has_fixed_header ... ok
+test tests::pdf_accepts_exactly_the_resolve_argv ... ok
+test score::tests::token_normalization_is_nfc_and_trim_only ... ok
+test tables::tests::table_pages_csv_has_fixed_header ... ok
+test tables::tests::verdict_uses_only_holdout_rows_pooled ... ok
+test tables::tests::params_never_fall_back_to_defaults ... ok
+test tests::pdf_rejects_extra_unknown_and_missing_args ... ok
+test pdf::tests::javascript_pdf_is_quarantined_before_pdfium_and_writes_nothing ... ok
+test pdf::tests::caps_from_caller_are_enforced_before_pdfium ... ok
+test score::tests::property_counts_and_uniqueness_hold_on_random_pages ... ok
+test pdf::tests::rotation_is_reported_in_degrees ... ok
+test pdf::tests::benign_pdf_gives_one_json_per_page_in_pdf_points_bottom_left ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src/bin/fake-child.rs (/target/debug/deps/fake_child-f82fc376367bc385)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/parse-child.rs (/target/debug/deps/parse_child-dd57189f5c8519bb)
+
+running 1 test
+test tests::docx_text_reads_runs_and_paragraphs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/parse-parent.rs (/target/debug/deps/parse_parent-054c523513121d4e)
+
+running 12 tests
+test tests::child_per_doc_error_table ... ok
+test tests::different_status_fails ... ok
+test tests::expected_outcome_without_oom_adj_fails ... ok
+test tests::failed_kind_among_alternatives_passes ... ok
+test tests::failed_kind_outside_alternatives_fails ... ok
+test tests::in_process_reps_sink_error_is_fatal ... ok
+test tests::in_process_status_table ... ok
+test tests::ok_expected_ok_with_oom_adj_passes ... ok
+test tests::in_process_reps_single_failure_keeps_all_rows ... ok
+test tests::overhead_row_shapes ... ok
+test tests::quarantined_missing_expected_reason_fails ... ok
+test tests::quarantined_superset_passes_with_extra_reasons ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/target/debug/deps/s02_parser-cbe79d7cd17143ef)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test isolation
+ Container cka-spikes-runner-run-ddc93b69436c Creating 
+ Container cka-spikes-runner-run-ddc93b69436c Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.96s
+     Running tests/isolation.rs (/target/debug/deps/isolation-df02569021d2d25f)
+
+running 37 tests
+test input_symlink_outside_roots_is_path_not_allowed ... ok
+test input_with_dotdot_outside_roots_is_path_not_allowed ... ok
+test excerpt_file_outside_roots_is_path_not_allowed ... ok
+test dpi_out_of_domain_is_invalid_params ... ok
+test job_id_outside_regex_is_rejected ... ok
+test missing_bin_is_child_missing ... ok
+test out_dir_presence_must_match_op ... ok
+test out_dir_wrong_forms_are_path_not_allowed ... ok
+test input_component_swapped_for_symlink_after_resolve_is_rejected ... ok
+test existing_out_dir_is_out_dir_exists_and_launches_nothing ... ok
+test out_dir_symlink_planted_after_resolve_is_rejected_before_spawn ... ok
+test oversized_job_is_rejected ... ok
+test resolve_builds_fixed_argv_per_op ... ok
+test selftest_mode_outside_list_is_invalid_params ... ok
+test argv_echo_passes_path_with_spaces_and_non_ascii_unchanged ... ok
+test reservation_over_budget_is_budget_exceeded_without_spawn ... ok
+test flood_on_both_pipes_is_output_limit_within_two_seconds ... ok
+test quota_counts_job_dir_plus_out_dir ... ok
+test successful_parse_keeps_out_dir_and_removes_job_dir ... ok
+test unknown_op_is_unknown_op ... ok
+test unknown_top_level_field_is_invalid_params ... ok
+test unknown_param_is_invalid_params ... ok
+test batch_over_parent_reserve_exits_3_after_reports ... ok
+test successful_run_reports_isolation_fields ... ok
+test parse_parent_prints_job_error_and_exits_2 ... ok
+test externally_killed_child_is_crashed ... ok
+test write_over_quota_is_resource_limit_out_quota ... ok
+test unapplicable_setrlimit_fails_the_spawn_with_errno ... ok
+test alloc_over_address_space_is_resource_limit ... ok
+test budget_admits_alloc_jobs_and_all_complete ... ok
+test quota_scan_entry_cap_is_out_quota ... ok
+test parse_child_data_schema ... ok
+test dropped_future_kills_group_and_cleans_within_one_second ... ok
+test timeout_kills_grandchild_group_and_removes_job_dir ... ok
+test child_is_the_designated_oom_victim ... ok
+test quota_sum_under_limit_is_not_out_quota ... ok
+test budget_admits_at_most_two_jobs_together ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.41s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test drivers
+ Container cka-spikes-runner-run-5aef70e3e41b Creating 
+ Container cka-spikes-runner-run-5aef70e3e41b Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.70s
+     Running tests/drivers.rs (/target/debug/deps/drivers-ea487dbc1c9a6896)
+
+running 4 tests
+test budget_budget_error_cleans_work_root ... ok
+test budget_csv_error_cleans_work_root ... ok
+test budget_success_cleans_work_root ... ok
+test overhead_in_process_errors_keep_all_rows ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test oom
+ Container cka-spikes-runner-run-cd1f37e01f10 Creating 
+ Container cka-spikes-runner-run-cd1f37e01f10 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.70s
+     Running tests/oom.rs (/target/debug/deps/oom-df83e1bf5f5d7cbe)
+
+running 12 tests
+test m11_all_checks_with_oom_is_verificato ... ok
+test m11_each_violated_check_with_oom_is_fallito_naming_the_check ... ok
+test m11_more_than_one_oom_kill_is_still_verificato ... ok
+test m11_oom_group_does_not_decide_the_outcome ... ok
+test m11_no_oom_kill_is_non_esercitato_with_reason ... ok
+test oom_kills_child_not_parent ... ignored, solo nel container a memoria bassa di 01-18
+test m11_reservation_not_below_cgroup_is_fallito ... ok
+test m11_without_oom_never_verificato_nor_fallito ... ok
+test result_json_fallito_carries_reason_and_observed_values ... ok
+test result_json_is_one_line_without_environment_values ... ok
+test result_json_precondition_is_non_esercitato_with_nulls ... ok
+test result_json_verificato_has_exact_keys_and_types_checked_by_the_plan ... ok
+
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo clippy -p s02-parser --all-targets --locked -- -D warnings
+ Container cka-spikes-runner-run-c45bb58657ea Creating 
+ Container cka-spikes-runner-run-c45bb58657ea Created 
+error: 'cargo-clippy' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'.
+help: run `rustup component add clippy` to install it
+
+[exit 1]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo build -p s02-parser --locked
+ Container cka-spikes-runner-run-ea961eabf3a0 Creating 
+ Container cka-spikes-runner-run-ea961eabf3a0 Created 
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.31s
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked  (riferimento al posto di clippy, assente nel runner)
+ Container cka-spikes-runner-run-eaa61109b87d Creating 
+ Container cka-spikes-runner-run-eaa61109b87d Created 
+    Checking common v0.0.0 (/src/common)
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.51s
+[exit 0]
+
+Prenotazione separata per il riferimento al posto di clippy: run_id=01-4-02-20261023t135553z-ce40 (session.sh with 01-4-02 --wait 1800, exit 0, rilasciata).
+
+$ cd spikes && cargo fmt --check -p s02-parser   (sull'host)
+[exit 0]
+
+$ cd spikes && cargo clippy --workspace --all-targets --locked --offline -- -D warnings   (sull'host, informativo)
+[exit 0]  (0 avvisi)
+
+conteggi: bins 9+31+0+1+12+0 passed, isolation 37 passed, drivers 4 passed, oom 11 passed 1 ignored, lib 96 passed 1 ignored.
+esito R: bins=ok isolation=ok drivers=ok oom=ok clippy=ok (linea di base 1 avvisi, ora 1: l'unico è l'errore «cargo-clippy is not installed» del runner, deviazione già nota da 01.4-01; riferimento cargo check --all-targets nel runner exit 0 avvisi 0, clippy host -D warnings exit 0) build=ok fmt=ok (atteso tutti ok)
+
+## Worker (D-08)
+
+run_id = 01-4-02-20261023t135615z-7e84 (session.sh with 01-4-02 --wait 1800)
+run-tag ostili = b6af8a01, job nsany = b6af8a02
+eccezioni della regola 2 usate qui: docker image inspect --format (sola lettura), docker compose -f spikes/compose.yaml build worker, docker run --rm --network none --label cka.run_id del generatore di 01-18.
+
+immagine worker prima: 446219af6d27
+
+$ docker compose -f spikes/compose.yaml build worker
+(uscita completa 612 righe nel driver; qui le ultime 5)
+#22 DONE 0.9s
+
+#23 resolving provenance for metadata file
+#23 DONE 0.0s
+ Image cka-spikes-worker Built 
+[exit 0]
+
+immagine worker dopo: 801f12e52bb7
+
+$ docker run --rm --network none --label cka.run_id="$CKA_RUN_ID" -v <spikes>:/src cka-spikes-runner python3 /src/s02-parser/hostile-gen/gen_hostile.py --out /src/data/hostile/generated
+generato encrypted-user: encrypted-user.pdf 1378 byte c047bcf31f15f04b…
+generato encrypted-owner-only: encrypted-owner-only.pdf 1378 byte 9bcbf9153081beb2…
+generato encrypted-pubsec: encrypted-pubsec.pdf 843 byte 346bce9476801f6e…
+generato encrypted-object-dropped: encrypted-object-dropped.pdf 1536 byte 6acc9b4605158ab7…
+generato encrypted-objstm-quota: encrypted-objstm-quota.pdf 1133208 byte 2ad2d97f38ded045…
+generato truncated: truncated.pdf 302 byte 1956de9cdf771e7b…
+generato flate-bomb: flate-bomb.pdf 1044227 byte 0543b96cf3014989…
+generato objstm-bomb: objstm-bomb.pdf 131209 byte 4f6986a35ff285f8…
+generato objstm-many: objstm-many.pdf 11668 byte 89e4fcf5a8c2adce…
+generato objstm-sum-bomb: objstm-sum-bomb.pdf 16392283 byte 23c908d610a3775a…
+generato filter-chain-bomb: filter-chain-bomb.pdf 2391 byte 317b543f644d6519…
+generato lzw-stream: lzw-stream.pdf 580 byte f9647e0769a7a2c2…
+generato pages-10k: pages-10k.pdf 1578427 byte 77d7fde5b2a6e391…
+generato deep-nesting: deep-nesting.pdf 200740 byte b2213454d34041fb…
+generato jbig2-malformed: jbig2-malformed.pdf 960 byte 5542f10e79bbc091…
+generato docx-zip-bomb: docx-zip-bomb.docx 214903 byte f0539687c8ce4ea1…
+generato docx-xml-bomb: docx-xml-bomb.docx 951 byte dae9d474e234fe34…
+generato docm-macro: docm-macro.docm 965 byte 6e112cda66ffc802…
+generato docx-external-link: docx-external-link.docx 1151 byte c800e96cda79c4de…
+generato magic-mismatch: magic-mismatch.pdf 2064 byte 15aa38038d8d42ea…
+generato pdf-javascript: pdf-javascript.pdf 858 byte 5fd351f64311deb1…
+generato pdf-launch: pdf-launch.pdf 829 byte d44041ba149d4e9d…
+generato pdf-embedded-file: pdf-embedded-file.pdf 1021 byte 841f989ad1cce425…
+generato pdf-embedded-launch: pdf-embedded-launch.pdf 1103 byte ff039fdc7653ab1b…
+generato pdf-embedded-bomb: pdf-embedded-bomb.pdf 131494 byte 67be555365bc8ccb…
+generato pdf-objstm-hidden-js: pdf-objstm-hidden-js.pdf 777 byte a4faae924e33f122…
+[exit 0]
+
+$ docker run --rm --network none --label cka.run_id="$CKA_RUN_ID" -v <spikes>:/src cka-spikes-runner python3 /src/s02-parser/hostile-gen/gen_hostile.py --out /src/data/hostile/generated --verify-only --manifest /src/data/hostile/manifest.json
+DIVERSO encrypted-user: sha256 del file diverso dal manifest
+DIVERSO encrypted-owner-only: sha256 del file diverso dal manifest
+DIVERSO encrypted-object-dropped: sha256 del file diverso dal manifest
+DIVERSO encrypted-objstm-quota: sha256 del file diverso dal manifest
+DIVERSO docx-zip-bomb: sha256 del file diverso dal manifest
+DIVERSO docx-xml-bomb: sha256 del file diverso dal manifest
+DIVERSO docm-macro: sha256 del file diverso dal manifest
+DIVERSO docx-external-link: sha256 del file diverso dal manifest
+verifica manifest: 18 casi conformi su 26
+[exit 1]
+
+sha256 delle fixture nell'uscita del generatore troncati a 16 caratteri prima del commit (regola 3; erano 26 stringhe da 64 esadecimali).
+esito fixture: conformi=18 diversi=encrypted-user,encrypted-owner-only,encrypted-object-dropped,encrypted-objstm-quota,docx-zip-bomb,docx-xml-bomb,docm-macro,docx-external-link (atteso: diversi solo casi encrypted-*, perché qpdf usa sale e chiavi casuali)
+FUORI ATTESA (regola 9): quattro casi diversi non iniziano per encrypted-: docx-zip-bomb, docx-xml-bomb, docm-macro, docx-external-link. Causa letta nel generatore (sola lettura): gen_hostile.py scrive i DOCX con zipfile.ZipFile.writestr(nome, dati), che mette nell'intestazione di ogni voce l'ora locale della generazione, quindi i byte cambiano a ogni esecuzione come quelli dei cifrati. Il manifest e gli attesi non si toccano; la sessione ha completato le misure già avviate solo per registrarne gli esiti, e la decisione resta all'utente.
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-4-02-20261023t135615z-7e84 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-02-20261023t135615z-7e84  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-4-02-20261023t135615z-7e84 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-02-20261023t135615z-7e84  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+controllo immagine prima degli exec: 801f12e52bb7 (atteso 801f12e52bb7)
+
+job scritti in results/raw/p1402-jobs/nsany-b6af8a02.jsonl: 4 (input /data/s02/raw/doclaynet/<nome troncato nell'evidenza>)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent batch --jobs /results/raw/p1402-jobs/nsany-b6af8a02.jsonl --concurrency 1
+(stdout riassunto dal driver: una riga per RunReport, più batch_summary)
+job p1402-otc-nsany-2004-p97-b6af8a02 status=ok kind=None detail=None pages=1 peak_rss_kb=8576 wall_ms=25 oom_kill_delta=0 leftover_procs=0
+job p1402-otc-nsany-2004-p75-b6af8a02 status=ok kind=None detail=None pages=1 peak_rss_kb=8704 wall_ms=10 oom_kill_delta=0 leftover_procs=0
+job p1402-otc-nsany-2004-p47-b6af8a02 status=ok kind=None detail=None pages=1 peak_rss_kb=8960 wall_ms=13 oom_kill_delta=0 leftover_procs=0
+job p1402-otc-nsany-2004-p105-b6af8a02 status=ok kind=None detail=None pages=1 peak_rss_kb=8704 wall_ms=10 oom_kill_delta=0 leftover_procs=0
+summary: {"concurrency": 1, "job_errors": 0, "jobs": 4, "launch_errors": 0, "max_admitted": 1, "status": "batch_summary"}
+stderr: 0 righe
+[exit 0]
+
+hw.json copiato in results/raw/isolation-1-4-02/ (precedente: deviazione 1 di 01-18)
+controllo immagine prima di hostile: 801f12e52bb7 (atteso 801f12e52bb7)
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent hostile --manifest /data/hostile/manifest.json --cases-dir /data/hostile/generated --runs 3 --run-tag "b6af8a01" --out /results/raw/isolation-1-4-02/hostile.csv
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+esito worker nsany: 4 su 4 ok pagine={1} exit=0 (atteso 4 su 4 ok, pages 1, exit 0)
+confronto con hostile.csv di BASE per (case_id, run) sulle colonne outcome, kind, extra_reasons, pass:
+esito ostili 01-18: righe=78 uguali=78 pass=72 (atteso 78, 78, 72 come in hostile.csv)
+/work: 0 prima degli exec, 0 dopo hostile. id -u = 10001. Immagine controllata prima degli exec e prima di hostile: uguale a «immagine worker dopo». with ha eseguito down (rimossi 1, residui 0) e release.
+
+STOP (regola 9 del piano, Task 2 punto 2): esito fixture fuori attesa sui quattro casi DOCX/DOCM. Gli esiti del lanciatore sui 26 casi restano uguali a hostile.csv di BASE (78 su 78, 72 pass) e le 4 pagine danno ok nel worker, ma il piano chiede di fermarsi: il Task 3 (ricalibrazione, budget, note e Storia) non è eseguito, limits.json e calibration.csv non sono toccati. La decisione su come trattare i DOCX non deterministici spetta all'utente.
+
+$ python skills/security-scanner/security_scan.py --fail-on HIGH spikes/s02-parser/src/prescan.rs
+PASS con avvisi: 0 CRITICAL, 0 HIGH, 27 MEDIUM (5 archive-decompress, 22 pdf-untrusted-parse)
+[exit 0]
+
+Deviazione scanner: con la soglia di default (MEDIUM) prescan.rs esce 1 già sulla base, con 25 MEDIUM; si usa --fail-on HIGH, come in 01-07 e 01.4-01. I 2 MEDIUM nuovi sono la regola lessicale pdf-untrusted-parse sulle firme di positive_int e is_subtypeless_image (tipo lopdf::Dictionary): percorsi di tipo, nessun parsing nuovo; il prescan gira nel figlio isolato.
+
