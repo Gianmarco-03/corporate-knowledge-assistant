@@ -1,0 +1,32 @@
+# Prova d'invocazione di extract_pdf (piano 01-08, Task 2, passo 1)
+# run_id 01-08-20261022t171317z-d936, immagine cka-spikes-worker@sha256:8ed6d8c66af0acac00f9636afb6f77b02f349788f5c244a22df15e3d3dd2d657, 2026-10-22T17:14:24Z
+# Ogni job ha il proprio job_id e out_dir; i job stanno in file perché session.sh exec non inoltra lo stdin.
+
+## job inv-ok
+$ cat /results/raw/jobs/inv-ok.json
+{"job_id":"inv-ok-e08s1rn5","op":"extract_pdf","input":"/data/s02/raw/tatdqa/003755794bbbbcffd0667b9600aeb0be.pdf","out_dir":"/results/raw/extract/inv-ok-e08s1rn5","params":{}}
+$ parse-parent run --job /results/raw/jobs/inv-ok.json --limits /results/isolation/limits.json
+{"job_id":"inv-ok-e08s1rn5","outcome":{"status":"ok","pages":1,"output":"/results/raw/extract/inv-ok-e08s1rn5","data":{"chars":2659,"decompress_work_bytes":1931610,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":4.177241863732147,"max_stream_bytes":1829044,"objstm_count":0,"objstm_decompressed_bytes":0,"pages":1,"parse_ms":48,"total_decompressed_bytes":1931610,"vm_hwm_kb":22776,"vm_peak_kb":615672,"words":496,"xref_streams":0}},"exit_signal":null,"peak_rss_kb":22904,"wall_ms":51,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+exit 0
+
+## job inv-params
+$ cat /results/raw/jobs/inv-params.json
+{"job_id":"inv-params-e08s1rn5","op":"extract_pdf","input":"/data/s02/raw/tatdqa/003755794bbbbcffd0667b9600aeb0be.pdf","out_dir":"/results/raw/extract/inv-params-e08s1rn5","params":{"dpi":300}}
+$ parse-parent run --job /results/raw/jobs/inv-params.json --limits /results/isolation/limits.json
+{"code":"InvalidParams","detail":"params: unknown field `dpi`, there are no fields","job_id":"inv-params-e08s1rn5","status":"job_error"}
+exit 2
+
+## job inv-path
+$ cat /results/raw/jobs/inv-path.json
+{"job_id":"inv-path-e08s1rn5","op":"extract_pdf","input":"/etc/passwd","out_dir":"/results/raw/extract/inv-path-e08s1rn5","params":{}}
+$ parse-parent run --job /results/raw/jobs/inv-path.json --limits /results/isolation/limits.json
+{"code":"PathNotAllowed","detail":"input_outside_roots","job_id":"inv-path-e08s1rn5","status":"job_error"}
+exit 2
+
+## out_dir del job valido
+  total 204
+  drwxr-xr-x 1 Gianmarco 197121      0 Oct 22 19:14 .
+  drwxr-xr-x 1 Gianmarco 197121      0 Oct 22 19:14 ..
+  -rw-r--r-- 1 Gianmarco 197121 166728 Oct 22 19:14 page-0001.json
+## pagina 1 (estratto)
+{"page":1,"width":595.28,"height":841.89,"rotation":0,"chars":2659,"words":496,"lines":48,"first_words":[{"bbox":[369.18,21,394.89,29.49],"text":"Spirent"},{"bbox":[396.64,21,456.07,29.49],"text":"Communications"},{"bbox":[457.82,21,468.36,29.49],"text":"plc"}]}

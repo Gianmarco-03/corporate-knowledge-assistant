@@ -1,0 +1,154 @@
+[
+  {
+    "doc_id": "tatdqa-003755794bbbbcffd0667b9600aeb0be",
+    "expected": {
+      "bbox": [
+        557.8349677419354,
+        21.11924743443558,
+        566.9561935483871,
+        29.758939566704726
+      ],
+      "text": "35"
+    },
+    "iou": 0.9514604200690174,
+    "kind": "matched",
+    "page": 1,
+    "predicted": [
+      {
+        "bbox": [
+          557.82,
+          21.0,
+          566.93,
+          29.49
+        ],
+        "text": "35"
+      }
+    ]
+  },
+  {
+    "doc_id": "tatdqa-003755794bbbbcffd0667b9600aeb0be",
+    "expected": {
+      "bbox": [
+        369.16961290322575,
+        20.15928164196123,
+        396.05322580645156,
+        29.758939566704726
+      ],
+      "text": "Spirent"
+    },
+    "iou": 0.845797458645493,
+    "kind": "matched",
+    "page": 1,
+    "predicted": [
+      {
+        "bbox": [
+          369.18,
+          21.0,
+          394.89,
+          29.49
+        ],
+        "text": "Spirent"
+      }
+    ]
+  },
+  {
+    "doc_id": "tatdqa-003755794bbbbcffd0667b9600aeb0be",
+    "expected": {
+      "bbox": [
+        68.16916129032258,
+        677.7358494868871,
+        91.21225806451612,
+        688.7754561003421
+      ],
+      "text": "intake"
+    },
+    "iou": 0.0,
+    "kind": "missed",
+    "page": 1,
+    "predicted": []
+  },
+  {
+    "doc_id": "tatdqa-003755794bbbbcffd0667b9600aeb0be",
+    "expected": {
+      "bbox": [
+        91.21225806451612,
+        677.7358494868871,
+        94.09264516129032,
+        688.7754561003421
+      ],
+      "text": "1"
+    },
+    "iou": 0.0,
+    "kind": "missed",
+    "page": 1,
+    "predicted": []
+  },
+  {
+    "doc_id": "tatdqa-003755794bbbbcffd0667b9600aeb0be",
+    "expected": null,
+    "iou": 0.0,
+    "kind": "spurious",
+    "page": 1,
+    "predicted": [
+      {
+        "bbox": [
+          573.44,
+          730.84,
+          583.14,
+          763.79
+        ],
+        "text": "Strategic"
+      }
+    ]
+  },
+  {
+    "doc_id": "tatdqa-003755794bbbbcffd0667b9600aeb0be",
+    "expected": null,
+    "iou": 0.0,
+    "kind": "spurious",
+    "page": 1,
+    "predicted": [
+      {
+        "bbox": [
+          573.44,
+          706.09,
+          583.14,
+          729.24
+        ],
+        "text": "report"
+      }
+    ]
+  },
+  {
+    "doc_id": "tatdqa-018ba3b4adee47eef3555fc300cbde94",
+    "expected": {
+      "bbox": [
+        0.0,
+        676.7758836944128,
+        0.0,
+        688.7754561003421
+      ],
+      "text": "6.2.2"
+    },
+    "iou": 0.0,
+    "kind": "unscorable",
+    "page": 1,
+    "predicted": []
+  },
+  {
+    "doc_id": "tatdqa-018ba3b4adee47eef3555fc300cbde94",
+    "expected": {
+      "bbox": [
+        0.0,
+        676.7758836944128,
+        0.0,
+        688.7754561003421
+      ],
+      "text": "Share‑based"
+    },
+    "iou": 0.0,
+    "kind": "unscorable",
+    "page": 1,
+    "predicted": []
+  }
+]

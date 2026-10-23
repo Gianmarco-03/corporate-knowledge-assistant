@@ -79,11 +79,11 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
 **Depends on:** Phase 1
-**Plans:** 0 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 01.4 to break down)
+- [x] TBD (run /gsd:plan-phase 01.4 to break down) (completed 2026-10-23)
 
 ### Phase 01.3: Gap-closure compose.yaml: /work del worker scrivibile dall'utente 10001 (INSERTED)
 
@@ -453,7 +453,7 @@ Discuss di tutte le fasi, poi Spike, poi plan di Fondazione e Provider, plan dei
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Spike tecnici | 9/18 | In Progress|  |
+| 1. Spike tecnici | 13/18 | In Progress|  |
 | 2. Fondazione | 0/TBD | Not started | - |
 | 3. Provider di ingestion e indice | 0/TBD | Not started | - |
 | 4. Provider di decisione, risposta e trasversali | 0/TBD | Not started | - |

@@ -1,0 +1,761 @@
+# drivers-budget-overhead — driver budget e overhead di parse-parent (fase 1.4, D-01..D-05)
+# data UTC: 2026-10-22T19:33:54Z  git_rev base: ce6584ad386df57c6800813b55e7c963de213191
+# La parte RED usa parse-parent.rs di base (codice non di test identico a BASE); la parte GREEN la correzione del Task 2.
+# Identificativo di piano per session.sh: 01-4-01, perché new-id, acquire e la regex del run_id rifiutano il punto di 01.4-01.
+
+run_id = 01-4-01-20261022t193409z-32aa
+
+## Linea di base
+(albero di BASE: tests/drivers.rs assente, parse-parent.rs di BASE)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo clippy -p s02-parser --all-targets --locked -- -D warnings
+ Container cka-spikes-runner-run-b36638998f90 Creating 
+ Container cka-spikes-runner-run-b36638998f90 Created 
+error: 'cargo-clippy' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'.
+help: run `rustup component add clippy` to install it
+
+[exit 1]
+
+linea di base clippy: exit=1 avvisi=1
+
+## Prova RED (base)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test drivers
+ Container cka-spikes-runner-run-b752419d6fbb Creating 
+ Container cka-spikes-runner-run-b752419d6fbb Created 
+   Compiling common v0.0.0 (/src/common)
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.31s
+     Running tests/drivers.rs (/target/debug/deps/drivers-ea487dbc1c9a6896)
+
+running 4 tests
+test budget_budget_error_cleans_work_root ... FAILED
+test budget_csv_error_cleans_work_root ... FAILED
+test budget_success_cleans_work_root ... ok
+test overhead_in_process_errors_keep_all_rows ... FAILED
+
+failures:
+
+---- budget_budget_error_cleans_work_root stdout ----
+
+thread 'budget_budget_error_cleans_work_root' (1481) panicked at s02-parser/tests/drivers.rs:181:5:
+radice dei job non vuota dopo il driver: voci ["selftest-input-dr1b0001"]; stderr del driver: parse-parent: S02_BUDGET_TOTAL_BYTES non è un intero di byte: invalid digit found in string
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- budget_csv_error_cleans_work_root stdout ----
+
+thread 'budget_csv_error_cleans_work_root' (1482) panicked at s02-parser/tests/drivers.rs:181:5:
+radice dei job non vuota dopo il driver: voci ["selftest-input-dr1a0001"]; stderr del driver: parse-parent: CSV /work/tmp/s02-drivers-1480/budget-csv-error/out/budget.csv rifiutato: manca un manifest hardware valido accanto: manifest hardware /work/tmp/s02-drivers-1480/budget-csv-error/out/hw.json assente o illeggibile: No such file or directory (os error 2)
+
+
+---- overhead_in_process_errors_keep_all_rows stdout ----
+
+thread 'overhead_in_process_errors_keep_all_rows' (1484) panicked at s02-parser/tests/drivers.rs:324:5:
+assertion `left == right` failed: exit di overhead; stderr: parse-parent: pdfium: PdfiumLibraryInternalError(
+    FormatError,
+)
+
+csv:
+mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s
+child-per-doc,1,1,16,28,,565.37
+child-per-doc,1,2,16,23,,689.79
+child-per-doc,2,1,16,13,,1177.59
+child-per-doc,2,2,16,13,,1175.23
+
+  left: Some(1)
+ right: Some(0)
+
+
+failures:
+    budget_budget_error_cleans_work_root
+    budget_csv_error_cleans_work_root
+    overhead_in_process_errors_keep_all_rows
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p s02-parser --test drivers`
+
+[exit 101]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --bin parse-parent
+ Container cka-spikes-runner-run-5102d911215f Creating 
+ Container cka-spikes-runner-run-5102d911215f Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+error[E0425]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1388:44
+     |
+1388 |     fn internal(e: PdfiumInternalError) -> InProcessError {
+     |                                            ^^^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1389:9
+     |
+1389 |         InProcessError::Pdfium(PdfiumError::PdfiumLibraryInternalError(e))
+     |         ^^^^^^^^^^^^^^ use of undeclared type `InProcessError`
+
+error[E0433]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1441:17
+     |
+1441 |                 InProcessError::Pdfium(PdfiumError::PageIndexOutOfBounds),
+     |                 ^^^^^^^^^^^^^^ use of undeclared type `InProcessError`
+
+error[E0433]: cannot find type `InProcessError` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1444:14
+     |
+1444 |             (InProcessError::ThreadPanic, "error:thread_panic"),
+     |              ^^^^^^^^^^^^^^ use of undeclared type `InProcessError`
+
+error[E0425]: cannot find function `in_process_status` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1447:24
+     |
+1128 | / fn in_process_run(
+1129 | |     pdfium: &pdfium_render::prelude::Pdfium,
+1130 | |     bytes: &[u8],
+1131 | |     docs: usize,
+...    |
+1156 | |     })
+1157 | | }
+     | |_- similarly named function `in_process_run` defined here
+...
+1447 |               assert_eq!(in_process_status(e), *want, "stato di {e:?}");
+     |                          ^^^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1447 -             assert_eq!(in_process_status(e), *want, "stato di {e:?}");
+1447 +             assert_eq!(in_process_run(e), *want, "stato di {e:?}");
+     |
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1460:13
+     |
+1460 |             overhead_row("child-per-doc", 1, 1, &ok_init),
+     |             ^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1468:13
+     |
+1468 |             overhead_row("child-per-doc", 1, 1, &ok_none),
+     |             ^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `RepOutcome` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1471:19
+     |
+1471 |         let err = RepOutcome::Error("error:pdfium_format".to_owned());
+     |                   ^^^^^^^^^^ use of undeclared type `RepOutcome`
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1473:13
+     |
+1473 |             overhead_row("in-process-mutex", 8, 7, &err),
+     |             ^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `overhead_row` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1487:17
+     |
+1487 |                 overhead_row("in-process-mutex", 4, 2, o).len(),
+     |                 ^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `in_process_reps` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1500:22
+     |
+1128 | / fn in_process_run(
+1129 | |     pdfium: &pdfium_render::prelude::Pdfium,
+1130 | |     bytes: &[u8],
+1131 | |     docs: usize,
+...    |
+1156 | |     })
+1157 | | }
+     | |_- similarly named function `in_process_run` defined here
+...
+1500 |           let errors = in_process_reps(
+     |                        ^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1500 -         let errors = in_process_reps(
+1500 +         let errors = in_process_run(
+     |
+
+error[E0425]: cannot find function `in_process_reps` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1561:17
+     |
+1128 | / fn in_process_run(
+1129 | |     pdfium: &pdfium_render::prelude::Pdfium,
+1130 | |     bytes: &[u8],
+1131 | |     docs: usize,
+...    |
+1156 | |     })
+1157 | | }
+     | |_- similarly named function `in_process_run` defined here
+...
+1561 |           let r = in_process_reps(
+     |                   ^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1561 -         let r = in_process_reps(
+1561 +         let r = in_process_run(
+     |
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1585:13
+     |
+1585 |             child_per_doc_error(&results(vec![report(ok()), report(ok()), report(ok())])),
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1589:13
+     |
+1589 |             child_per_doc_error(&results(vec![
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1597:13
+     |
+1597 |             child_per_doc_error(&results(vec![
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1604:13
+     |
+1604 |             child_per_doc_error(&results(vec![report(ok()), Err(anyhow::anyhow!("x"))])),
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1608:13
+     |
+1608 |             child_per_doc_error(&results(vec![Err(anyhow::Error::new(JobError::new(
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find function `child_per_doc_error` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1616:13
+     |
+1616 |             child_per_doc_error(&results(vec![
+     |             ^^^^^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0433]: cannot find type `RepOutcome` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1455:23
+     |
+1455 |         let ok_init = RepOutcome::Ok {
+     |                       ^^^^^^^^^^ use of undeclared type `RepOutcome`
+
+error[E0433]: cannot find type `RepOutcome` in this scope
+    --> s02-parser/src/bin/parse-parent.rs:1463:23
+     |
+1463 |         let ok_none = RepOutcome::Ok {
+     |                       ^^^^^^^^^^ use of undeclared type `RepOutcome`
+
+Some errors have detailed explanations: E0425, E0433.
+For more information about an error, try `rustc --explain E0425`.
+error: could not compile `s02-parser` (bin "parse-parent" test) due to 20 previous errors
+
+[exit 101]
+
+## Linea di base, deviazione: clippy assente nel runner
+Il componente clippy manca nel runner (rust:1.99.1-slim-trixie), come previsto dalle preconditions: deviazione registrata, linea di base con cargo check sull'albero di BASE (tests/drivers.rs assente, parse-parent.rs di BASE).
+run_id = 01-4-01-20261022t193458z-e48f
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked
+    Checking reqwest v0.13.5
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 9.59s
+[exit 0]
+
+linea di base cargo check (deviazione, clippy assente): exit=0 avvisi=0
+
+## Esito RED
+esito RED drivers: budget_csv_error_cleans_work_root=FAILED budget_budget_error_cleans_work_root=FAILED overhead_in_process_errors_keep_all_rows=FAILED budget_success_cleans_work_root=ok (atteso: tre FAILED, uno ok)
+esito RED residuo D-01: selftest-input-dr1a0001 presente (atteso presente)
+esito RED unit: cargo test --bin parse-parent exit=101 (atteso diverso da 0, simboli nuovi assenti sulla base)
+Motivo dei rossi: budget_csv_error e budget_budget_error cadono sull'ultima asserzione (exit 1 e stderr come atteso, residuo selftest-input-dr1a0001 e selftest-input-dr1b0001 nella radice dei job); overhead esce 1 con «parse-parent: pdfium: PdfiumLibraryInternalError(FormatError)» dopo le sole 4 righe child-per-doc, con l'header vecchio a 7 colonne; i test unitari non compilano (E0425/E0433: InProcessError, in_process_status, RepOutcome, overhead_row, in_process_reps, child_per_doc_error assenti).
+Nota clippy: la riga «linea di base clippy» conta come avviso l'errore «cargo-clippy is not installed»; il riferimento per il Task 2 è la linea di base cargo check (exit 0, 0 avvisi), deviazione prevista dalle preconditions.
+
+
+GREEN: parse-parent.rs con la correzione nell'albero (4766f6a + diff)
+
+## Prova GREEN
+run_id = 01-4-01-20261022t193847z-f947
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test drivers
+ Container cka-spikes-runner-run-d983b5fa681f Creating 
+ Container cka-spikes-runner-run-d983b5fa681f Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.66s
+     Running tests/drivers.rs (/target/debug/deps/drivers-ea487dbc1c9a6896)
+
+running 4 tests
+test budget_budget_error_cleans_work_root ... ok
+test budget_csv_error_cleans_work_root ... ok
+test budget_success_cleans_work_root ... ok
+test overhead_in_process_errors_keep_all_rows ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --bin parse-parent
+ Container cka-spikes-runner-run-c8f39009300b Creating 
+ Container cka-spikes-runner-run-c8f39009300b Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.94s
+     Running unittests src/bin/parse-parent.rs (/target/debug/deps/parse_parent-054c523513121d4e)
+
+running 12 tests
+test tests::different_status_fails ... ok
+test tests::child_per_doc_error_table ... ok
+test tests::failed_kind_among_alternatives_passes ... ok
+test tests::expected_outcome_without_oom_adj_fails ... ok
+test tests::failed_kind_outside_alternatives_fails ... ok
+test tests::in_process_reps_single_failure_keeps_all_rows ... ok
+test tests::in_process_reps_sink_error_is_fatal ... ok
+test tests::in_process_status_table ... ok
+test tests::ok_expected_ok_with_oom_adj_passes ... ok
+test tests::overhead_row_shapes ... ok
+test tests::quarantined_missing_expected_reason_fails ... ok
+test tests::quarantined_superset_passes_with_extra_reasons ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+## Errori fatali ancora fatali (TEST-10, prova ad hoc nel runner, nessun file nel repo)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- bash -c '<overhead --out in cartella senza hw.json, budget fisso>'
+ Container cka-spikes-runner-run-6cf806191a92 Creating 
+ Container cka-spikes-runner-run-6cf806191a92 Created 
+parse-parent: CSV /tmp/fatali/out/overhead.csv rifiutato: manca un manifest hardware valido accanto: manifest hardware /tmp/fatali/out/hw.json assente o illeggibile: No such file or directory (os error 2)
+rc=1 csv_presente=no jobs=0
+
+[exit 1]
+
+## Regressione (D-05)
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test isolation
+ Container cka-spikes-runner-run-d2e652989122 Creating 
+ Container cka-spikes-runner-run-d2e652989122 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.65s
+     Running tests/isolation.rs (/target/debug/deps/isolation-df02569021d2d25f)
+
+running 37 tests
+test input_with_dotdot_outside_roots_is_path_not_allowed ... ok
+test input_symlink_outside_roots_is_path_not_allowed ... ok
+test excerpt_file_outside_roots_is_path_not_allowed ... ok
+test job_id_outside_regex_is_rejected ... ok
+test dpi_out_of_domain_is_invalid_params ... ok
+test missing_bin_is_child_missing ... ok
+test out_dir_presence_must_match_op ... ok
+test out_dir_wrong_forms_are_path_not_allowed ... ok
+test existing_out_dir_is_out_dir_exists_and_launches_nothing ... ok
+test input_component_swapped_for_symlink_after_resolve_is_rejected ... ok
+test oversized_job_is_rejected ... ok
+test flood_on_both_pipes_is_output_limit_within_two_seconds ... ok
+test resolve_builds_fixed_argv_per_op ... ok
+test selftest_mode_outside_list_is_invalid_params ... ok
+test batch_over_parent_reserve_exits_3_after_reports ... ok
+test parse_parent_prints_job_error_and_exits_2 ... ok
+test successful_run_reports_isolation_fields ... ok
+test successful_parse_keeps_out_dir_and_removes_job_dir ... ok
+test unknown_op_is_unknown_op ... ok
+test quota_counts_job_dir_plus_out_dir ... ok
+test argv_echo_passes_path_with_spaces_and_non_ascii_unchanged ... ok
+test out_dir_symlink_planted_after_resolve_is_rejected_before_spawn ... ok
+test unknown_param_is_invalid_params ... ok
+test unknown_top_level_field_is_invalid_params ... ok
+test reservation_over_budget_is_budget_exceeded_without_spawn ... ok
+test alloc_over_address_space_is_resource_limit ... ok
+test externally_killed_child_is_crashed ... ok
+test unapplicable_setrlimit_fails_the_spawn_with_errno ... ok
+test write_over_quota_is_resource_limit_out_quota ... ok
+test budget_admits_alloc_jobs_and_all_complete ... ok
+test quota_scan_entry_cap_is_out_quota ... ok
+test parse_child_data_schema ... ok
+test dropped_future_kills_group_and_cleans_within_one_second ... ok
+test timeout_kills_grandchild_group_and_removes_job_dir ... ok
+test child_is_the_designated_oom_victim ... ok
+test budget_admits_at_most_two_jobs_together ... ok
+test quota_sum_under_limit_is_not_out_quota ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test oom
+ Container cka-spikes-runner-run-1629c8f95a85 Creating 
+ Container cka-spikes-runner-run-1629c8f95a85 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s
+     Running tests/oom.rs (/target/debug/deps/oom-df83e1bf5f5d7cbe)
+
+running 12 tests
+test m11_all_checks_with_oom_is_verificato ... ok
+test m11_each_violated_check_with_oom_is_fallito_naming_the_check ... ok
+test m11_more_than_one_oom_kill_is_still_verificato ... ok
+test m11_no_oom_kill_is_non_esercitato_with_reason ... ok
+test m11_oom_group_does_not_decide_the_outcome ... ok
+test m11_reservation_not_below_cgroup_is_fallito ... ok
+test oom_kills_child_not_parent ... ignored, solo nel container a memoria bassa di 01-18
+test m11_without_oom_never_verificato_nor_fallito ... ok
+test result_json_fallito_carries_reason_and_observed_values ... ok
+test result_json_is_one_line_without_environment_values ... ok
+test result_json_verificato_has_exact_keys_and_types_checked_by_the_plan ... ok
+test result_json_precondition_is_non_esercitato_with_nulls ... ok
+
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib
+ Container cka-spikes-runner-run-e1e4b5275a4a Creating 
+ Container cka-spikes-runner-run-e1e4b5275a4a Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.86s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-bbcbe4e3205477da)
+
+running 84 tests
+test isolate::tests::exit_zero_with_valid_failed_line_keeps_child_kind ... ok
+test isolate::tests::exit_zero_with_valid_ok_line_returns_child_outcome ... ok
+test isolate::tests::exit_zero_with_valid_quarantined_line_keeps_reasons ... ok
+test isolate::tests::missing_json_line_is_crashed ... ok
+test isolate::tests::parent_kill_is_evaluated_before_signal_and_oom ... ok
+test isolate::tests::malformed_json_line_is_crashed ... ok
+test isolate::tests::parent_kill_out_quota_is_resource_limit_out_quota ... ok
+test isolate::tests::parent_kill_output_limit_is_output_limit ... ok
+test isolate::tests::parent_kill_timeout_is_timeout ... ok
+test isolate::tests::sigabrt_with_bad_alloc_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_with_rust_alloc_failure_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_without_alloc_marker_is_crashed ... ok
+test isolate::tests::sigkill_with_oom_delta_is_resource_limit_cgroup_oom ... ok
+test isolate::tests::sigkill_without_oom_delta_is_crashed ... ok
+test isolate::tests::sigsegv_is_crashed ... ok
+test isolate::tests::sigxcpu_is_timeout ... ok
+test job::tests::ancestors_start_at_root ... ok
+test job::tests::job_error_line_has_contract_fields ... ok
+test job::tests::known_ops_parse_and_unknown_is_unknown_op ... ok
+test job::tests::numeric_selftest_modes_need_decimal_arg ... ok
+test job::tests::out_dir_must_be_exact_form ... ok
+test prescan::tests::c1_resolved_lopdf_is_0_45_0 ... ok
+test prescan::tests::default_caps_are_the_launcher_thresholds ... ok
+test prescan::tests::c6_pubsec_handler_is_password_required ... ok
+test prescan::tests::benign_docx_passes_with_none_and_zero_schema ... ok
+test prescan::tests::docx_with_declared_total_over_cap_is_rejected ... ok
+test prescan::tests::docx_with_entity_in_any_part_is_corrupt ... ok
+test prescan::tests::docx_with_macro_content_type_is_unsupported ... ok
+test prescan::tests::docx_with_doctype_is_corrupt ... ok
+test prescan::tests::docx_with_external_relationship_is_quarantined ... ok
+test prescan::tests::c7_undecodable_flate_stream_is_corrupt ... ok
+test prescan::tests::c2_defer_objstm_returns_other_objects_unchanged ... ok
+test prescan::tests::docx_with_too_many_entries_is_rejected ... ok
+test prescan::tests::docx_with_vba_project_is_unsupported ... ok
+test prescan::tests::encrypt_declared_with_corrupt_body_is_never_ok ... ok
+test prescan::tests::benign_pdf_passes_with_unencrypted_schema ... ok
+test prescan::tests::escaped_encrypt_name_is_never_ok ... ok
+test prescan::tests::filter_chain_of_two_allowed_filters_passes ... ok
+test prescan::tests::embedded_file_is_counted_not_quarantined ... ok
+test prescan::tests::filter_chain_longer_than_two_is_rejected ... ok
+test prescan::tests::bare_js_key_is_javascript ... ok
+test prescan::tests::garbage_pdf_is_corrupt ... ok
+test prescan::tests::c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load ... ok
+test prescan::tests::flate_ratio_over_limit_is_decompression_limit ... ok
+test prescan::tests::embedded_file_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::i2_work_counts_every_xref_stream ... ok
+test prescan::tests::flate_stream_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::image_filter_on_image_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_non_image_stream_is_rejected ... ok
+test prescan::tests::image_filter_on_image_within_cap_passes ... ok
+test prescan::tests::flate_stream_at_per_stream_cap_passes ... ok
+test prescan::tests::javascript_hidden_in_compressed_objstm_is_quarantined ... ok
+test prescan::tests::launch_action_is_quarantined ... ok
+test prescan::tests::launch_pointing_to_embedded_file_is_quarantined_as_launch ... ok
+test prescan::tests::launch_with_escaped_name_is_quarantined ... ok
+test prescan::tests::lzw_runlength_and_unknown_filters_are_unsupported ... ok
+test prescan::tests::many_small_objstm_are_not_rejected_by_count ... ok
+test prescan::tests::non_zip_docx_is_corrupt ... ok
+test prescan::tests::objstm_count_uses_normalized_names ... ok
+test prescan::tests::i1_shared_stream_is_counted_once ... ok
+test prescan::tests::incompressible_flate_under_ratio_passes ... ok
+test prescan::tests::c6_user_password_is_password_required_never_object_dropped ... ok
+test prescan::tests::open_action_javascript_is_quarantined_with_both_reasons ... ok
+test prescan::tests::objstm_within_caps_passes ... ok
+test prescan::tests::pages_at_limit_pass ... ok
+test prescan::tests::standard_handler_without_empty_password_is_password_required ... ok
+test prescan::tests::pages_over_limit_is_resource_limit ... ok
+test protocol::tests::emitted_line_round_trips ... ok
+test protocol::tests::status_value_is_read_in_kib ... ok
+test prescan::tests::objstm_expanding_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::empty_user_password_is_admitted_as_empty_password ... ok
+test prescan::tests::c3_encrypted_load_ignores_filter_and_expands_members ... ok
+test prescan::tests::javascript_hidden_in_encrypted_objstm_is_quarantined ... ok
+test prescan::tests::encrypted_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::i1_objstm_reexpansion_is_not_counted_twice ... ok
+test prescan::tests::user_password_is_encrypted_password_required ... ok
+test prescan::tests::objstm_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::flate_total_over_cap_is_decompression_limit ... ok
+test prescan::tests::encrypted_many_small_objstm_are_admitted ... ok
+test prescan::tests::c3_encrypted_objstm_over_quota_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_corrupt_objstm_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_unreadable_object_is_object_dropped ... ok
+test prescan::tests::i1_encrypted_counts_distinct_streams_once ... ok
+test prescan::tests::c4_xref_forms_and_incremental_update_have_no_false_drops ... ok
+
+test result: ok. 84 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo clippy -p s02-parser --all-targets --locked -- -D warnings
+ Container cka-spikes-runner-run-a6e29d56ad68 Creating 
+ Container cka-spikes-runner-run-a6e29d56ad68 Created 
+error: 'cargo-clippy' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'.
+help: run `rustup component add clippy` to install it
+
+[exit 1]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked
+ Container cka-spikes-runner-run-3f94cafc44d7 Created 
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.64s
+[exit 0]
+
+cargo check (deviazione, clippy assente): exit=0 avvisi=0
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo build -p s02-parser --locked
+ Container cka-spikes-runner-run-0064ee641eb5 Creating 
+ Container cka-spikes-runner-run-0064ee641eb5 Created 
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.34s
+[exit 0]
+
+$ cd spikes && cargo fmt --check -p s02-parser   (host)
+[exit 0]
+
+$ cd spikes && cargo clippy --workspace --all-targets --locked --offline -- -D warnings   (host Windows: compila e analizza anche parse-parent.rs, tests compresi; solo become_subreaper è cfg linux)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 53.32s
+[exit 0]
+
+$ git diff --quiet $BASE -- spikes/s02-parser/Cargo.toml spikes/Cargo.lock
+[exit 0]
+
+esito GREEN drivers: 4 passed; 0 failed (atteso 4 passed; 0 failed)
+esito GREEN unit: 12 passed; 0 failed (atteso 0 failed, test nuovi compresi; 7 hostile_verdict + 5 nuovi)
+esito fatali: overhead --out senza hw.json exit=1 csv_presente=no radice_jobs=0 (atteso exit 1, nessun output parziale); input illeggibile e bind di PDFium restano «?» con exit 1, righe non toccate dal diff
+esito R: isolation=ok oom=ok lib=ok clippy=ok (clippy assente nel runner, deviazione: linea di base cargo check exit 0 avvisi 0, ora cargo check exit 0 avvisi 0; clippy host -D warnings exit 0) build=ok fmt=ok (atteso tutti ok)
+conteggi: isolation 37 passed, oom 11 passed 1 ignored, lib 84 passed, bin parse-parent da 7 a 12 test
+
+$ python skills/security-scanner/security_scan.py --fail-on HIGH spikes/s02-parser/src/bin/parse-parent.rs spikes/s02-parser/tests/drivers.rs
+PASS con avvisi: 0 CRITICAL, 0 HIGH, 7 MEDIUM pdf-untrusted-parse (regola lessicale su «pdfium_render::»)
+[exit 0]
+
+Deviazione scanner: con la soglia di default (MEDIUM) il file parse-parent.rs di BASE esce già 1 con 4 rilevamenti pdf-untrusted-parse (bind di PDFium e in_process_run, modo in-process su input fidato scelto da 01-18); il verify del Task 2 non può uscire 0 alla lettera. Come in 01-07 si usa --fail-on HIGH e i MEDIUM si motivano: 4 preesistenti, 2 nuovi su percorsi di tipo (variante InProcessError::Pdfium e use dentro in_process_status), 1 nel modulo dei test del Task 1.
+
+## Rimisura (D-04)
+Stesse condizioni di 01-18 (input, concorrenze, ripetizioni, servizio worker, derivazione del run-tag), prenotazione nuova a nome di 01-4-01.
+immagine worker prima: 8ed6d8c66af0
+
+$ docker compose -f spikes/compose.yaml build worker
+#12 3.335   Downloaded thiserror v2.0.21
+#12 7.677    Compiling thiserror v2.0.21
+#12 10.32    Compiling thiserror-impl v2.0.21
+#22 naming to docker.io/library/cka-spikes-worker:latest 0.0s done
+ Image cka-spikes-worker Built 
+[exit 0]
+
+immagine worker dopo: e96d8f6547e2
+
+run_id = 01-4-01-20261022t194257z-1c4c
+run-tag budget (controllo D-01) = 5df34802
+run-tag overhead = 5df34803
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-4-01-20261022t194257z-1c4c (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194257z-1c4c  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-4-01-20261022t194257z-1c4c (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194257z-1c4c  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent budget --concurrency 1 --jobs 1 --reserve-fraction 0.25 --run-tag "5df34802" --out /dev/null
+parse-parent: CSV /dev/null rifiutato: manca un manifest hardware valido accanto: manifest hardware /dev/hw.json assente o illeggibile: No such file or directory (os error 2)
+[exit 1]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent overhead --input /data/corpus/raw/der-it-01-relazione-annuale-2025-p1-25.pdf --runs 20 --concurrency 1,4,8 --run-tag "5df34803" --out /results/isolation/overhead.csv
+(stdout: 0 righe; stderr filtrato su ^overhead:)
+PRIMA ESECUZIONE, NON VALIDA: la cartella spikes/s02-parser/results/raw/ (ignorata da git) non esisteva nel worktree, quindi /results/raw mancava nel worker e no_symlink_components (isolate.rs:529) ha respinto ogni job child-per-doc con PathNotAllowed/symlink. Il driver corretto ha comunque scritto 120 righe, con exit 0.
+overhead: job_id=ovh-cpd-c1-r1-d0-5df34803: job_error PathNotAllowed: symlink
+overhead: job_id=ovh-cpd-c1-r1-d1-5df34803: job_error PathNotAllowed: symlink
+(… altre 958 righe uguali omesse dall'evidenza: job_error PathNotAllowed: symlink su tutti i 960 job child-per-doc)
+overhead: in-process c8 r9: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r10: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r11: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r12: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r13: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r14: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r15: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r16: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r17: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r18: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r19: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r20: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in_process_errors=12 su 60
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+Distribuzione di overhead.csv della prima esecuzione (sovrascritto dalla seconda):
+     20 child-per-doc,1,error:job_error
+     20 child-per-doc,4,error:job_error
+     20 child-per-doc,8,error:job_error
+     20 in-process-mutex,1,ok
+     20 in-process-mutex,4,ok
+     12 in-process-mutex,8,error:pdfium_format
+      8 in-process-mutex,8,ok
+
+Correzione dell'ambiente (nessun file del repo): mkdir spikes/s02-parser/results/raw nel worktree, come nel checkout principale; poi seconda esecuzione in una sessione nuova.
+
+### Seconda esecuzione (valida)
+run_id = 01-4-01-20261022t194442z-e7a8
+run-tag budget (controllo D-01) = 6226a702
+run-tag overhead = 6226a703
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-4-01-20261022t194442z-e7a8 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194442z-e7a8  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-4-01-20261022t194442z-e7a8 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-01-20261022t194442z-e7a8  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent budget --concurrency 1 --jobs 1 --reserve-fraction 0.25 --run-tag "6226a702" --out /dev/null
+parse-parent: CSV /dev/null rifiutato: manca un manifest hardware valido accanto: manifest hardware /dev/hw.json assente o illeggibile: No such file or directory (os error 2)
+[exit 1]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent overhead --input /data/corpus/raw/der-it-01-relazione-annuale-2025-p1-25.pdf --runs 20 --concurrency 1,4,8 --run-tag "6226a703" --out /results/isolation/overhead.csv
+(stdout: 0 righe; stderr filtrato su ^overhead:)
+overhead: in-process c8 r10: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r11: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r12: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r13: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r14: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r15: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r16: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r17: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r18: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r19: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in-process c8 r20: error:pdfium_format (Pdfium(PdfiumLibraryInternalError(FormatError)))
+overhead: in_process_errors=11 su 60
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+
+## Controlli del CSV
+$ head -1 spikes/s02-parser/results/isolation/overhead.csv
+mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s,status
+
+$ awk -F, 'NR>1 && NF!=8' overhead.csv | wc -l
+0
+
+$ tail -n +2 overhead.csv | wc -l
+120
+
+$ tail -n +2 overhead.csv | cut -d, -f1,2 | sort | uniq -c
+     20 child-per-doc,1
+     20 child-per-doc,4
+     20 child-per-doc,8
+     20 in-process-mutex,1
+     20 in-process-mutex,4
+     20 in-process-mutex,8
+
+$ tail -n +2 overhead.csv | cut -d, -f8 | grep -cvE '^(ok|error:[A-Za-z_]+)$'
+0
+
+$ tail -n +2 overhead.csv | cut -d, -f1,2,8 | sort | uniq -c
+     20 child-per-doc,1,ok
+     20 child-per-doc,4,ok
+     20 child-per-doc,8,ok
+     20 in-process-mutex,1,ok
+     20 in-process-mutex,4,ok
+     11 in-process-mutex,8,error:pdfium_format
+      9 in-process-mutex,8,ok
+
+$ awk -F, 'NR>1 && $8!="ok" && ($5!="" || $6!="" || $7!="")' overhead.csv | wc -l   (righe in errore con campi di tempo)
+0
+
+$ test -f spikes/s02-parser/results/isolation/hw.json
+[exit 0]
+
+$ git diff --quiet $BASE -- <altri nove file di results/isolation>
+[exit 0]
+
+$ python <script del driver> overhead.csv   (numeri di M9 sulle sole righe ok)
+modo | concorrenza | ripetizioni | ok | errori | parete media ms | ms per documento | documenti/s | spawn_init_ms medio (max)
+child-per-doc | 1 | 20 | 20 | 0 | 2544 | 159.0 | 6.29 | 3.89 (4.2)
+child-per-doc | 4 | 20 | 20 | 0 | 1454 | 90.9 | 11.00 | 4.13 (4.6)
+child-per-doc | 8 | 20 | 20 | 0 | 1483 | 92.7 | 10.79 | 4.22 (4.6)
+in-process-mutex | 1 | 20 | 20 | 0 | 729 | 45.5 | 21.97 | -
+in-process-mutex | 4 | 20 | 20 | 0 | 730 | 45.7 | 21.91 | -
+in-process-mutex | 8 | 20 | 9 | 11 | 727 | 45.4 | 22.28 | -
+M9 = spawn_init_ms medio c1 / ms per documento child-per-doc c1 x 100 = 3.89 / 159.0 x 100 = 2.44%  (soglia 10%)
+rapporto ms per documento child-per-doc / in-process a c1 = 159.0 / 45.5 = 3.49x
+
+esito D-01-worker: exit=1 (atteso 1) work_prima=0 work_dopo=0 (atteso 0 e 0)
+esito D-04: righe=120 (atteso 120) gruppi=6x20 (atteso 6x20) campi=8 su tutte le righe si exit=0 (atteso 0) work_dopo=0 (atteso 0) hw.json accanto si
+esito in-process: c1 errori=0/20 c4 errori=0/20 c8 errori=11/20
+esito child-per-doc: c1 errori=0/20 c4 errori=0/20 c8 errori=0/20
+
+## Pulizia
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: run_id=01-10-20261022t194849z-d645 piano=01-10 pid=17807 (vivo) worktree=C:/Users/Gianmarco/Documents/Portfolio projects/01-corporate-knowledge-assistant/.claude/worktrees/01-10 git_rev=bc3e0ab dal=2026-10-22T19:48:49Z
+[exit 0]
+
+Nota: la prenotazione elencata è del piano 01-10 (esecutore parallelo, proprietario vivo), presa dopo il rilascio delle sessioni di questo piano; non si tocca e non si recupera. Le sessioni di 01-4-01 di questo task e del Task 2 (01-4-01-20261022t193847z-f947, 01-4-01-20261022t194257z-1c4c, 01-4-01-20261022t194442z-e7a8) sono uscite da session.sh with con DOWN residui 0 e RILASCIATO.
+
+$ docker ps -a --filter label=com.docker.compose.project=cka-spikes --format '{{.Names}} {{.Label "cka.run_id"}}' | grep 01-4-01
+(fine elenco)
+
+$ rm -rf <cartella del driver> "${TMPDIR:-/tmp}/cka-01-4-01-driver.path"
+[exit 0]
+
+Seconda lettura, dopo il rilascio di 01-10:
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+[exit 0]
+

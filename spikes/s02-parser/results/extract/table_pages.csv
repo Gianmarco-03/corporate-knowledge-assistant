@@ -1,0 +1,12 @@
+doc_id,split,method,pages_true,pages_selected,recall,precision
+0000006951-20-000048-20201211x10k,tune,heuristic+uncertain,2,2,1,1
+nasdaq-atri-2003,tune,heuristic+uncertain,2,4,1,0.5
+nasdaq-shen-2003,tune,heuristic+uncertain,2,3,1,0.6666666666666666
+nyse-smfg-2011,tune,heuristic+uncertain,2,2,1,1
+otc-nsany-2004,tune,heuristic+uncertain,2,0,0,1
+asx-mrm-2000,holdout,heuristic+uncertain,2,2,1,1
+asx-sto-2004,holdout,heuristic+uncertain,2,2,1,1
+nyse-chk-2010,holdout,heuristic+uncertain,2,2,1,1
+nyse-hrl-2004,holdout,heuristic+uncertain,2,2,0.5,0.5
+tsx-kmp-2013,holdout,heuristic+uncertain,2,2,1,1
+der-it-01-relazione-annuale-2025-p1-25,holdout,heuristic+uncertain,1,13,1,0.07692307692307693

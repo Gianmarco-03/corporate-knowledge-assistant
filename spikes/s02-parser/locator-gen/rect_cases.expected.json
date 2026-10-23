@@ -1,0 +1,81 @@
+{
+  "class": "derivazione-documentata",
+  "author": "test-write",
+  "plan": "01-09",
+  "signed": "Modifica: Claude (test-write, Anthropic) - 2026-10-22 - oracolo a mano degli 8 casi di trasformazione dei rettangoli, scritto prima del codice e dei risultati",
+  "semantics": "Rettangoli [x0,y0,x1,y1] in punti. user_rect in spazio utente PDF (origine in basso a sinistra, prima di /Rotate). expected_viewport_rect in viewport non scalata con origine in alto a sinistra, come PDF.js convertToViewportRectangle a scala 1, normalizzato x0<x1, y0<y1. Passi: (1) traslazione nell'origine della CropBox: x' = x - cx0, y' = y - cy0; (2) ribaltamento dell'asse y: u = x', v = H - y', con W = cx1 - cx0, H = cy1 - cy0; (3) rotazione oraria della pagina di /Rotate gradi: 0 -> (u, v) viewport W x H; 90 -> (H - v, u) viewport H x W; 180 -> (W - u, H - v) viewport W x H; 270 -> (v, W - u) viewport H x W; (4) normalizzazione degli estremi.",
+  "cases": [
+    {
+      "case_id": "rot0-crop-eq",
+      "rotate": 0,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [0, 0, 612, 792],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [100, 562, 180, 592],
+      "derivation": "W=612, H=792. (1) origine CropBox (0,0): x' in [100,180], y' in [200,230]. (2) u = x' in [100,180]; v = 792 - y': 792-230 = 562, 792-200 = 592 -> [562,592]. (3) rotazione 0: (u, v). (4) [100,562,180,592]; viewport 612 x 792."
+    },
+    {
+      "case_id": "rot90-crop-eq",
+      "rotate": 90,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [0, 0, 612, 792],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [200, 100, 230, 180],
+      "derivation": "W=612, H=792. (1)-(2) u in [100,180], v in [562,592]. (3) rotazione 90: X = H - v = 792 - v: 792-592 = 200, 792-562 = 230 -> [200,230]; Y = u in [100,180]. (4) [200,100,230,180]; viewport 792 x 612 (scambiate)."
+    },
+    {
+      "case_id": "rot180-crop-eq",
+      "rotate": 180,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [0, 0, 612, 792],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [432, 200, 512, 230],
+      "derivation": "W=612, H=792. (1)-(2) u in [100,180], v in [562,592]. (3) rotazione 180: X = W - u = 612 - u: 612-180 = 432, 612-100 = 512 -> [432,512]; Y = H - v = 792 - v: 792-592 = 200, 792-562 = 230 -> [200,230]. (4) [432,200,512,230]; viewport 612 x 792."
+    },
+    {
+      "case_id": "rot270-crop-eq",
+      "rotate": 270,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [0, 0, 612, 792],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [562, 432, 592, 512],
+      "derivation": "W=612, H=792. (1)-(2) u in [100,180], v in [562,592]. (3) rotazione 270: X = v in [562,592]; Y = W - u = 612 - u: 612-180 = 432, 612-100 = 512 -> [432,512]. (4) [562,432,592,512]; viewport 792 x 612 (scambiate)."
+    },
+    {
+      "case_id": "rot0-crop-shift",
+      "rotate": 0,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [50, 40, 562, 752],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [50, 522, 130, 552],
+      "derivation": "W = 562-50 = 512, H = 752-40 = 712. (1) x' = x - 50: 100-50 = 50, 180-50 = 130 -> [50,130]; y' = y - 40: 200-40 = 160, 230-40 = 190 -> [160,190]. (2) u in [50,130]; v = 712 - y': 712-190 = 522, 712-160 = 552 -> [522,552]. (3) rotazione 0: (u, v). (4) [50,522,130,552]; viewport 512 x 712."
+    },
+    {
+      "case_id": "rot90-crop-shift",
+      "rotate": 90,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [50, 40, 562, 752],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [160, 50, 190, 130],
+      "derivation": "W=512, H=712. (1)-(2) u in [50,130], v in [522,552]. (3) rotazione 90: X = H - v = 712 - v: 712-552 = 160, 712-522 = 190 -> [160,190]; Y = u in [50,130]. (4) [160,50,190,130]; viewport 712 x 512 (scambiate)."
+    },
+    {
+      "case_id": "rot180-crop-shift",
+      "rotate": 180,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [50, 40, 562, 752],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [382, 160, 462, 190],
+      "derivation": "W=512, H=712. (1)-(2) u in [50,130], v in [522,552]. (3) rotazione 180: X = W - u = 512 - u: 512-130 = 382, 512-50 = 462 -> [382,462]; Y = H - v = 712 - v: 712-552 = 160, 712-522 = 190 -> [160,190]. (4) [382,160,462,190]; viewport 512 x 712."
+    },
+    {
+      "case_id": "rot270-crop-shift",
+      "rotate": 270,
+      "mediabox": [0, 0, 612, 792],
+      "cropbox": [50, 40, 562, 752],
+      "user_rect": [100, 200, 180, 230],
+      "expected_viewport_rect": [522, 382, 552, 462],
+      "derivation": "W=512, H=712. (1)-(2) u in [50,130], v in [522,552]. (3) rotazione 270: X = v in [522,552]; Y = W - u = 512 - u: 512-130 = 382, 512-50 = 462 -> [382,462]. (4) [522,382,552,462]; viewport 712 x 512 (scambiate)."
+    }
+  ]
+}

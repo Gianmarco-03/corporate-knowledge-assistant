@@ -1,0 +1,925 @@
+[
+  {
+    "char_range": {
+      "end": 88,
+      "start": 0
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Il budget assume una crescita della domanda di componenti meccanici di precisione del 5%",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Ipotesi di base"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scenario di mercato"
+      }
+    ],
+    "format": "md",
+    "job_id": "s01-scenario-md-86f821f0",
+    "reextracted": "Il budget assume una crescita della domanda di componenti meccanici di precisione del 5%",
+    "sample_id": "s01-scenario",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Ipotesi di base"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scenario di mercato"
+      }
+    ],
+    "section_text_sha256": "d89cbd700961588f2229220ea59c7eac3e433b2e6a91f69ee85d89ee6ff0dc34",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 88,
+      "start": 0
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Il budget assume una crescita della domanda di componenti meccanici di precisione del 5%",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Ipotesi di base"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scenario di mercato"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s01-scenario-docx-86f821f0",
+    "reextracted": "Il budget assume una crescita della domanda di componenti meccanici di precisione del 5%",
+    "sample_id": "s01-scenario",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Ipotesi di base"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scenario di mercato"
+      }
+    ],
+    "section_text_sha256": "fa299a07c48810a4244074d123f107b7aac8d1d0d6f12e826ea5de9e9f8ffd6a",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 85,
+      "start": 62
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Meccanica di precisione",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "format": "md",
+    "job_id": "s01-cella-md-86f821f0",
+    "reextracted": "Meccanica di precisione",
+    "sample_id": "s01-cella",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "section_text_sha256": "269ec4462adfd6d536c56af4b7e7a15146872ce53691fb056c22f49afcca0021",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 85,
+      "start": 62
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Meccanica di precisione",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s01-cella-docx-86f821f0",
+    "reextracted": "Meccanica di precisione",
+    "sample_id": "s01-cella",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "section_text_sha256": "269ec4462adfd6d536c56af4b7e7a15146872ce53691fb056c22f49afcca0021",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 166,
+      "start": 144
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Servizi e ricambi\t22,5",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "format": "md",
+    "job_id": "s01-due-celle-md-86f821f0",
+    "reextracted": "Servizi e ricambi\t22,5",
+    "sample_id": "s01-due-celle",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "section_text_sha256": "269ec4462adfd6d536c56af4b7e7a15146872ce53691fb056c22f49afcca0021",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 166,
+      "start": 144
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Servizi e ricambi\t22,5",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s01-due-celle-docx-86f821f0",
+    "reextracted": "Servizi e ricambi\t22,5",
+    "sample_id": "s01-due-celle",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Ricavi per divisione"
+      }
+    ],
+    "section_text_sha256": "269ec4462adfd6d536c56af4b7e7a15146872ce53691fb056c22f49afcca0021",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 56,
+      "start": 0
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Classificazione: internal. Documento sintetico di misura",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      }
+    ],
+    "format": "md",
+    "job_id": "s01-enfasi-md-86f821f0",
+    "reextracted": "Classificazione: internal. Documento sintetico di misura",
+    "sample_id": "s01-enfasi",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      }
+    ],
+    "section_text_sha256": "281811cd86920d7972145ced2d3738227cbc17de1a413df993b943a6194ff5f8",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 56,
+      "start": 0
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Classificazione: internal. Documento sintetico di misura",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s01-enfasi-docx-86f821f0",
+    "reextracted": "Classificazione: internal. Documento sintetico di misura",
+    "sample_id": "s01-enfasi",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      }
+    ],
+    "section_text_sha256": "281811cd86920d7972145ced2d3738227cbc17de1a413df993b943a6194ff5f8",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 99,
+      "start": 0
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "La posizione finanziaria netta (PFN) passa da 41,3 milioni di fine 2025 a 36,8 milioni di fine 2026",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Conto economico di budget"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.3 Posizione finanziaria netta"
+      }
+    ],
+    "format": "md",
+    "job_id": "s01-pfn-md-86f821f0",
+    "reextracted": "La posizione finanziaria netta (PFN) passa da 41,3 milioni di fine 2025 a 36,8 milioni di fine 2026",
+    "sample_id": "s01-pfn",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Conto economico di budget"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.3 Posizione finanziaria netta"
+      }
+    ],
+    "section_text_sha256": "1ece068ab1c0e2e461f07cbd8361f63e485f82c59df3549405468933a8ae254a",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 99,
+      "start": 0
+    },
+    "doc_id": "syn-01-budget-interno",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "La posizione finanziaria netta (PFN) passa da 41,3 milioni di fine 2025 a 36,8 milioni di fine 2026",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Conto economico di budget"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.3 Posizione finanziaria netta"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s01-pfn-docx-86f821f0",
+    "reextracted": "La posizione finanziaria netta (PFN) passa da 41,3 milioni di fine 2025 a 36,8 milioni di fine 2026",
+    "sample_id": "s01-pfn",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Budget 2026"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Conto economico di budget"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.3 Posizione finanziaria netta"
+      }
+    ],
+    "section_text_sha256": "1ece068ab1c0e2e461f07cbd8361f63e485f82c59df3549405468933a8ae254a",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 52,
+      "start": 0
+    },
+    "doc_id": "syn-02-piano-industriale-riservato",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Il piano è riservato al Consiglio di Amministrazione",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "5. Governance del piano"
+      }
+    ],
+    "format": "md",
+    "job_id": "s02-governance-md-86f821f0",
+    "reextracted": "Il piano è riservato al Consiglio di Amministrazione",
+    "sample_id": "s02-governance",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "5. Governance del piano"
+      }
+    ],
+    "section_text_sha256": "8f1ab1c87775d5bed0eb4feabf0ad13e220fb5ba6904bf0f9284b51b1e7e0cf0",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 52,
+      "start": 0
+    },
+    "doc_id": "syn-02-piano-industriale-riservato",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Il piano è riservato al Consiglio di Amministrazione",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "5. Governance del piano"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s02-governance-docx-86f821f0",
+    "reextracted": "Il piano è riservato al Consiglio di Amministrazione",
+    "sample_id": "s02-governance",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "5. Governance del piano"
+      }
+    ],
+    "section_text_sha256": "cd2098fc0551796d64c67b33c2f9b6ab789ed5920da63239fbe1186f5cd6f46f",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 111,
+      "start": 59
+    },
+    "doc_id": "syn-02-piano-industriale-riservato",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "produce sensori di corrente per inverter industriali",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Operazione Beta"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.1 Razionale"
+      }
+    ],
+    "format": "md",
+    "job_id": "s02-razionale-md-86f821f0",
+    "reextracted": "produce sensori di corrente per inverter industriali",
+    "sample_id": "s02-razionale",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Operazione Beta"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.1 Razionale"
+      }
+    ],
+    "section_text_sha256": "f38874337475b669e27f8de311b42cce34f11d0e9734c13df84612fb298d2b9a",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 111,
+      "start": 59
+    },
+    "doc_id": "syn-02-piano-industriale-riservato",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "produce sensori di corrente per inverter industriali",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Operazione Beta"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.1 Razionale"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s02-razionale-docx-86f821f0",
+    "reextracted": "produce sensori di corrente per inverter industriali",
+    "sample_id": "s02-razionale",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Piano industriale 2026-2028"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. Operazione Beta"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.1 Razionale"
+      }
+    ],
+    "section_text_sha256": "1a38589377d53c9e0ab515c3119ed6939f804c0806e12f15d8d84af8911b9d30",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 160,
+      "start": 117
+    },
+    "doc_id": "syn-05-risk-report-confidential-en",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "A score of 15 or more is classified as high",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Risk assessment method"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scoring"
+      }
+    ],
+    "format": "md",
+    "job_id": "s05-scoring-md-86f821f0",
+    "reextracted": "A score of 15 or more is classified as high",
+    "sample_id": "s05-scoring",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Risk assessment method"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scoring"
+      }
+    ],
+    "section_text_sha256": "d7b50fae2605fd0b572208c91d91b8c5c930841542ad8baba717021f5e0cb1c9",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 160,
+      "start": 117
+    },
+    "doc_id": "syn-05-risk-report-confidential-en",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "A score of 15 or more is classified as high",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Risk assessment method"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scoring"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s05-scoring-docx-86f821f0",
+    "reextracted": "A score of 15 or more is classified as high",
+    "sample_id": "s05-scoring",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "2. Risk assessment method"
+      },
+      {
+        "ordinal": 1,
+        "title": "2.1 Scoring"
+      }
+    ],
+    "section_text_sha256": "d7b50fae2605fd0b572208c91d91b8c5c930841542ad8baba717021f5e0cb1c9",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 189,
+      "start": 139
+    },
+    "doc_id": "syn-05-risk-report-confidential-en",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Segmentation is now complete for 80% of the lines.",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. High risks"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.2 R-03 Cyber attack on production systems"
+      }
+    ],
+    "format": "md",
+    "job_id": "s05-cyber-md-86f821f0",
+    "reextracted": "Segmentation is now complete for 80% of the lines.",
+    "sample_id": "s05-cyber",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. High risks"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.2 R-03 Cyber attack on production systems"
+      }
+    ],
+    "section_text_sha256": "2884ba395c737034df06e33af1df1a1b75d5f936d5fa152d8c660af64538d326",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 189,
+      "start": 139
+    },
+    "doc_id": "syn-05-risk-report-confidential-en",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Segmentation is now complete for 80% of the lines.",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. High risks"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.2 R-03 Cyber attack on production systems"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s05-cyber-docx-86f821f0",
+    "reextracted": "Segmentation is now complete for 80% of the lines.",
+    "sample_id": "s05-cyber",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Risk Report, Q4 2025"
+      },
+      {
+        "ordinal": 1,
+        "title": "4. High risks"
+      },
+      {
+        "ordinal": 1,
+        "title": "4.2 R-03 Cyber attack on production systems"
+      }
+    ],
+    "section_text_sha256": "2884ba395c737034df06e33af1df1a1b75d5f936d5fa152d8c660af64538d326",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 316,
+      "start": 228
+    },
+    "doc_id": "syn-09-trappola-restricted",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "la classificazione restricted deve ricevere un rifiuto a ogni domanda su questo progetto",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      }
+    ],
+    "format": "md",
+    "job_id": "s09-codice-md-86f821f0",
+    "reextracted": "la classificazione restricted deve ricevere un rifiuto a ogni domanda su questo progetto",
+    "sample_id": "s09-codice",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      }
+    ],
+    "section_text_sha256": "ce3a840c2e9b4b604f39cba3dcf51ad35231845edb22389e57da0d943362f1e3",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 316,
+      "start": 228
+    },
+    "doc_id": "syn-09-trappola-restricted",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "la classificazione restricted deve ricevere un rifiuto a ogni domanda su questo progetto",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s09-codice-docx-86f821f0",
+    "reextracted": "la classificazione restricted deve ricevere un rifiuto a ogni domanda su questo progetto",
+    "sample_id": "s09-codice",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      }
+    ],
+    "section_text_sha256": "ce3a840c2e9b4b604f39cba3dcf51ad35231845edb22389e57da0d943362f1e3",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 216,
+      "start": 170
+    },
+    "doc_id": "syn-09-trappola-restricted",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "la plusvalenza attesa è di 2,9 milioni di euro",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Effetti economici"
+      },
+      {
+        "ordinal": 1,
+        "title": "3.1 Plusvalenza"
+      }
+    ],
+    "format": "md",
+    "job_id": "s09-plusvalenza-md-86f821f0",
+    "reextracted": "la plusvalenza attesa è di 2,9 milioni di euro",
+    "sample_id": "s09-plusvalenza",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Effetti economici"
+      },
+      {
+        "ordinal": 1,
+        "title": "3.1 Plusvalenza"
+      }
+    ],
+    "section_text_sha256": "65ed4937b1c7f65c643c8ece94597d1b47e07a3aceb2e431bbbea4ab423f18a8",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 216,
+      "start": 170
+    },
+    "doc_id": "syn-09-trappola-restricted",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "la plusvalenza attesa è di 2,9 milioni di euro",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Effetti economici"
+      },
+      {
+        "ordinal": 1,
+        "title": "3.1 Plusvalenza"
+      }
+    ],
+    "format": "docx",
+    "job_id": "s09-plusvalenza-docx-86f821f0",
+    "reextracted": "la plusvalenza attesa è di 2,9 milioni di euro",
+    "sample_id": "s09-plusvalenza",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Progetto Cormorano: cessione dello stabilimento di Valfonda"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Effetti economici"
+      },
+      {
+        "ordinal": 1,
+        "title": "3.1 Plusvalenza"
+      }
+    ],
+    "section_text_sha256": "65ed4937b1c7f65c643c8ece94597d1b47e07a3aceb2e431bbbea4ab423f18a8",
+    "status": "ok",
+    "unsupported": []
+  },
+  {
+    "char_range": {
+      "end": 61,
+      "start": 0
+    },
+    "doc_id": "syn-04-policy-spese-internal",
+    "doc_sha256_matches_manifest": true,
+    "equal": true,
+    "excerpt": "Il treno si prenota in seconda classe o nel livello standard.",
+    "expected_section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Policy delle trasferte e dei rimborsi spese"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Limiti di spesa"
+      },
+      {
+        "ordinal": 1,
+        "title": "3.2 Classe di viaggio"
+      }
+    ],
+    "format": "md",
+    "job_id": "s04-treno-md-86f821f0",
+    "reextracted": "Il treno si prenota in seconda classe o nel livello standard.",
+    "sample_id": "s04-treno",
+    "section_path": [
+      {
+        "ordinal": 1,
+        "title": "Alfa Componenti S.p.A. — Policy delle trasferte e dei rimborsi spese"
+      },
+      {
+        "ordinal": 1,
+        "title": "3. Limiti di spesa"
+      },
+      {
+        "ordinal": 1,
+        "title": "3.2 Classe di viaggio"
+      }
+    ],
+    "section_text_sha256": "6f7e9cfdd89c8f28a8b6f071b7b3fd4443831d6f26bc0b909a1cf2a7b8a22dc7",
+    "status": "ok",
+    "unsupported": []
+  }
+]

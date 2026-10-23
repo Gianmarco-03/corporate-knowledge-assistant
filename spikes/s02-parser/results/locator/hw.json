@@ -1,0 +1,32 @@
+{
+  "timestamp_utc": "2026-10-22T20:26:46Z",
+  "git_rev": "087a843a3488bfd5da84f4fb7206773a7682bf53",
+  "cpu": {
+    "model": "13th Gen Intel(R) Core(TM) i7-13700K",
+    "cores": 16,
+    "threads": 24
+  },
+  "ram_total": 34112217088,
+  "gpu": "NVIDIA GeForce RTX 3050, 610.88, 6144 MiB",
+  "cuda_driver": "13.3",
+  "wsl_version": "Versione WSL: 2.6.3.0\nVersione kernel: 6.6.87.2-1\nVersione WSLg: 1.0.71\nVersione MSRDC: 1.2.6353\nVersione Direct3D: 1.611.1-81528511\nVersione DXCore: 10.0.26100.1-240331-1435.ge-release\nVersione di Windows: 10.0.26300.9711",
+  "docker_version": "29.8.2",
+  "docker_desktop_resources": {
+    "ncpu": 16,
+    "mem_total_bytes": 20971708416
+  },
+  "images": [
+    {
+      "ref": "cka-spikes-worker@sha256:446219af6d27b8a3c3b96d9b1ab0746c7438cedc7268a9e3b89c4b4155e81f53",
+      "digest": "cka-spikes-worker@sha256:446219af6d27b8a3c3b96d9b1ab0746c7438cedc7268a9e3b89c4b4155e81f53"
+    }
+  ],
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "tools": {
+    "pdfium": "chromium/8100"
+  },
+  "power_plan": "GUID combinazione risparmio energia: 381b4222-f694-41f0-9685-ff5bb260df2e  (Bilanciato)",
+  "run_id": "01-09-20261022t202549z-6312",
+  "compose_project": "cka-spikes",
+  "containers": []
+}

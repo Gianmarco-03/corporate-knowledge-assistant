@@ -10,6 +10,15 @@
 //! assente; 3 misura non isolata (`oom_adj_set=false` in `budget`/`overhead`); 1 altri errori.
 //! I driver `hostile`, `budget`, `overhead` li esegue il piano 01-18 (che sceglie ripetizioni,
 //! concorrenze e input) e non tocca questo codice.
+//!
+//! In `budget` l'input del selftest si rimuove dalla radice dei job su ogni uscita, riuscita o
+//! in errore. In `overhead` l'errore di una ripetizione non cambia il codice d'uscita: finisce
+//! nella colonna `status` (`ok` | `error:<tipo>`) e il driver prosegue con le ripetizioni
+//! successive. Restano fatali, con exit 1, l'input illeggibile, il bind di PDFium fallito e il
+//! CSV non creabile o non scrivibile.
+
+// Modifica: Claude (gsd-executor 01.4-01) · 2026-10-22 · budget: input del selftest rimosso su ogni uscita; overhead: colonna status e ripetizioni in-process complete (gap-closure 1.4)
+
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -53,7 +62,7 @@ const OVERHEAD_DOCS_PER_RUN: usize = 16;
 
 const HOSTILE_HEADER: &str = "case_id,run,expected,outcome,kind,extra_reasons,signal,peak_rss_kb,ms_to_fail,parent_alive,oom_kill_delta,leftover_procs,oom_adj_set,pass";
 const BUDGET_HEADER: &str = "requested_concurrency,jobs,max_admitted,completed,oom_kill_delta,parent_vm_hwm_kb,parent_alive";
-const OVERHEAD_HEADER: &str = "mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s";
+const OVERHEAD_HEADER: &str = "mode,concurrency,run,docs,wall_ms,spawn_init_ms,docs_per_s,status";
 const CALIBRATION_HEADER: &str = "doc_id,pages,vm_peak_kb,vm_hwm_kb,out_bytes,max_flate_ratio,max_stream_bytes,total_decompressed_bytes,objstm_count,objstm_decompressed_bytes,rejected_filter_streams,encryption,embedded_files";
 
 /// Budget fisso per i test nel runner, che non ha `memory.max`: variabili lette solo dal
@@ -983,14 +992,35 @@ fn read_oom_kills() -> Option<u64> {
         .and_then(|v| v.trim().parse().ok())
 }
 
-/// File d'ingresso dei job `selftest` dei driver, sotto la radice dei job.
-fn selftest_input(run_tag: &str) -> anyhow::Result<PathBuf> {
+/// File d'ingresso dei job `selftest` dei driver, sotto la radice dei job. La guardia lo
+/// rimuove quando esce di scope, quindi su ogni uscita del driver (`?`, `return` e panico con
+/// unwind compresi), come `GroupGuard` del lanciatore (gap-closure 1.4, D-01).
+struct SelftestInput {
+    path: PathBuf,
+}
+
+impl SelftestInput {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for SelftestInput {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn selftest_input(run_tag: &str) -> anyhow::Result<SelftestInput> {
     let root = std::env::var_os("S02_WORK_ROOT")
         .filter(|v| !v.is_empty())
         .map_or_else(|| PathBuf::from("/work"), PathBuf::from);
     let p = root.join(format!("selftest-input-{run_tag}"));
-    std::fs::write(&p, b"selftest\n").with_context(|| format!("ingresso {}", p.display()))?;
-    Ok(p)
+    if let Err(e) = std::fs::write(&p, b"selftest\n") {
+        let _ = std::fs::remove_file(&p);
+        return Err(anyhow::Error::new(e).context(format!("ingresso {}", p.display())));
+    }
+    Ok(SelftestInput { path: p })
 }
 
 /// Esegue i job con al più `concurrency` in corsa; il budget ammette per conto suo.
@@ -1068,7 +1098,7 @@ async fn cmd_budget(
             let bytes = job_bytes(
                 &id,
                 "selftest",
-                &input,
+                input.path(),
                 "",
                 &json!({"mode": "alloc", "arg": alloc}),
             );
@@ -1113,7 +1143,7 @@ async fn cmd_budget(
         let refs: Vec<&str> = row.iter().map(String::as_str).collect();
         w.write_row(&refs)?;
     }
-    let _ = std::fs::remove_file(&input);
+    drop(input);
     if !not_isolated.is_empty() {
         eprintln!("oom_adj_set=false: {}", not_isolated.join(" "));
         return Ok(Exit(3));
@@ -1123,6 +1153,117 @@ async fn cmd_budget(
 
 // ---- driver overhead --------------------------------------------------------------------
 
+/// Errore di una ripetizione del modo `in-process-mutex`: diventa la colonna `status` della
+/// riga, non un'uscita del driver (gap-closure 1.4, D-02).
+#[derive(Debug)]
+enum InProcessError {
+    Pdfium(pdfium_render::prelude::PdfiumError),
+    ThreadPanic,
+}
+
+/// `status` di una ripetizione in-process fallita: `error:<tipo>`.
+fn in_process_status(e: &InProcessError) -> String {
+    use pdfium_render::prelude::{PdfiumError, PdfiumInternalError};
+    let kind = match e {
+        InProcessError::Pdfium(PdfiumError::PdfiumLibraryInternalError(i)) => match i {
+            PdfiumInternalError::FileError => "pdfium_file",
+            PdfiumInternalError::FormatError => "pdfium_format",
+            PdfiumInternalError::PasswordError => "pdfium_password",
+            PdfiumInternalError::SecurityError => "pdfium_security",
+            PdfiumInternalError::PageError => "pdfium_page",
+            PdfiumInternalError::Unknown => "pdfium_unknown",
+        },
+        InProcessError::Pdfium(_) => "pdfium_other",
+        InProcessError::ThreadPanic => "thread_panic",
+    };
+    format!("error:{kind}")
+}
+
+/// Esito di una ripetizione di `overhead`, in uno dei due modi.
+enum RepOutcome {
+    Ok {
+        wall: Duration,
+        spawn_init_ms: Option<f64>,
+    },
+    /// `status` completo, `error:<tipo>`.
+    Error(String),
+}
+
+/// Riga di `overhead.csv`, sempre con i campi di `OVERHEAD_HEADER`. In errore i campi di
+/// tempo restano vuoti: il throughput di una ripetizione fallita non è confrontabile.
+fn overhead_row(mode: &str, n: usize, run: u32, o: &RepOutcome) -> Vec<String> {
+    let (wall_ms, spawn_init, docs_per_s, status) = match o {
+        RepOutcome::Ok {
+            wall,
+            spawn_init_ms,
+        } => (
+            wall.as_millis().to_string(),
+            spawn_init_ms.map(|v| format!("{v:.1}")).unwrap_or_default(),
+            format!("{:.2}", OVERHEAD_DOCS_PER_RUN as f64 / wall.as_secs_f64()),
+            "ok".to_owned(),
+        ),
+        RepOutcome::Error(s) => (String::new(), String::new(), String::new(), s.clone()),
+    };
+    vec![
+        mode.to_owned(),
+        n.to_string(),
+        run.to_string(),
+        OVERHEAD_DOCS_PER_RUN.to_string(),
+        wall_ms,
+        spawn_init,
+        docs_per_s,
+        status,
+    ]
+}
+
+/// `status` di una ripetizione `child-per-doc`: `None` se tutti i job sono riusciti,
+/// altrimenti quello del primo job non riuscito nell'ordine dei risultati.
+fn child_per_doc_error(results: &[(String, anyhow::Result<RunReport>)]) -> Option<String> {
+    results.iter().find_map(|(_, r)| match r {
+        Ok(rep) => match &rep.outcome {
+            ChildOutcome::Ok { .. } => None,
+            ChildOutcome::Failed { kind, .. } => Some(format!("error:{}", kind.as_str())),
+            ChildOutcome::Quarantined { .. } => Some("error:quarantined".to_owned()),
+        },
+        Err(e) if job_error_of(e).is_some() => Some("error:job_error".to_owned()),
+        Err(_) => Some("error:launch".to_owned()),
+    })
+}
+
+/// Ripetizioni del modo `in-process-mutex`: una riga per ripetizione, anche in errore. Un
+/// errore di `rep` va nella colonna `status` e su stderr; un errore di `sink` (CSV) è fatale
+/// e si propaga subito. Restituisce il numero di ripetizioni in errore.
+fn in_process_reps<F, S>(
+    levels: &[usize],
+    runs: u32,
+    mut rep: F,
+    mut sink: S,
+) -> anyhow::Result<u32>
+where
+    F: FnMut(usize, u32) -> Result<Duration, InProcessError>,
+    S: FnMut(Vec<String>) -> anyhow::Result<()>,
+{
+    let mut errors = 0u32;
+    for &n in levels {
+        for run in 1..=runs {
+            let outcome = match rep(n, run) {
+                Ok(wall) => RepOutcome::Ok {
+                    wall,
+                    spawn_init_ms: None,
+                },
+                Err(e) => {
+                    let status = in_process_status(&e);
+                    eprintln!("overhead: in-process c{n} r{run}: {status} ({e:?})");
+                    errors += 1;
+                    RepOutcome::Error(status)
+                }
+            };
+            sink(overhead_row("in-process-mutex", n, run, &outcome))?;
+        }
+    }
+    Ok(errors)
+}
+
 /// Modo `in-process-mutex`: PDFium nel processo padre, dietro il mutex globale della
 /// feature `thread_safe`, solo per il confronto M9 (input fidato scelto dal piano 01-18).
 fn in_process_run(
@@ -1130,16 +1271,16 @@ fn in_process_run(
     bytes: &[u8],
     docs: usize,
     n: usize,
-) -> anyhow::Result<()> {
+) -> Result<(), InProcessError> {
     let next = std::sync::atomic::AtomicUsize::new(0);
-    std::thread::scope(|s| -> anyhow::Result<()> {
+    std::thread::scope(|s| -> Result<(), InProcessError> {
         let handles: Vec<_> = (0..n)
             .map(|_| {
-                s.spawn(|| -> anyhow::Result<()> {
+                s.spawn(|| -> Result<(), InProcessError> {
                     while next.fetch_add(1, std::sync::atomic::Ordering::SeqCst) < docs {
                         let doc = pdfium
                             .load_pdf_from_byte_slice(bytes, None)
-                            .map_err(|e| anyhow::anyhow!("pdfium: {e}"))?;
+                            .map_err(InProcessError::Pdfium)?;
                         for page in doc.pages().iter() {
                             let _ = page.text().map(|t| t.all().len());
                         }
@@ -1149,8 +1290,7 @@ fn in_process_run(
             })
             .collect();
         for h in handles {
-            h.join()
-                .map_err(|_| anyhow::anyhow!("thread in-process"))??;
+            h.join().map_err(|_| InProcessError::ThreadPanic)??;
         }
         Ok(())
     })
@@ -1223,20 +1363,19 @@ async fn cmd_overhead(
                     eprintln!("overhead: job_id={id}: {e:#}");
                 }
             }
-            let spawn_init = if init_ms.is_empty() {
-                String::new()
+            let spawn_init_ms = if init_ms.is_empty() {
+                None
             } else {
-                format!("{:.1}", init_ms.iter().sum::<f64>() / init_ms.len() as f64)
+                Some(init_ms.iter().sum::<f64>() / init_ms.len() as f64)
             };
-            let row = [
-                "child-per-doc".to_owned(),
-                n.to_string(),
-                run.to_string(),
-                OVERHEAD_DOCS_PER_RUN.to_string(),
-                wall.as_millis().to_string(),
-                spawn_init,
-                format!("{:.2}", OVERHEAD_DOCS_PER_RUN as f64 / wall.as_secs_f64()),
-            ];
+            let outcome = match child_per_doc_error(&results) {
+                None => RepOutcome::Ok {
+                    wall,
+                    spawn_init_ms,
+                },
+                Some(status) => RepOutcome::Error(status),
+            };
+            let row = overhead_row("child-per-doc", n, run, &outcome);
             let refs: Vec<&str> = row.iter().map(String::as_str).collect();
             w.write_row(&refs)?;
         }
@@ -1249,23 +1388,23 @@ async fn cmd_overhead(
     )
     .map_err(|e| anyhow::anyhow!("pdfium_bind: {e}"))?;
     let pdfium = pdfium_render::prelude::Pdfium::new(bindings);
-    for &n in &levels {
-        for run in 1..=runs {
+    let errors = in_process_reps(
+        &levels,
+        runs,
+        |n, _run| {
             let t0 = Instant::now();
-            in_process_run(&pdfium, &bytes, OVERHEAD_DOCS_PER_RUN, n)?;
-            let wall = t0.elapsed();
-            let row = [
-                "in-process-mutex".to_owned(),
-                n.to_string(),
-                run.to_string(),
-                OVERHEAD_DOCS_PER_RUN.to_string(),
-                wall.as_millis().to_string(),
-                String::new(),
-                format!("{:.2}", OVERHEAD_DOCS_PER_RUN as f64 / wall.as_secs_f64()),
-            ];
+            in_process_run(&pdfium, &bytes, OVERHEAD_DOCS_PER_RUN, n).map(|()| t0.elapsed())
+        },
+        |row| {
             let refs: Vec<&str> = row.iter().map(String::as_str).collect();
-            w.write_row(&refs)?;
-        }
+            w.write_row(&refs)
+        },
+    )?;
+    if errors > 0 {
+        eprintln!(
+            "overhead: in_process_errors={errors} su {}",
+            levels.len() as u64 * u64::from(runs)
+        );
     }
     if !not_isolated.is_empty() {
         eprintln!("oom_adj_set=false: {}", not_isolated.join(" "));
@@ -1374,5 +1513,252 @@ mod tests {
             .0
         );
         assert!(!hostile_verdict("ok", &[], &quarantined(&["javascript"]), true).0);
+    }
+
+    // ---- gap-closure 1.4 (piano 01.4-01, Task 1): contratti nuovi di `overhead` ----------
+    // Test rossi sulla base: i simboli (`InProcessError`, `in_process_status`, `RepOutcome`,
+    // `overhead_row`, `in_process_reps`, `child_per_doc_error`) non esistono ancora.
+    // Il guasto di una sola ripetizione si inietta con la closure di `in_process_reps`, senza
+    // ganci nel driver (hard_rules 5). TEST-6..TEST-9 di `01.4-01-TEST-DESIGN.md`.
+
+    use pdfium_render::prelude::{PdfiumError, PdfiumInternalError};
+    use s02_parser::job::JobErrorCode;
+
+    fn internal(e: PdfiumInternalError) -> InProcessError {
+        InProcessError::Pdfium(PdfiumError::PdfiumLibraryInternalError(e))
+    }
+
+    fn report(outcome: ChildOutcome) -> anyhow::Result<RunReport> {
+        Ok(RunReport {
+            job_id: "j".into(),
+            outcome,
+            exit_signal: None,
+            peak_rss_kb: None,
+            wall_ms: 10,
+            oom_kill_delta: 0,
+            leftover_procs: 0,
+            oom_adj_set: true,
+        })
+    }
+
+    fn results(v: Vec<anyhow::Result<RunReport>>) -> Vec<(String, anyhow::Result<RunReport>)> {
+        v.into_iter()
+            .enumerate()
+            .map(|(i, r)| (format!("j{i}"), r))
+            .collect()
+    }
+
+    /// TEST-6: tabella completa dei tipi d'errore in-process (esaustiva sulle sei varianti).
+    #[test]
+    fn in_process_status_table() {
+        let cases = [
+            (
+                internal(PdfiumInternalError::FileError),
+                "error:pdfium_file",
+            ),
+            (
+                internal(PdfiumInternalError::FormatError),
+                "error:pdfium_format",
+            ),
+            (
+                internal(PdfiumInternalError::PasswordError),
+                "error:pdfium_password",
+            ),
+            (
+                internal(PdfiumInternalError::SecurityError),
+                "error:pdfium_security",
+            ),
+            (
+                internal(PdfiumInternalError::PageError),
+                "error:pdfium_page",
+            ),
+            (
+                internal(PdfiumInternalError::Unknown),
+                "error:pdfium_unknown",
+            ),
+            (
+                InProcessError::Pdfium(PdfiumError::PageIndexOutOfBounds),
+                "error:pdfium_other",
+            ),
+            (InProcessError::ThreadPanic, "error:thread_panic"),
+        ];
+        for (e, want) in &cases {
+            assert_eq!(in_process_status(e), *want, "stato di {e:?}");
+        }
+    }
+
+    /// TEST-6: forma delle righe di `overhead.csv`, sempre 8 campi, campi di tempo vuoti in
+    /// errore, formati `{:.1}` e `{:.2}` come prima della 1.4.
+    #[test]
+    fn overhead_row_shapes() {
+        let ok_init = RepOutcome::Ok {
+            wall: Duration::from_millis(800),
+            spawn_init_ms: Some(4.97),
+        };
+        assert_eq!(
+            overhead_row("child-per-doc", 1, 1, &ok_init),
+            s(&["child-per-doc", "1", "1", "16", "800", "5.0", "20.00", "ok"])
+        );
+        let ok_none = RepOutcome::Ok {
+            wall: Duration::from_millis(800),
+            spawn_init_ms: None,
+        };
+        assert_eq!(
+            overhead_row("child-per-doc", 1, 1, &ok_none),
+            s(&["child-per-doc", "1", "1", "16", "800", "", "20.00", "ok"])
+        );
+        let err = RepOutcome::Error("error:pdfium_format".to_owned());
+        assert_eq!(
+            overhead_row("in-process-mutex", 8, 7, &err),
+            s(&[
+                "in-process-mutex",
+                "8",
+                "7",
+                "16",
+                "",
+                "",
+                "",
+                "error:pdfium_format"
+            ])
+        );
+        for o in [&ok_init, &ok_none, &err] {
+            assert_eq!(
+                overhead_row("in-process-mutex", 4, 2, o).len(),
+                OVERHEAD_HEADER.split(',').count(),
+                "una riga ha i campi dell'header"
+            );
+        }
+        assert_eq!(OVERHEAD_HEADER.split(',').count(), 8);
+    }
+
+    /// TEST-7: l'errore di una sola ripetizione non interrompe né contamina le altre (D-02).
+    #[test]
+    fn in_process_reps_single_failure_keeps_all_rows() {
+        let mut calls: Vec<(usize, u32)> = Vec::new();
+        let mut rows: Vec<Vec<String>> = Vec::new();
+        let errors = in_process_reps(
+            &[1, 4, 8],
+            20,
+            |n, run| {
+                calls.push((n, run));
+                if (n, run) == (8, 7) {
+                    Err(internal(PdfiumInternalError::FormatError))
+                } else {
+                    Ok(Duration::from_millis(700))
+                }
+            },
+            |row| {
+                rows.push(row);
+                Ok(())
+            },
+        )
+        .expect("nessun errore del sink");
+        assert_eq!(errors, 1, "ripetizioni in errore");
+        assert_eq!(calls.len(), 60, "ogni ripetizione chiamata una volta");
+        assert_eq!(rows.len(), 60, "una riga per ripetizione");
+        let mut expected_order = Vec::new();
+        for n in [1usize, 4, 8] {
+            for run in 1..=20u32 {
+                expected_order.push((n, run));
+            }
+        }
+        assert_eq!(calls, expected_order, "ordine livello, poi run");
+        for (row, (n, run)) in rows.iter().zip(&expected_order) {
+            assert_eq!(row.len(), 8, "riga {row:?}");
+            assert_eq!(row[0], "in-process-mutex");
+            assert_eq!(row[1], n.to_string());
+            assert_eq!(row[2], run.to_string());
+            assert_eq!(row[3], "16");
+        }
+        let bad: Vec<&Vec<String>> = rows.iter().filter(|r| r[7] != "ok").collect();
+        assert_eq!(bad.len(), 1, "una sola riga in errore: {bad:?}");
+        assert_eq!(
+            *bad[0],
+            s(&[
+                "in-process-mutex",
+                "8",
+                "7",
+                "16",
+                "",
+                "",
+                "",
+                "error:pdfium_format"
+            ])
+        );
+        for r in rows.iter().filter(|r| r[7] == "ok") {
+            assert_eq!(r[4], "700", "wall_ms delle righe ok: {r:?}");
+            assert_eq!(r[5], "", "spawn_init_ms vuoto in-process: {r:?}");
+            assert!(!r[6].is_empty(), "docs_per_s delle righe ok: {r:?}");
+        }
+    }
+
+    /// TEST-8: un errore del sink (CSV) resta fatale e ferma le ripetizioni (D-02, T-01.4-03).
+    #[test]
+    fn in_process_reps_sink_error_is_fatal() {
+        let mut calls = 0u32;
+        let mut written = 0u32;
+        let r = in_process_reps(
+            &[1, 4, 8],
+            20,
+            |_, _| {
+                calls += 1;
+                Ok(Duration::from_millis(700))
+            },
+            |_| {
+                written += 1;
+                if written == 2 {
+                    Err(anyhow::anyhow!("csv"))
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert!(r.is_err(), "errore del sink propagato: {r:?}");
+        assert_eq!(calls, 2, "nessuna ripetizione dopo l'errore del sink");
+    }
+
+    /// TEST-9: stato delle righe `child-per-doc`, primo risultato non riuscito nell'ordine.
+    #[test]
+    fn child_per_doc_error_table() {
+        assert_eq!(
+            child_per_doc_error(&results(vec![report(ok()), report(ok()), report(ok())])),
+            None
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![
+                report(ok()),
+                report(failed(Kind::Corrupt)),
+                report(ok())
+            ])),
+            Some("error:Corrupt".to_owned())
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![
+                report(ok()),
+                report(quarantined(&["javascript"]))
+            ])),
+            Some("error:quarantined".to_owned())
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![report(ok()), Err(anyhow::anyhow!("x"))])),
+            Some("error:launch".to_owned())
+        );
+        assert_eq!(
+            child_per_doc_error(&results(vec![Err(anyhow::Error::new(JobError::new(
+                JobErrorCode::PathNotAllowed,
+                "x"
+            )))])),
+            Some("error:job_error".to_owned())
+        );
+        // il primo non riuscito, non il più grave
+        assert_eq!(
+            child_per_doc_error(&results(vec![
+                report(ok()),
+                report(failed(Kind::Timeout)),
+                Err(anyhow::anyhow!("x")),
+                report(quarantined(&["javascript"]))
+            ])),
+            Some("error:Timeout".to_owned())
+        );
     }
 }
