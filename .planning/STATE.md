@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-23T13:46:44.939Z"
-last_activity: 2026-10-23 — 01.4-01 completato; onda 6 fusa con gate verde
+last_updated: "2026-10-23T13:53:54.658Z"
+last_activity: 2026-10-23 — 01-09 completato (bridge)
 progress:
   total_phases: 19
   completed_phases: 3
   total_plans: 23
-  completed_plans: 15
+  completed_plans: 17
   percent: 16
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 9 of 18 in current phase
 Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-23 — 01.4-01 completato; onda 6 fusa con gate verde
+Last activity: 2026-10-23 — 01-09 completato (bridge)
 
 Progress: [░░░░░░░░░░] 0%
 
