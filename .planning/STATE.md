@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-22T19:24:21.376Z"
-last_activity: 2026-10-22 — 01-08 completato (bridge); onda 5 chiusa
+last_updated: "2026-10-23T13:46:44.939Z"
+last_activity: 2026-10-23 — 01.4-01 completato; onda 6 fusa con gate verde
 progress:
   total_phases: 19
   completed_phases: 3
-  total_plans: 22
-  completed_plans: 14
+  total_plans: 23
+  completed_plans: 15
   percent: 16
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 9 of 18 in current phase
 Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-22 — 01-08 completato (bridge); onda 5 chiusa
+Last activity: 2026-10-23 — 01.4-01 completato; onda 6 fusa con gate verde
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -137,6 +137,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: Fase 01: prescan v6 e prenotazione su 3×VmHWM, calibrazione 10/10 PDF benigni, 2 job parse nel budget → `phases/01-spike-tecnici/01-07-SUMMARY.md#decisions-made`
 - [Phase ?]: M8 di 01-18 dichiarata non raggiunta 24/26 (D-34, JBIG2 a 01-13); driver budget/overhead di 01-07 alla gap-closure 1.4 (D-35) → `phases/01-spike-tecnici/01-18-SUMMARY.md#decisions-made`
 - [Phase ?]: D-27 chiusa con l'opzione 4 (D-36), riavvio Docling e precisione pagine-tabella aperti per l'ADR di ingestion; falso positivo del prescan alla 1.4 (D-37) → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
+- [Phase ?]: Modello di embedding bge-m3 su TEI CUDA (D-38, emenda D-14): nDCG@10 0,723 contro Qwen3 0,660 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 
 ### Pending Todos
 

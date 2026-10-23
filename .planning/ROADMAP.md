@@ -79,7 +79,7 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
 **Depends on:** Phase 1
-**Plans:** 11/18 plans executed
+**Plans:** 1/2 plans executed
 
 Plans:
 
