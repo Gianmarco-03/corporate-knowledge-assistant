@@ -1,0 +1,864 @@
+# prescan-dct-sof — tetto delle immagini DCT e JPX sulle dimensioni codificate (fase 1.5, piano 01.5-01, D-01..D-10)
+# data UTC: 2026-10-23T16:17:58Z  git_rev base: 44a9ae140bbd67b86e14e61e55b0f97c5de32f97
+# Identificativo di piano per session.sh: 01-5-01, perché new-id, acquire e la regex del run_id rifiutano il punto di 01.5-01.
+# sha256 e nomi dei file DocLayNet troncati a 16 caratteri (regola 3).
+
+## Dataset
+
+$ bash spikes/data/corpus/fetch.sh  (righe finali)
+fetch.sh: versionato, sha256 ok: synthetic/syn-09-trappola-restricted.docx (syn-09-trappola-restricted-docx)
+fetch.sh: corpus completo: ogni file coincide con lo sha256 del manifest
+[exit 0]
+
+$ bash spikes/data/s02/fetch.sh  (righe finali)
+fetch.sh: ok: 84 voci verificate in raw/
+[exit 0]
+
+nota: i 10 PDF di spikes/data/corpus/raw/ sono stati copiati dal checkout principale prima di fetch.sh, che li ha riverificati sullo sha256 del manifest; libpdfium.so copiata dal checkout principale (sha256 b8784cbd652ad299…).
+
+pdf_s02=63 (atteso 63) pdf_corpus=10 (atteso 10)
+base senza detail nuovi: dct_sof=0 jpx_siz=0
+
+## Linea di base
+
+sessione: run_id=01-5-01-20261023t162833z-2481 (session.sh with 01-5-01 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked
+ Container cka-spikes-runner-run-46499e63d37e Creating 
+ Container cka-spikes-runner-run-46499e63d37e Created 
+    Checking common v0.0.0 (/src/common)
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.52s
+[exit 0]
+
+linea di base check: exit=0 avvisi=0
+
+$ cd spikes && cargo clippy -p s02-parser --all-targets -- -D warnings  (host)
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+    Checking windows-link v0.2.1
+    Checking cfg-if v1.0.5
+   Compiling getrandom v0.4.3
+   Compiling find-msvc-tools v0.1.15
+   Compiling shlex v2.0.1
+    Checking typenum v1.20.1
+    Checking zeroize v1.9.1
+    Checking smallvec v1.16.3
+    Checking stable_deref_trait v1.2.1
+    Checking scopeguard v1.2.0
+    Checking bytes v1.12.1
+   Compiling parking_lot_core v0.9.12
+    Checking pin-project-lite v0.2.17
+    Checking itoa v1.0.18
+    Checking futures-core v0.3.34
+   Compiling fs_extra v1.3.0
+   Compiling dunce v1.0.5
+    Checking simd-adler32 v0.3.10
+   Compiling pkg-config v0.3.34
+    Checking once_cell v1.21.4
+    Checking windows-sys v0.61.2
+    Checking windows-strings v0.5.1
+    Checking lock_api v0.4.14
+    Checking windows-result v0.4.1
+    Checking memchr v2.8.3
+   Compiling rustversion v1.0.23
+   Compiling crc32fast v1.5.2
+    Checking cmov v0.5.4
+    Checking adler2 v2.0.1
+   Compiling crossbeam-utils v0.8.23
+   Compiling autocfg v1.5.1
+   Compiling libc v0.2.191
+    Checking const-oid v0.10.2
+   Compiling aws-lc-rs v1.18.2
+    Checking writeable v0.6.4
+    Checking litemap v0.8.3
+    Checking equivalent v1.0.3
+    Checking miniz_oxide v0.9.1
+   Compiling icu_properties_data v2.3.0
+    Checking utf8_iter v1.0.4
+    Checking hashbrown v0.17.1
+    Checking zlib-rs v0.6.8
+    Checking ctutils v0.4.3
+    Checking slab v0.4.12
+    Checking cpufeatures v0.3.1
+   Compiling zstd-safe v8.2.0
+    Checking http v1.5.0
+   Compiling icu_normalizer_data v2.3.0
+    Checking futures-sink v0.3.34
+    Checking hybrid-array v0.4.15
+   Compiling serde_core v1.0.229
+    Checking bitflags v2.13.2
+    Checking tracing-core v0.1.36
+    Checking rustls-pki-types v1.15.1
+   Compiling num-traits v0.2.19
+   Compiling rustls v0.23.46
+    Checking untrusted v0.9.0
+    Checking log v0.4.34
+   Compiling httparse v1.10.1
+    Checking indexmap v2.14.2
+    Checking parking_lot v0.12.5
+    Checking futures-task v0.3.34
+   Compiling jobserver v0.1.35
+   Compiling crossbeam-epoch v0.9.21
+    Checking percent-encoding v2.3.2
+    Checking tower-service v0.3.3
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking flate2 v1.1.10
+    Checking block-padding v0.4.2
+    Checking fnv v1.0.7
+   Compiling winapi v0.3.9
+    Checking tracing v0.1.44
+    Checking http-body v1.1.0
+    Checking futures-util v0.3.34
+    Checking rand_core v0.10.1
+   Compiling cc v1.9.0
+    Checking inout v0.2.5
+    Checking try-lock v0.2.5
+    Checking atomic-waker v1.1.2
+   Compiling crossbeam-deque v0.8.8
+   Compiling zmij v1.0.23
+    Checking subtle v2.6.1
+    Checking futures-channel v0.3.34
+    Checking windows-threading v0.2.1
+    Checking anstyle v1.0.14
+    Checking want v0.3.2
+    Checking either v1.19.0
+    Checking compression-core v0.4.34
+    Checking byteorder v1.5.0
+   Compiling unicase v2.10.0
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+    Checking once_cell_polyfill v1.70.2
+    Checking digest v0.11.3
+    Checking cipher v0.5.2
+   Compiling serde v1.0.229
+   Compiling ntapi v0.4.3
+   Compiling rayon-core v1.13.0
+   Compiling serde_json v1.0.154
+    Checking utf8parse v0.2.2
+   Compiling encoding_rs v0.8.42
+   Compiling constant_time_eq v0.6.1
+    Checking form_urlencoded v1.2.2
+    Checking nom v8.0.0
+    Checking miniz_oxide v0.8.9
+   Compiling mime_guess v2.0.5
+    Checking windows-registry v0.6.1
+    Checking sha2 v0.11.1
+    Checking sync_wrapper v1.0.2
+    Checking anstyle-parse v1.0.0
+    Checking fdeflate v0.3.7
+   Compiling multiversion_no_op v1.0.0
+    Checking pxfm v0.1.30
+    Checking base64 v0.23.1
+    Checking zune-core v0.5.3
+   Compiling thiserror v2.0.21
+    Checking cpubits v0.1.1
+    Checking colorchoice v1.0.5
+   Compiling cmake v0.1.58
+    Checking is_terminal_polyfill v1.70.2
+   Compiling anyhow v1.0.104
+    Checking core_detect v1.0.0
+    Checking ipnet v2.12.2
+    Checking tinyvec v1.13.3
+    Checking simdutf8 v0.1.5
+    Checking tower-layer v0.3.3
+   Compiling cfg_aliases v0.2.2
+    Checking alloc-no-stdlib v2.0.4
+    Checking zune-jpeg v0.5.15
+    Checking aes v0.9.3
+    Checking png v0.18.1
+    Checking chrono v0.4.45
+    Checking alloc-stdlib v0.2.4
+   Compiling nix v0.31.3
+    Checking unicode-normalization v0.1.26
+    Checking hmac v0.13.0
+    Checking chacha20 v0.10.2
+    Checking http-body-util v0.1.5
+    Checking crossbeam-channel v0.5.17
+    Checking csv-core v0.1.13
+    Checking bumpalo v3.20.3
+    Checking byteorder-lite v0.1.0
+    Checking libbz2-rs-sys v0.2.5
+   Compiling rlimit v0.11.0
+   Compiling pdfium-render v0.9.4
+    Checking deranged v0.5.9
+    Checking bytemuck v1.25.2
+    Checking mime v0.3.17
+    Checking unicode-properties v0.1.4
+    Checking unicode-bidi v0.3.18
+    Checking base64 v0.22.1
+    Checking ryu v1.0.23
+    Checking strsim v0.11.1
+    Checking time-core v0.1.9
+   Compiling heck v0.5.0
+    Checking piston-float v1.0.1
+    Checking powerfmt v0.2.1
+    Checking num-conv v0.2.2
+    Checking clap_lex v1.1.1
+    Checking csv v1.4.0
+    Checking vecmath v1.0.0
+   Compiling aws-lc-sys v0.46.0
+   Compiling zstd-sys v2.1.2+zstd.1.5.7
+    Checking zopfli v0.8.4
+    Checking bzip2 v0.6.1
+    Checking stringprep v0.1.5
+    Checking rayon v1.12.0
+    Checking rand v0.10.3
+    Checking pbkdf2 v0.13.0
+    Checking time v0.3.55
+    Checking brotli-decompressor v5.0.3
+    Checking lzma-rust2 v0.22.0
+    Checking sha1 v0.11.0
+    Checking md-5 v0.11.0
+    Checking ecb v0.2.1
+    Checking hdrhistogram v7.6.0
+    Checking cbc v0.2.1
+    Checking utf16string v0.2.0
+    Checking socket2 v0.6.5
+    Checking mio v1.2.4
+    Checking anstyle-wincon v3.0.11
+    Checking anstyle-query v1.1.5
+    Checking itertools v0.15.0
+    Checking libloading v0.9.0
+    Checking weezl v0.2.1
+    Checking deflate64 v0.1.12
+    Checking ppmd-rust v1.5.1
+    Checking maybe-owned v0.3.4
+    Checking typed-path v0.12.3
+    Checking rangemap v1.8.0
+    Checking anstream v1.0.0
+    Checking moxcms v0.8.1
+    Checking quick-xml v0.42.0
+    Checking clap_builder v4.6.7
+   Compiling synstructure v0.14.0
+   Compiling windows-interface v0.59.3
+   Compiling windows-implement v0.60.2
+    Checking zstd v0.14.3
+    Checking windows-core v0.62.2
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerovec-derive v0.11.6
+   Compiling displaydoc v0.2.7
+   Compiling tokio-macros v2.7.2
+    Checking windows-collections v0.3.2
+    Checking windows-numerics v0.3.1
+    Checking windows-future v0.3.2
+    Checking compression-codecs v0.4.46
+   Compiling serde_derive v1.0.229
+    Checking zerofrom v0.1.8
+    Checking tokio v1.53.3
+   Compiling thiserror-impl v2.0.21
+    Checking image v0.25.10
+   Compiling clap_derive v4.6.7
+    Checking yoke v0.8.3
+    Checking windows v0.62.2
+    Checking zip v9.0.5
+    Checking zerovec v0.11.8
+    Checking zerotrie v0.2.5
+    Checking tinystr v0.8.4
+    Checking potential_utf v0.1.6
+    Checking icu_locale_core v2.3.0
+    Checking icu_collections v2.3.0
+    Checking lopdf v0.45.0
+    Checking clap v4.6.7
+    Checking icu_provider v2.3.1
+    Checking icu_properties v2.3.0
+    Checking icu_normalizer v2.3.0
+    Checking idna_adapter v1.2.2
+    Checking idna v1.1.0
+    Checking tokio-util v0.7.20
+    Checking url v2.5.8
+    Checking async-compression v0.4.51
+    Checking h2 v0.4.20
+    Checking tower v0.5.3
+    Checking tower-http v0.6.11
+    Checking hyper v1.12.0
+    Checking hyper-util v0.1.21
+    Checking rustls-webpki v0.103.15
+    Checking tokio-rustls v0.26.6
+    Checking rustls-platform-verifier v0.7.1
+    Checking hyper-rustls v0.27.10
+    Checking reqwest v0.13.5
+    Checking sysinfo v0.39.6
+    Checking common v0.0.0 (C:\Users\Gianmarco\Documents\Portfolio projects\01-corporate-knowledge-assistant\.claude\worktrees\01.5-01\spikes\common)
+    Checking s02-parser v0.0.0 (C:\Users\Gianmarco\Documents\Portfolio projects\01-corporate-knowledge-assistant\.claude\worktrees\01.5-01\spikes\s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 38.53s
+[exit 0]
+
+linea di base clippy host: exit=0
+
+## Generatore e manifest della 1.5 (attesi scritti prima)
+
+commit attesi: fdd76c26d00d
+
+sessione: run_id=01-5-01-20261023t163213z-c4a7 (session.sh with 01-5-01 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_sof.py --out /src/data/hostile/generated/sof --manifest /src/data/hostile/sof/manifest.json
+ Container cka-spikes-runner-run-7be40f62b11c Creating 
+ Container cka-spikes-runner-run-7be40f62b11c Created 
+generato dct-sof-huge-image: dct-sof-huge-image.pdf 1270 byte sha256=df16c5cb575c712c
+generato dct-sof-huge-thumb: dct-sof-huge-thumb.pdf 1348 byte sha256=d4e3f46c3f0468bc
+generato dct-sof-flate-huge: dct-sof-flate-huge.pdf 1099 byte sha256=99655041a46d2298
+generato dct-sof-larger-within-cap: dct-sof-larger-within-cap.pdf 1271 byte sha256=d33acf41612510af
+generato dct-sof-missing: dct-sof-missing.pdf 1250 byte sha256=c86b82b93d5105c9
+generato jpx-siz-huge-image: jpx-siz-huge-image.pdf 727 byte sha256=acb04a4e28219200
+generato jpx-siz-huge-jp2: jpx-siz-huge-jp2.pdf 813 byte sha256=9d6d1225ef02f9b3
+manifest: 7 sha256 scritti
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_sof.py --verify-only --out /src/data/hostile/generated/sof --manifest /src/data/hostile/sof/manifest.json
+ Container cka-spikes-runner-run-76474e7368a6 Creating 
+ Container cka-spikes-runner-run-76474e7368a6 Created 
+verifica manifest: 7 casi conformi su 7
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_sof.py --verify-only --out /src/data/hostile/generated/sof --manifest /src/data/hostile/sof/manifest.json
+ Container cka-spikes-runner-run-f15f76bb82ec Creating 
+ Container cka-spikes-runner-run-f15f76bb82ec Created 
+verifica manifest: 7 casi conformi su 7
+[exit 0]
+
+nota: --verify-only si lancia con --out, che argparse di gen_sof.py (come gen_hostile.py) rende obbligatorio; il piano lo omette nella riga del Task 1.
+
+esito generatore sof: casi=7 verify=ok verify_ripetuto=ok (atteso 7, ok, ok)
+sha256 sof: dct-sof-huge-image=df16c5cb575c712c
+sha256 sof: dct-sof-huge-thumb=d4e3f46c3f0468bc
+sha256 sof: dct-sof-flate-huge=99655041a46d2298
+sha256 sof: dct-sof-larger-within-cap=d33acf41612510af
+sha256 sof: dct-sof-missing=c86b82b93d5105c9
+sha256 sof: jpx-siz-huge-image=acb04a4e28219200
+sha256 sof: jpx-siz-huge-jp2=9d6d1225ef02f9b3
+
+## Prova RED (base)
+
+Test e fixture scritti dall'agente test-write (regole 5 e 6): fuori da mod tests prescan.rs è identico a BASE; nel modulo dei test cambiano solo i due letterali junk di D-08.
+
+sessione: run_id=01-5-01-20261023t163850z-454f (session.sh with 01-5-01 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib prescan::tests
+ Container cka-spikes-runner-run-e9c6cd8944f4 Creating 
+ Container cka-spikes-runner-run-e9c6cd8944f4 Created 
+   Compiling common v0.0.0 (/src/common)
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.76s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 140 tests
+test prescan::tests::c1_resolved_lopdf_is_0_45_0 ... ok
+test prescan::tests::corpus_pdfs_pass_prescan ... ignored, richiede spikes/data/corpus/raw (fetch.sh di 01-03)
+test prescan::tests::c6_pubsec_handler_is_password_required ... ok
+test prescan::tests::benign_docx_passes_with_none_and_zero_schema ... ok
+test prescan::tests::content_stream_with_image_filter_keeps_detail ... ok
+test prescan::tests::c7_undecodable_flate_stream_is_corrupt ... ok
+test prescan::tests::c2_defer_objstm_returns_other_objects_unchanged ... ok
+test prescan::tests::benign_pdf_passes_with_unencrypted_schema ... ok
+test prescan::tests::dct_sof_after_exif_thumbnail_sof_passes ... ok
+test prescan::tests::bare_js_key_is_javascript ... ok
+test prescan::tests::dct_sof_after_ascii_hex_is_checked ... FAILED
+test prescan::tests::dct_sof_after_ascii85_is_checked ... FAILED
+test prescan::tests::dct_data_without_soi_is_rejected ... FAILED
+test prescan::tests::c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load ... ok
+test prescan::tests::dct_sof_after_flate_is_checked ... FAILED
+test prescan::tests::dct_sof_boundary_dct_abbreviation_stays_unsupported ... ok
+test prescan::tests::dct_sof_boundary_one_axis_smaller_passes ... ok
+test prescan::tests::dct_sof_boundary_first_of_two_sofs_wins ... ok
+test prescan::tests::dct_sof_boundary_dht_dac_jpg_payload_not_sof ... ok
+test prescan::tests::dct_sof_extra_double_soi_is_missing ... FAILED
+test prescan::tests::dct_sof_equal_to_declared_passes ... ok
+test prescan::tests::dct_sof_extra_eoi_then_huge_jpeg_is_missing ... FAILED
+test prescan::tests::dct_sof_extra_inconsistent_length_is_invalid ... FAILED
+test prescan::tests::dct_sof_extra_junk_then_huge_jpeg_is_missing ... FAILED
+test prescan::tests::dct_sof_after_large_app_segments_within_scan_passes ... ok
+test prescan::tests::dct_sof_extra_one_axis_larger_is_rejected ... FAILED
+test prescan::tests::dct_sof_extra_remaining_sof_markers_are_read ... FAILED
+test prescan::tests::dct_sof_extra_zero_width_or_components_is_invalid ... FAILED
+test prescan::tests::dct_sof_boundary_sof_ending_at_window_passes ... ok
+test prescan::tests::dct_sof_extra_non_ff_byte_and_marker_00_are_invalid ... FAILED
+test prescan::tests::dct_sof_inside_app_segment_does_not_hide_real_sof ... FAILED
+test prescan::tests::dct_sof_larger_than_declared_is_rejected ... FAILED
+test prescan::tests::dct_sof_missing_is_rejected ... FAILED
+test prescan::tests::dct_sof_extra_sof_straddling_window_is_beyond_scan ... FAILED
+test prescan::tests::dct_sof_beyond_scan_is_rejected ... FAILED
+test prescan::tests::dct_sof_boundary_many_empty_segments_pass ... ok
+test prescan::tests::dct_sof_other_sof_markers_are_read ... FAILED
+test prescan::tests::dct_sof_over_cap_is_rejected ... FAILED
+test prescan::tests::dct_sof_smaller_than_declared_passes ... ok
+test prescan::tests::default_caps_are_the_launcher_thresholds ... ok
+test prescan::tests::dct_sof_with_bad_ascii85_is_rejected ... FAILED
+test prescan::tests::dct_sof_truncated_is_rejected ... FAILED
+test prescan::tests::dct_sof_with_zero_height_is_rejected ... FAILED
+test prescan::tests::docx_with_declared_total_over_cap_is_rejected ... ok
+test prescan::tests::docx_with_doctype_is_corrupt ... ok
+test prescan::tests::docx_with_entity_in_any_part_is_corrupt ... ok
+test prescan::tests::docx_with_external_relationship_is_quarantined ... ok
+test prescan::tests::docx_with_vba_project_is_unsupported ... ok
+test prescan::tests::docx_with_too_many_entries_is_rejected ... ok
+test prescan::tests::docx_with_macro_content_type_is_unsupported ... ok
+test prescan::tests::encrypt_declared_with_corrupt_body_is_never_ok ... ok
+test prescan::tests::dct_sof_extra_flate_reread_counted_in_work ... FAILED
+test prescan::tests::embedded_file_is_counted_not_quarantined ... ok
+test prescan::tests::escaped_encrypt_name_is_never_ok ... ok
+test prescan::tests::filter_chain_longer_than_two_is_rejected ... ok
+test prescan::tests::filter_chain_of_two_allowed_filters_passes ... ok
+test prescan::tests::fixture_image_doc_carries_sof_equal_to_declared ... ok
+test prescan::tests::fixture_t_data_is_ascii85_of_sof_8x8 ... ok
+test prescan::tests::dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan ... FAILED
+test prescan::tests::dct_sof_flate_bomb_keeps_decompression_limit ... ok
+test prescan::tests::flate_ratio_over_limit_is_decompression_limit ... ok
+test prescan::tests::embedded_file_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::garbage_pdf_is_corrupt ... ok
+test prescan::tests::flate_stream_at_per_stream_cap_passes ... ok
+test prescan::tests::flate_stream_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::i1_shared_stream_is_counted_once ... ok
+test prescan::tests::i2_work_counts_every_xref_stream ... ok
+test prescan::tests::image_filter_on_image_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_image_within_cap_passes ... ok
+test prescan::tests::image_filter_on_non_image_stream_is_rejected ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected ... ok
+test prescan::tests::c6_user_password_is_password_required_never_object_dropped ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_passes ... ok
+test prescan::tests::javascript_hidden_in_compressed_objstm_is_quarantined ... ok
+test prescan::tests::empty_user_password_is_admitted_as_empty_password ... ok
+test prescan::tests::jpx_siz_after_flate_is_checked ... FAILED
+test prescan::tests::jpx_siz_bad_box_length_is_invalid ... FAILED
+test prescan::tests::c3_encrypted_load_ignores_filter_and_expands_members ... ok
+test prescan::tests::dct_sof_flate_benign_keeps_work_within_bound ... ok
+test prescan::tests::jpx_siz_beyond_scan_in_jp2_is_rejected ... FAILED
+test prescan::tests::jpx_siz_extra_after_ascii_hex_is_checked ... FAILED
+test prescan::tests::jpx_siz_extra_first_codestream_wins_over_trailing_data ... ok
+test prescan::tests::jpx_siz_equal_to_declared_passes ... ok
+test prescan::tests::dct_sof_extra_thumb_form_on_encrypted_branch_is_checked ... FAILED
+test prescan::tests::jpx_siz_extra_first_of_two_jp2c_wins ... ok
+test prescan::tests::jpx_siz_extra_inconsistent_lsiz_is_invalid ... FAILED
+test prescan::tests::jpx_siz_extra_one_axis_larger_is_rejected ... FAILED
+test prescan::tests::jpx_siz_extra_lbox_zero_not_jp2c_is_missing ... FAILED
+test prescan::tests::jpx_siz_extra_xlbox_overflow_is_invalid ... FAILED
+test prescan::tests::jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan ... FAILED
+test prescan::tests::jpx_siz_extra_xlbox_jp2c_is_checked ... FAILED
+test prescan::tests::jpx_siz_in_jp2_equal_passes ... ok
+test prescan::tests::jpx_siz_in_jp2_box_is_checked ... FAILED
+test prescan::tests::jpx_siz_missing_is_rejected ... FAILED
+test prescan::tests::jpx_siz_larger_than_declared_is_rejected ... FAILED
+test prescan::tests::encrypted_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::jpx_siz_not_first_marker_is_invalid ... FAILED
+test prescan::tests::jpx_siz_origin_beyond_size_is_invalid ... FAILED
+test prescan::tests::jpx_siz_over_cap_is_rejected ... FAILED
+test prescan::tests::jpx_siz_with_origin_offset_within_declared_passes ... ok
+test prescan::tests::jpx_siz_truncated_is_rejected ... FAILED
+test prescan::tests::jpx_siz_zero_components_is_invalid ... FAILED
+test prescan::tests::launch_pointing_to_embedded_file_is_quarantined_as_launch ... ok
+test prescan::tests::launch_action_is_quarantined ... ok
+test prescan::tests::non_zip_docx_is_corrupt ... ok
+test prescan::tests::nsany_pages_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::launch_with_escaped_name_is_quarantined ... ok
+test prescan::tests::lzw_runlength_and_unknown_filters_are_unsupported ... ok
+test prescan::tests::dct_sof_on_encrypted_branch_is_checked ... FAILED
+test prescan::tests::objstm_count_uses_normalized_names ... ok
+test prescan::tests::objstm_within_caps_passes ... ok
+test prescan::tests::open_action_javascript_is_quarantined_with_both_reasons ... ok
+test prescan::tests::pages_at_limit_pass ... ok
+test prescan::tests::s02_corpus_pdfs_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::standard_handler_without_empty_password_is_password_required ... ok
+test prescan::tests::pages_over_limit_is_resource_limit ... ok
+test prescan::tests::subtypeless_dict_with_foreign_key_keeps_image_filter_rejection ... ok
+test prescan::tests::subtypeless_dict_with_ccitt_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_image_filter_not_last_is_rejected ... ok
+test prescan::tests::i1_objstm_reexpansion_is_not_counted_twice ... ok
+test prescan::tests::subtypeless_dict_with_non_positive_or_indirect_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_overflowing_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_subtype_not_image_or_indirect_is_rejected ... ok
+test prescan::tests::subtypeless_dict_without_size_keeps_image_filter_rejection ... ok
+test prescan::tests::subtypeless_dict_with_type_other_than_xobject_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_unobserved_image_filter_is_rejected ... ok
+test prescan::tests::incompressible_flate_under_ratio_passes ... ok
+test prescan::tests::many_small_objstm_are_not_rejected_by_count ... ok
+test prescan::tests::flate_total_over_cap_is_decompression_limit ... ok
+test prescan::tests::objstm_expanding_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::user_password_is_encrypted_password_required ... ok
+test prescan::tests::c3_encrypted_objstm_over_quota_is_objstm_dropped ... ok
+test prescan::tests::encrypted_many_small_objstm_are_admitted ... ok
+test prescan::tests::javascript_hidden_in_encrypted_objstm_is_quarantined ... ok
+test prescan::tests::jpx_siz_extra_on_encrypted_branch_is_checked ... FAILED
+test prescan::tests::objstm_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::c5_encrypted_unreadable_object_is_object_dropped ... ok
+test prescan::tests::c5_encrypted_corrupt_objstm_is_objstm_dropped ... ok
+test prescan::tests::i1_encrypted_counts_distinct_streams_once ... ok
+test prescan::tests::c4_xref_forms_and_incremental_update_have_no_false_drops ... ok
+
+failures:
+
+---- prescan::tests::dct_sof_after_ascii_hex_is_checked stdout ----
+
+thread 'prescan::tests::dct_sof_after_ascii_hex_is_checked' (426) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- prescan::tests::dct_sof_after_ascii85_is_checked stdout ----
+
+thread 'prescan::tests::dct_sof_after_ascii85_is_checked' (422) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_data_without_soi_is_rejected stdout ----
+
+thread 'prescan::tests::dct_data_without_soi_is_rejected' (420) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_after_flate_is_checked stdout ----
+
+thread 'prescan::tests::dct_sof_after_flate_is_checked' (441) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.82, max_stream_bytes: 41, total_decompressed_bytes: 41, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 41 })
+
+---- prescan::tests::dct_sof_extra_double_soi_is_missing stdout ----
+
+thread 'prescan::tests::dct_sof_extra_double_soi_is_missing' (452) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_eoi_then_huge_jpeg_is_missing stdout ----
+
+thread 'prescan::tests::dct_sof_extra_eoi_then_huge_jpeg_is_missing' (453) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_inconsistent_length_is_invalid stdout ----
+
+thread 'prescan::tests::dct_sof_extra_inconsistent_length_is_invalid' (455) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_junk_then_huge_jpeg_is_missing stdout ----
+
+thread 'prescan::tests::dct_sof_extra_junk_then_huge_jpeg_is_missing' (456) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_one_axis_larger_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_extra_one_axis_larger_is_rejected' (458) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_remaining_sof_markers_are_read stdout ----
+
+thread 'prescan::tests::dct_sof_extra_remaining_sof_markers_are_read' (459) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_zero_width_or_components_is_invalid stdout ----
+
+thread 'prescan::tests::dct_sof_extra_zero_width_or_components_is_invalid' (463) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_non_ff_byte_and_marker_00_are_invalid stdout ----
+
+thread 'prescan::tests::dct_sof_extra_non_ff_byte_and_marker_00_are_invalid' (457) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_inside_app_segment_does_not_hide_real_sof stdout ----
+
+thread 'prescan::tests::dct_sof_inside_app_segment_does_not_hide_real_sof' (466) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_larger_than_declared_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_larger_than_declared_is_rejected' (467) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_missing_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_missing_is_rejected' (468) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_sof_straddling_window_is_beyond_scan stdout ----
+
+thread 'prescan::tests::dct_sof_extra_sof_straddling_window_is_beyond_scan' (460) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_beyond_scan_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_beyond_scan_is_rejected' (443) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_other_sof_markers_are_read stdout ----
+
+thread 'prescan::tests::dct_sof_other_sof_markers_are_read' (471) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_over_cap_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_over_cap_is_rejected' (472) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_with_bad_ascii85_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_with_bad_ascii85_is_rejected' (475) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_truncated_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_truncated_is_rejected' (474) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_with_zero_height_is_rejected stdout ----
+
+thread 'prescan::tests::dct_sof_with_zero_height_is_rejected' (476) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_flate_reread_counted_in_work stdout ----
+
+thread 'prescan::tests::dct_sof_extra_flate_reread_counted_in_work' (454) panicked at s02-parser/src/prescan.rs:3878:9:
+assertion `left == right` failed: lavoro I2: immagine 400000, gemello 400000
+  left: Some(0)
+ right: Some(262926)
+
+---- prescan::tests::dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan stdout ----
+
+thread 'prescan::tests::dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan' (451) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_after_flate_is_checked stdout ----
+
+thread 'prescan::tests::jpx_siz_after_flate_is_checked' (521) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 1.3773584905660377, max_stream_bytes: 73, total_decompressed_bytes: 73, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 73 })
+
+---- prescan::tests::jpx_siz_bad_box_length_is_invalid stdout ----
+
+thread 'prescan::tests::jpx_siz_bad_box_length_is_invalid' (522) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_beyond_scan_in_jp2_is_rejected stdout ----
+
+thread 'prescan::tests::jpx_siz_beyond_scan_in_jp2_is_rejected' (523) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_extra_after_ascii_hex_is_checked stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_after_ascii_hex_is_checked' (525) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_extra_thumb_form_on_encrypted_branch_is_checked stdout ----
+
+thread 'prescan::tests::dct_sof_extra_thumb_form_on_encrypted_branch_is_checked' (461) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.875, max_stream_bytes: 35, total_decompressed_bytes: 35, entries: 0, encryption: EmptyPassword, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 35 })
+
+---- prescan::tests::jpx_siz_extra_inconsistent_lsiz_is_invalid stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_inconsistent_lsiz_is_invalid' (528) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_extra_one_axis_larger_is_rejected stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_one_axis_larger_is_rejected' (531) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_extra_lbox_zero_not_jp2c_is_missing stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_lbox_zero_not_jp2c_is_missing' (529) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_extra_xlbox_overflow_is_invalid stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_xlbox_overflow_is_invalid' (535) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan' (533) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_extra_xlbox_jp2c_is_checked stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_xlbox_jp2c_is_checked' (534) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_in_jp2_box_is_checked stdout ----
+
+thread 'prescan::tests::jpx_siz_in_jp2_box_is_checked' (536) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_missing_is_rejected stdout ----
+
+thread 'prescan::tests::jpx_siz_missing_is_rejected' (539) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_larger_than_declared_is_rejected stdout ----
+
+thread 'prescan::tests::jpx_siz_larger_than_declared_is_rejected' (538) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_not_first_marker_is_invalid stdout ----
+
+thread 'prescan::tests::jpx_siz_not_first_marker_is_invalid' (540) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_origin_beyond_size_is_invalid stdout ----
+
+thread 'prescan::tests::jpx_siz_origin_beyond_size_is_invalid' (541) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_over_cap_is_rejected stdout ----
+
+thread 'prescan::tests::jpx_siz_over_cap_is_rejected' (542) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_truncated_is_rejected stdout ----
+
+thread 'prescan::tests::jpx_siz_truncated_is_rejected' (543) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::jpx_siz_zero_components_is_invalid stdout ----
+
+thread 'prescan::tests::jpx_siz_zero_components_is_invalid' (545) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 0.0, max_stream_bytes: 0, total_decompressed_bytes: 0, entries: 0, encryption: None, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 0 })
+
+---- prescan::tests::dct_sof_on_encrypted_branch_is_checked stdout ----
+
+thread 'prescan::tests::dct_sof_on_encrypted_branch_is_checked' (469) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 1.0344827586206897, max_stream_bytes: 30, total_decompressed_bytes: 30, entries: 0, encryption: EmptyPassword, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 30 })
+
+---- prescan::tests::jpx_siz_extra_on_encrypted_branch_is_checked stdout ----
+
+thread 'prescan::tests::jpx_siz_extra_on_encrypted_branch_is_checked' (530) panicked at s02-parser/src/prescan.rs:1820:22:
+atteso Failed, ottenuto Ok(PrescanReport { pages: Some(1), objstm_count: 0, max_flate_ratio: 1.0344827586206897, max_stream_bytes: 30, total_decompressed_bytes: 30, entries: 0, encryption: EmptyPassword, embedded_files: 0, objstm_decompressed_bytes: 0, xref_streams: 0, decompress_work_bytes: 30 })
+
+
+failures:
+    prescan::tests::dct_data_without_soi_is_rejected
+    prescan::tests::dct_sof_after_ascii85_is_checked
+    prescan::tests::dct_sof_after_ascii_hex_is_checked
+    prescan::tests::dct_sof_after_flate_is_checked
+    prescan::tests::dct_sof_beyond_scan_is_rejected
+    prescan::tests::dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan
+    prescan::tests::dct_sof_extra_double_soi_is_missing
+    prescan::tests::dct_sof_extra_eoi_then_huge_jpeg_is_missing
+    prescan::tests::dct_sof_extra_flate_reread_counted_in_work
+    prescan::tests::dct_sof_extra_inconsistent_length_is_invalid
+    prescan::tests::dct_sof_extra_junk_then_huge_jpeg_is_missing
+    prescan::tests::dct_sof_extra_non_ff_byte_and_marker_00_are_invalid
+    prescan::tests::dct_sof_extra_one_axis_larger_is_rejected
+    prescan::tests::dct_sof_extra_remaining_sof_markers_are_read
+    prescan::tests::dct_sof_extra_sof_straddling_window_is_beyond_scan
+    prescan::tests::dct_sof_extra_thumb_form_on_encrypted_branch_is_checked
+    prescan::tests::dct_sof_extra_zero_width_or_components_is_invalid
+    prescan::tests::dct_sof_inside_app_segment_does_not_hide_real_sof
+    prescan::tests::dct_sof_larger_than_declared_is_rejected
+    prescan::tests::dct_sof_missing_is_rejected
+    prescan::tests::dct_sof_on_encrypted_branch_is_checked
+    prescan::tests::dct_sof_other_sof_markers_are_read
+    prescan::tests::dct_sof_over_cap_is_rejected
+    prescan::tests::dct_sof_truncated_is_rejected
+    prescan::tests::dct_sof_with_bad_ascii85_is_rejected
+    prescan::tests::dct_sof_with_zero_height_is_rejected
+    prescan::tests::jpx_siz_after_flate_is_checked
+    prescan::tests::jpx_siz_bad_box_length_is_invalid
+    prescan::tests::jpx_siz_beyond_scan_in_jp2_is_rejected
+    prescan::tests::jpx_siz_extra_after_ascii_hex_is_checked
+    prescan::tests::jpx_siz_extra_inconsistent_lsiz_is_invalid
+    prescan::tests::jpx_siz_extra_lbox_zero_not_jp2c_is_missing
+    prescan::tests::jpx_siz_extra_on_encrypted_branch_is_checked
+    prescan::tests::jpx_siz_extra_one_axis_larger_is_rejected
+    prescan::tests::jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan
+    prescan::tests::jpx_siz_extra_xlbox_jp2c_is_checked
+    prescan::tests::jpx_siz_extra_xlbox_overflow_is_invalid
+    prescan::tests::jpx_siz_in_jp2_box_is_checked
+    prescan::tests::jpx_siz_larger_than_declared_is_rejected
+    prescan::tests::jpx_siz_missing_is_rejected
+    prescan::tests::jpx_siz_not_first_marker_is_invalid
+    prescan::tests::jpx_siz_origin_beyond_size_is_invalid
+    prescan::tests::jpx_siz_over_cap_is_rejected
+    prescan::tests::jpx_siz_truncated_is_rejected
+    prescan::tests::jpx_siz_zero_components_is_invalid
+
+test result: FAILED. 92 passed; 45 failed; 3 ignored; 0 measured; 23 filtered out; finished in 0.74s
+
+error: test failed, to rerun pass `-p s02-parser --lib`
+
+[exit 101]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::s02_corpus_pdfs_pass_prescan --nocapture
+ Container cka-spikes-runner-run-20f108f59480 Creating 
+ Container cka-spikes-runner-run-20f108f59480 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+s02: 63 su 63 ok, stream_dct=57 stream_jpx=0
+test prescan::tests::s02_corpus_pdfs_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 1.31s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::corpus_pdfs_pass_prescan --nocapture
+ Container cka-spikes-runner-run-027d205e11f8 Creating 
+ Container cka-spikes-runner-run-027d205e11f8 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+corpus: 10 su 10 ok, stream_dct=6488 stream_jpx=0
+test prescan::tests::corpus_pdfs_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 6.42s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::nsany_pages_pass_prescan --nocapture
+ Container cka-spikes-runner-run-0093c05abdf3 Creating 
+ Container cka-spikes-runner-run-0093c05abdf3 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+test prescan::tests::nsany_pages_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 0.04s
+
+[exit 0]
+
+esito RED compilazione: Compiling s02-parser presente=si
+esito RED: rossi_attesi=45 rossi_osservati=45 rossi_inattesi=0 verdi_inattesi=0 altri_test=ok (atteso: i due numeri uguali, 0, 0, ok)
+rossi: prescan::tests::dct_data_without_soi_is_rejected, prescan::tests::dct_sof_after_ascii85_is_checked, prescan::tests::dct_sof_after_ascii_hex_is_checked, prescan::tests::dct_sof_after_flate_is_checked, prescan::tests::dct_sof_beyond_scan_is_rejected, prescan::tests::dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan, prescan::tests::dct_sof_extra_double_soi_is_missing, prescan::tests::dct_sof_extra_eoi_then_huge_jpeg_is_missing, prescan::tests::dct_sof_extra_flate_reread_counted_in_work, prescan::tests::dct_sof_extra_inconsistent_length_is_invalid, prescan::tests::dct_sof_extra_junk_then_huge_jpeg_is_missing, prescan::tests::dct_sof_extra_non_ff_byte_and_marker_00_are_invalid, prescan::tests::dct_sof_extra_one_axis_larger_is_rejected, prescan::tests::dct_sof_extra_remaining_sof_markers_are_read, prescan::tests::dct_sof_extra_sof_straddling_window_is_beyond_scan, prescan::tests::dct_sof_extra_thumb_form_on_encrypted_branch_is_checked, prescan::tests::dct_sof_extra_zero_width_or_components_is_invalid, prescan::tests::dct_sof_inside_app_segment_does_not_hide_real_sof, prescan::tests::dct_sof_larger_than_declared_is_rejected, prescan::tests::dct_sof_missing_is_rejected, prescan::tests::dct_sof_on_encrypted_branch_is_checked, prescan::tests::dct_sof_other_sof_markers_are_read, prescan::tests::dct_sof_over_cap_is_rejected, prescan::tests::dct_sof_truncated_is_rejected, prescan::tests::dct_sof_with_bad_ascii85_is_rejected, prescan::tests::dct_sof_with_zero_height_is_rejected, prescan::tests::jpx_siz_after_flate_is_checked, prescan::tests::jpx_siz_bad_box_length_is_invalid, prescan::tests::jpx_siz_beyond_scan_in_jp2_is_rejected, prescan::tests::jpx_siz_extra_after_ascii_hex_is_checked, prescan::tests::jpx_siz_extra_inconsistent_lsiz_is_invalid, prescan::tests::jpx_siz_extra_lbox_zero_not_jp2c_is_missing, prescan::tests::jpx_siz_extra_on_encrypted_branch_is_checked, prescan::tests::jpx_siz_extra_one_axis_larger_is_rejected, prescan::tests::jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan, prescan::tests::jpx_siz_extra_xlbox_jp2c_is_checked, prescan::tests::jpx_siz_extra_xlbox_overflow_is_invalid, prescan::tests::jpx_siz_in_jp2_box_is_checked, prescan::tests::jpx_siz_larger_than_declared_is_rejected, prescan::tests::jpx_siz_missing_is_rejected, prescan::tests::jpx_siz_not_first_marker_is_invalid, prescan::tests::jpx_siz_origin_beyond_size_is_invalid, prescan::tests::jpx_siz_over_cap_is_rejected, prescan::tests::jpx_siz_truncated_is_rejected, prescan::tests::jpx_siz_zero_components_is_invalid
+esito RED motivi: tutti osservati=si (44 rossi da failed_of: «atteso Failed, ottenuto Ok(PrescanReport …)», 1 da delta osservato: dct_sof_extra_flate_reread_counted_in_work «lavoro I2: immagine 400000, gemello 400000», left Some(0) contro 262926; nessun panic di costruzione, image_without_size, errore di lopdf o qpdf mancante: i 4 test cifrati arrivano a failed_of con qpdf del runner)
+esito D-03 base: s02 63 su 63 ok stream_dct=57 stream_jpx=0; corpus 10 su 10 ok stream_dct=6488 stream_jpx=0; nsany 4 su 4 ok (atteso 63, 10, 4)
+nota D-03: stream_jpx=0 in entrambi i corpora, quindi per i JPX D-03 non vede nessun JPX reale (limite dichiarato, RISK-5 del test design); i DCT reali sono 57 + 6488 stream.
+
+## Ostili sof sulla base
+
+sessione: run_id=01-5-01-20261023t164011z-240f (session.sh with 01-5-01 --wait 1800)
+
+immagine worker base: 801f12e52bb7 (atteso 801f12e52bb7, immagine lasciata dalla 1.4; eccezione in sola lettura della regola 2)
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-5-01-20261023t164011z-240f (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t164011z-240f  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-5-01-20261023t164011z-240f (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t164011z-240f  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+hw.json copiato in results/raw/isolation-1-5-01/ (come nella 1.4)
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent hostile --manifest /data/hostile/sof/manifest.json --cases-dir /data/hostile/generated/sof --runs 1 --run-tag "e55357r0" --out /results/raw/isolation-1-5-01/hostile-sof-base.csv
+[exit 0]
+
+$ cat results/raw/isolation-1-5-01/hostile-sof-base.csv
+case_id,run,expected,outcome,kind,extra_reasons,signal,peak_rss_kb,ms_to_fail,parent_alive,oom_kill_delta,leftover_procs,oom_adj_set,pass
+dct-sof-huge-image,1,failed/DecompressionLimit,ok,,,,6912,,true,0,0,true,false
+dct-sof-huge-thumb,1,failed/DecompressionLimit,ok,,,,7296,,true,0,0,true,false
+dct-sof-flate-huge,1,failed/DecompressionLimit,ok,,,,6912,,true,0,0,true,false
+dct-sof-larger-within-cap,1,failed/Unsupported,ok,,,,6784,,true,0,0,true,false
+dct-sof-missing,1,failed/Unsupported,ok,,,,7040,,true,0,0,true,false
+jpx-siz-huge-image,1,failed/DecompressionLimit,ok,,,,6784,,true,0,0,true,false
+jpx-siz-huge-jp2,1,failed/DecompressionLimit,ok,,,,6784,,true,0,0,true,false
+
+esito ostili sof base: righe=7 pass=0 outcome={ok} parent_alive=7 leftover_zero=7 (atteso 7, 0, {ok})
+nota: la base ammette tutti e 7 i casi (outcome ok, nessun rifiuto per altro motivo): i casi dimostrano il difetto che la correzione deve chiudere. with ha eseguito down e release della sessione.
+

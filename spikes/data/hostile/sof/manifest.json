@@ -20,7 +20,7 @@
       "height": 30000,
       "components": 3
     },
-    "sha256": null
+    "sha256": "df16c5cb575c712c0776f79c8d8d2924e9f5b34f30cd17df7d664b4eba082335"
   },
   {
     "case_id": "dct-sof-huge-thumb",
@@ -43,7 +43,7 @@
       "height": 30000,
       "components": 3
     },
-    "sha256": null
+    "sha256": "d4e3f46c3f0468bcee50b47a8ca5c7866363d88e52b7f3a4722207c5c31536d5"
   },
   {
     "case_id": "dct-sof-flate-huge",
@@ -66,7 +66,7 @@
       "height": 30000,
       "components": 3
     },
-    "sha256": null
+    "sha256": "99655041a46d229842034e0b00033440bc0f9d67720d2244166163a17a177c3c"
   },
   {
     "case_id": "dct-sof-larger-within-cap",
@@ -89,7 +89,7 @@
       "height": 4000,
       "components": 3
     },
-    "sha256": null
+    "sha256": "d33acf41612510affa5f868a93b593b47fde9cee6620104706131391a1ac35a5"
   },
   {
     "case_id": "dct-sof-missing",
@@ -108,7 +108,7 @@
       "height": 8
     },
     "coded": null,
-    "sha256": null
+    "sha256": "c86b82b93d5105c9bb5436c35327248a2bdba3de293efc9a2b983519e15a91b7"
   },
   {
     "case_id": "jpx-siz-huge-image",
@@ -131,7 +131,7 @@
       "height": 30000,
       "components": 3
     },
-    "sha256": null
+    "sha256": "acb04a4e28219200c2483a24870b19aba50fcbc7bb5fd7689e41b1a958780573"
   },
   {
     "case_id": "jpx-siz-huge-jp2",
@@ -154,6 +154,6 @@
       "height": 30000,
       "components": 3
     },
-    "sha256": null
+    "sha256": "9d6d1225ef02f9b3396611b372f54cbbf3f1f0de216b7726230d7f2c5888eccb"
   }
 ]
