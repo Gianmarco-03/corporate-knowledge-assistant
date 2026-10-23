@@ -862,3 +862,975 @@ jpx-siz-huge-jp2,1,failed/DecompressionLimit,ok,,,,6784,,true,0,0,true,false
 esito ostili sof base: righe=7 pass=0 outcome={ok} parent_alive=7 leftover_zero=7 (atteso 7, 0, {ok})
 nota: la base ammette tutti e 7 i casi (outcome ok, nessun rifiuto per altro motivo): i casi dimostrano il difetto che la correzione deve chiudere. with ha eseguito down e release della sessione.
 
+RED commit: f5e93abff7327cac3a9d177e386dd6893b5db711
+
+
+GREEN: prescan.rs con la correzione nell'albero (f5e93ab + diff)
+
+## Prova GREEN
+
+sessione: run_id=01-5-01-20261023t164639z-49ba (session.sh with 01-5-01 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib
+ Container cka-spikes-runner-run-5c43af59c7e6 Creating 
+ Container cka-spikes-runner-run-5c43af59c7e6 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.45s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 163 tests
+test isolate::tests::exit_zero_with_valid_failed_line_keeps_child_kind ... ok
+test isolate::tests::exit_zero_with_valid_ok_line_returns_child_outcome ... ok
+test isolate::tests::exit_zero_with_valid_quarantined_line_keeps_reasons ... ok
+test isolate::tests::malformed_json_line_is_crashed ... ok
+test isolate::tests::missing_json_line_is_crashed ... ok
+test isolate::tests::parent_kill_is_evaluated_before_signal_and_oom ... ok
+test isolate::tests::parent_kill_out_quota_is_resource_limit_out_quota ... ok
+test isolate::tests::parent_kill_output_limit_is_output_limit ... ok
+test isolate::tests::parent_kill_timeout_is_timeout ... ok
+test isolate::tests::sigabrt_with_bad_alloc_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_with_rust_alloc_failure_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_without_alloc_marker_is_crashed ... ok
+test isolate::tests::sigkill_with_oom_delta_is_resource_limit_cgroup_oom ... ok
+test isolate::tests::sigkill_without_oom_delta_is_crashed ... ok
+test isolate::tests::sigsegv_is_crashed ... ok
+test isolate::tests::sigxcpu_is_timeout ... ok
+test job::tests::job_error_line_has_contract_fields ... ok
+test job::tests::ancestors_start_at_root ... ok
+test job::tests::known_ops_parse_and_unknown_is_unknown_op ... ok
+test job::tests::numeric_selftest_modes_need_decimal_arg ... ok
+test job::tests::out_dir_must_be_exact_form ... ok
+test prescan::tests::corpus_pdfs_pass_prescan ... ignored, richiede spikes/data/corpus/raw (fetch.sh di 01-03)
+test prescan::tests::c1_resolved_lopdf_is_0_45_0 ... ok
+test prescan::tests::c6_pubsec_handler_is_password_required ... ok
+test prescan::tests::benign_docx_passes_with_none_and_zero_schema ... ok
+test prescan::tests::dct_sof_after_ascii85_is_checked ... ok
+test prescan::tests::dct_data_without_soi_is_rejected ... ok
+test prescan::tests::c2_defer_objstm_returns_other_objects_unchanged ... ok
+test prescan::tests::content_stream_with_image_filter_keeps_detail ... ok
+test prescan::tests::dct_sof_after_ascii_hex_is_checked ... ok
+test prescan::tests::benign_pdf_passes_with_unencrypted_schema ... ok
+test prescan::tests::c7_undecodable_flate_stream_is_corrupt ... ok
+test prescan::tests::dct_sof_after_exif_thumbnail_sof_passes ... ok
+test prescan::tests::c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load ... ok
+test prescan::tests::bare_js_key_is_javascript ... ok
+test prescan::tests::dct_sof_boundary_dct_abbreviation_stays_unsupported ... ok
+test prescan::tests::dct_sof_boundary_dht_dac_jpg_payload_not_sof ... ok
+test prescan::tests::dct_sof_boundary_one_axis_smaller_passes ... ok
+test prescan::tests::dct_sof_after_flate_is_checked ... ok
+test prescan::tests::dct_sof_boundary_first_of_two_sofs_wins ... ok
+test prescan::tests::dct_sof_equal_to_declared_passes ... ok
+test prescan::tests::dct_sof_extra_double_soi_is_missing ... ok
+test prescan::tests::dct_sof_extra_eoi_then_huge_jpeg_is_missing ... ok
+test prescan::tests::dct_sof_extra_junk_then_huge_jpeg_is_missing ... ok
+test prescan::tests::dct_sof_extra_inconsistent_length_is_invalid ... ok
+test prescan::tests::dct_sof_extra_one_axis_larger_is_rejected ... ok
+test prescan::tests::dct_sof_extra_non_ff_byte_and_marker_00_are_invalid ... ok
+test prescan::tests::dct_sof_boundary_sof_ending_at_window_passes ... ok
+test prescan::tests::dct_sof_beyond_scan_is_rejected ... ok
+test prescan::tests::dct_sof_extra_zero_width_or_components_is_invalid ... ok
+test prescan::tests::dct_sof_extra_remaining_sof_markers_are_read ... ok
+test prescan::tests::dct_sof_extra_sof_straddling_window_is_beyond_scan ... ok
+test prescan::tests::dct_sof_after_large_app_segments_within_scan_passes ... ok
+test prescan::tests::dct_sof_missing_is_rejected ... ok
+test prescan::tests::dct_sof_inside_app_segment_does_not_hide_real_sof ... ok
+test prescan::tests::dct_sof_larger_than_declared_is_rejected ... ok
+test prescan::tests::dct_sof_over_cap_is_rejected ... ok
+test prescan::tests::dct_sof_truncated_is_rejected ... ok
+test prescan::tests::dct_sof_with_bad_ascii85_is_rejected ... ok
+test prescan::tests::dct_sof_smaller_than_declared_passes ... ok
+test prescan::tests::default_caps_are_the_launcher_thresholds ... ok
+test prescan::tests::dct_sof_other_sof_markers_are_read ... ok
+test prescan::tests::dct_sof_with_zero_height_is_rejected ... ok
+test prescan::tests::docx_with_declared_total_over_cap_is_rejected ... ok
+test prescan::tests::docx_with_doctype_is_corrupt ... ok
+test prescan::tests::docx_with_entity_in_any_part_is_corrupt ... ok
+test prescan::tests::dct_sof_boundary_many_empty_segments_pass ... ok
+test prescan::tests::docx_with_external_relationship_is_quarantined ... ok
+test prescan::tests::docx_with_macro_content_type_is_unsupported ... ok
+test prescan::tests::docx_with_vba_project_is_unsupported ... ok
+test prescan::tests::docx_with_too_many_entries_is_rejected ... ok
+test prescan::tests::encrypt_declared_with_corrupt_body_is_never_ok ... ok
+test prescan::tests::dct_sof_extra_flate_reread_counted_in_work ... ok
+test prescan::tests::embedded_file_is_counted_not_quarantined ... ok
+test prescan::tests::escaped_encrypt_name_is_never_ok ... ok
+test prescan::tests::filter_chain_longer_than_two_is_rejected ... ok
+test prescan::tests::filter_chain_of_two_allowed_filters_passes ... ok
+test prescan::tests::fixture_image_doc_carries_sof_equal_to_declared ... ok
+test prescan::tests::fixture_t_data_is_ascii85_of_sof_8x8 ... ok
+test prescan::tests::dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan ... ok
+test prescan::tests::dct_sof_flate_bomb_keeps_decompression_limit ... ok
+test prescan::tests::flate_ratio_over_limit_is_decompression_limit ... ok
+test prescan::tests::embedded_file_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::garbage_pdf_is_corrupt ... ok
+test prescan::tests::flate_stream_at_per_stream_cap_passes ... ok
+test prescan::tests::flate_stream_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::i1_shared_stream_is_counted_once ... ok
+test prescan::tests::i2_work_counts_every_xref_stream ... ok
+test prescan::tests::image_filter_on_image_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_image_within_cap_passes ... ok
+test prescan::tests::image_filter_on_non_image_stream_is_rejected ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_passes ... ok
+test prescan::tests::c6_user_password_is_password_required_never_object_dropped ... ok
+test prescan::tests::javascript_hidden_in_compressed_objstm_is_quarantined ... ok
+test prescan::tests::empty_user_password_is_admitted_as_empty_password ... ok
+test prescan::tests::jpx_siz_after_flate_is_checked ... ok
+test prescan::tests::jpx_siz_bad_box_length_is_invalid ... ok
+test prescan::tests::dct_sof_extra_thumb_form_on_encrypted_branch_is_checked ... ok
+test prescan::tests::jpx_siz_equal_to_declared_passes ... ok
+test prescan::tests::c3_encrypted_load_ignores_filter_and_expands_members ... ok
+test prescan::tests::jpx_siz_extra_after_ascii_hex_is_checked ... ok
+test prescan::tests::jpx_siz_extra_first_codestream_wins_over_trailing_data ... ok
+test prescan::tests::jpx_siz_extra_first_of_two_jp2c_wins ... ok
+test prescan::tests::jpx_siz_extra_inconsistent_lsiz_is_invalid ... ok
+test prescan::tests::jpx_siz_beyond_scan_in_jp2_is_rejected ... ok
+test prescan::tests::jpx_siz_extra_lbox_zero_not_jp2c_is_missing ... ok
+test prescan::tests::dct_sof_flate_benign_keeps_work_within_bound ... ok
+test prescan::tests::encrypted_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::jpx_siz_extra_one_axis_larger_is_rejected ... ok
+test prescan::tests::dct_sof_on_encrypted_branch_is_checked ... ok
+test prescan::tests::jpx_siz_extra_xlbox_overflow_is_invalid ... ok
+test prescan::tests::jpx_siz_extra_xlbox_jp2c_is_checked ... ok
+test prescan::tests::jpx_siz_in_jp2_box_is_checked ... ok
+test prescan::tests::jpx_siz_missing_is_rejected ... ok
+test prescan::tests::jpx_siz_in_jp2_equal_passes ... ok
+test prescan::tests::jpx_siz_larger_than_declared_is_rejected ... ok
+test prescan::tests::jpx_siz_not_first_marker_is_invalid ... ok
+test prescan::tests::jpx_siz_origin_beyond_size_is_invalid ... ok
+test prescan::tests::jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan ... ok
+test prescan::tests::jpx_siz_over_cap_is_rejected ... ok
+test prescan::tests::jpx_siz_truncated_is_rejected ... ok
+test prescan::tests::jpx_siz_zero_components_is_invalid ... ok
+test prescan::tests::jpx_siz_with_origin_offset_within_declared_passes ... ok
+test prescan::tests::launch_with_escaped_name_is_quarantined ... ok
+test prescan::tests::non_zip_docx_is_corrupt ... ok
+test prescan::tests::nsany_pages_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::launch_action_is_quarantined ... ok
+test prescan::tests::launch_pointing_to_embedded_file_is_quarantined_as_launch ... ok
+test prescan::tests::objstm_count_uses_normalized_names ... ok
+test prescan::tests::objstm_within_caps_passes ... ok
+test prescan::tests::lzw_runlength_and_unknown_filters_are_unsupported ... ok
+test prescan::tests::open_action_javascript_is_quarantined_with_both_reasons ... ok
+test prescan::tests::pages_at_limit_pass ... ok
+test prescan::tests::s02_corpus_pdfs_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::standard_handler_without_empty_password_is_password_required ... ok
+test prescan::tests::pages_over_limit_is_resource_limit ... ok
+test prescan::tests::subtypeless_dict_with_foreign_key_keeps_image_filter_rejection ... ok
+test prescan::tests::subtypeless_dict_with_ccitt_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_image_filter_not_last_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_overflowing_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_non_positive_or_indirect_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_type_other_than_xobject_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_subtype_not_image_or_indirect_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_unobserved_image_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_without_size_keeps_image_filter_rejection ... ok
+test protocol::tests::emitted_line_round_trips ... ok
+test protocol::tests::status_value_is_read_in_kib ... ok
+test prescan::tests::i1_objstm_reexpansion_is_not_counted_twice ... ok
+test prescan::tests::incompressible_flate_under_ratio_passes ... ok
+test prescan::tests::many_small_objstm_are_not_rejected_by_count ... ok
+test prescan::tests::flate_total_over_cap_is_decompression_limit ... ok
+test prescan::tests::objstm_expanding_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::javascript_hidden_in_encrypted_objstm_is_quarantined ... ok
+test prescan::tests::user_password_is_encrypted_password_required ... ok
+test prescan::tests::jpx_siz_extra_on_encrypted_branch_is_checked ... ok
+test prescan::tests::encrypted_many_small_objstm_are_admitted ... ok
+test prescan::tests::objstm_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::c3_encrypted_objstm_over_quota_is_objstm_dropped ... ok
+test prescan::tests::c5_encrypted_unreadable_object_is_object_dropped ... ok
+test prescan::tests::c5_encrypted_corrupt_objstm_is_objstm_dropped ... ok
+test prescan::tests::i1_encrypted_counts_distinct_streams_once ... ok
+test prescan::tests::c4_xref_forms_and_incremental_update_have_no_false_drops ... ok
+
+test result: ok. 160 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.69s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::nsany_pages_pass_prescan --nocapture
+ Container cka-spikes-runner-run-594e5ac0d9ad Creating 
+ Container cka-spikes-runner-run-594e5ac0d9ad Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+test prescan::tests::nsany_pages_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 0.03s
+
+[exit 0]
+
+
+## Regressione (D-06)
+
+sessione: run_id=01-5-01-20261023t164711z-cb3d (session.sh with 01-5-01 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --bins
+ Container cka-spikes-runner-run-ecb37edc4e34 Creating 
+ Container cka-spikes-runner-run-ecb37edc4e34 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.52s
+     Running unittests src/bin/docling-client/main.rs (/target/debug/deps/docling_client-adc092035ab46c0a)
+
+running 9 tests
+test tests::caller_timeout_is_document_timeout_plus_15s ... ok
+test tests::only_extract_pdf_jobs_with_ok_report_are_admitted ... ok
+test tests::statuses_and_exit_codes_are_distinct ... ok
+test tests::bench_script_restarts_with_stop_and_up_never_down_or_profiles ... ok
+test tests::service_error_is_error_not_timeout ... ok
+test tests::request_carries_page_range_and_fixed_options ... ok
+test tests::not_prescanned_input_never_reaches_docling ... ok
+test tests::abort_after_is_client_abort_exit_3 ... ok
+test tests::caller_timeout_is_client_timeout_exit_3 ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running unittests src/bin/extract/main.rs (/target/debug/deps/extract-8bdd6fa51cc7eca2)
+
+running 31 tests
+test pdf::tests::garbage_is_failed_by_prescan_and_writes_nothing ... ok
+test score::tests::identical_numbers_are_matched_one_to_one ... ok
+test score::tests::cells_are_a_multiset_matched_once_each ... ok
+test score::tests::iou_basics ... ok
+test score::tests::region_recall_is_one_to_one_with_iou_ge_05 ... ok
+test score::tests::split_token_is_merged_with_union_bbox ... ok
+test score::tests::missing_column_counts_as_missed_and_lowers_share ... ok
+test score::tests::text_must_match_after_normalization ... ok
+test score::tests::low_iou_match_is_counted_but_not_in_share ... ok
+test score::tests::token_normalization_is_nfc_and_trim_only ... ok
+test score::tests::tables_pair_by_page_and_max_iou_and_unmatched_expected_is_all_miss ... ok
+test score::tests::tables_csv_has_fixed_header ... ok
+test score::tests::tatdqa_pixels_top_left_to_pdf_points_bottom_left ... ok
+test tables::tests::band_boundaries_and_uncertain_pages_go_to_docling ... ok
+test score::tests::cer_is_levenshtein_over_expected_chars ... ok
+test score::tests::three_pieces_merge_but_other_lines_do_not ... ok
+test score::tests::text_cer_csv_has_fixed_header_and_rows ... ok
+test tables::tests::recall_precision_per_document ... ok
+test score::tests::bbox_iou_csv_has_fixed_header_and_consistent_counts ... ok
+test tables::tests::splits_are_disjoint_by_item_and_document ... ok
+test tables::tests::verdict_uses_only_holdout_rows_pooled ... ok
+test tests::pdf_accepts_exactly_the_resolve_argv ... ok
+test tests::pdf_rejects_extra_unknown_and_missing_args ... ok
+test score::tests::unscorable_words_are_counted_but_out_of_denominator ... ok
+test tables::tests::params_never_fall_back_to_defaults ... ok
+test tables::tests::table_pages_csv_has_fixed_header ... ok
+test pdf::tests::javascript_pdf_is_quarantined_before_pdfium_and_writes_nothing ... ok
+test pdf::tests::caps_from_caller_are_enforced_before_pdfium ... ok
+test score::tests::property_counts_and_uniqueness_hold_on_random_pages ... ok
+test pdf::tests::rotation_is_reported_in_degrees ... ok
+test pdf::tests::benign_pdf_gives_one_json_per_page_in_pdf_points_bottom_left ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src/bin/fake-child.rs (/target/debug/deps/fake_child-8f4f2bdcd5f92c3a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/locator/main.rs (/target/debug/deps/locator-d0983cd924808b68)
+
+running 68 tests
+test canon::tests::canon_text_normalizes_newlines_and_nfc_only ... ok
+test canon::tests::absent_excerpt_yields_no_locator ... ok
+test canon::tests::excerpt_is_canonicalized_before_search ... ok
+test canon::tests::homonymous_siblings_get_consecutive_ordinals ... ok
+test canon::tests::changed_normalization_without_new_projection_fails_roundtrip ... ok
+test canon::tests::inserting_a_differently_titled_sibling_keeps_ordinals ... ok
+test canon::tests::locator_carries_section_text_hash ... ok
+test canon::tests::locator_from_v1_on_v2_is_version_mismatch ... ok
+test canon::tests::locator_with_other_projection_is_rejected ... ok
+test canon::tests::out_of_range_offsets_are_rejected ... ok
+test canon::tests::section_text_excludes_heading_and_subsections ... ok
+test canon::tests::offset_fixture_is_hand_written_with_required_cases ... ok
+test canon::tests::scalar_slice_matches_hand_fixture ... ok
+test canon::tests::sha256_hex_is_lowercase_hex_of_bytes ... ok
+test canon::tests::tampered_section_hash_is_rejected ... ok
+test canon::tests::serialized_locator_requires_version_fields ... ok
+test canon::tests::twin_sisters_yield_two_locators_distinct_by_ordinal ... ok
+test canon::tests::unknown_path_or_range_is_rejected ... ok
+test canon::tests::utf16_conversion_matches_hand_fixture ... ok
+test docx::tests::doctype_or_entity_in_xml_is_an_error ... ok
+test canon::tests::utf16_range_never_splits_a_surrogate_pair ... ok
+test docx::tests::heading_styles_map_to_levels ... ok
+test docx::tests::hyperlink_targets_and_field_codes_are_not_resolved ... ok
+test docx::tests::inline_runs_follow_cka_text_v1 ... ok
+test docx::tests::title_subtitle_author_date_are_excluded ... ok
+test docx::tests::md_and_docx_twins_agree_on_path_range_hash_and_projection ... ok
+test md::tests::atx_headings_are_canonical_blocks ... ok
+test docx::tests::twin_docx_has_hand_written_canonical_text ... ok
+test md::tests::lists_code_escapes_and_emphasis ... ok
+test md::tests::footnotes_are_excluded ... ok
+test docx::tests::parse_file_rejects_non_zip ... ok
+test md::tests::links_and_raw_html_are_not_resolved ... ok
+test pdfrect::tests::rot0_cropbox_shifted ... ok
+test pdfrect::tests::rect_fixture_is_hand_written_with_eight_cases ... ok
+test md::tests::paragraph_lines_join_with_single_space ... ok
+test pdfrect::tests::rot180_cropbox_equal ... ok
+test md::tests::twin_markdown_has_hand_written_canonical_text ... ok
+test pdfrect::tests::inverted_input_rect_is_normalized ... ok
+test md::tests::astral_combining_and_crlf_offsets_are_hand_checked ... ok
+test md::tests::front_matter_is_excluded ... ok
+test pdfrect::tests::rot270_cropbox_equal ... ok
+test pdfrect::tests::rot0_cropbox_equal ... ok
+test pdfrect::tests::rot270_cropbox_shifted ... ok
+test pdfrect::tests::rot180_cropbox_shifted ... ok
+test pdfrect::tests::rot90_cropbox_equal ... ok
+test pdfrect::tests::rotate_is_normalized_modulo_360 ... ok
+test pdfrect::tests::rot90_cropbox_shifted ... ok
+test tests::locate_accepts_exactly_the_resolve_argv ... ok
+test pdfrect::tests::transform_preserves_size_and_stays_in_viewport ... ok
+test tests::expected_samples_cover_the_plan_cases ... ok
+test tests::locate_rejects_output_flags_and_extra_args ... ok
+test tests::normal_subcommands_parse ... ok
+test tests::excerpt_files_live_in_excerpt_dir_with_one_unusual_name ... ok
+test tests::locate_markdown_payload_is_minimal_and_exact ... ok
+test tests::locate_rejects_other_formats ... ok
+test tests::locate_job_with_out_dir_is_rejected_by_the_contract ... ok
+test docx::tests::parse_file_rejects_doctype_before_reading_xml ... ok
+test tests::negative_path_job_points_outside_allowed_roots ... ok
+test docx::tests::parse_file_quarantines_external_relationship ... ok
+test tests::offsets_rows_carry_only_got_fields_matching_the_fixture ... ok
+test tests::offsets_ignore_expected_fields_of_the_input ... ok
+test tests::reports_bind_one_to_one_by_job_id ... ok
+test tests::prepare_rejects_bad_run_tag_and_duplicate_ids ... ok
+test tests::locate_quarantines_docx_with_external_relationship ... ok
+test docx::tests::parse_file_reads_benign_docx ... ok
+test tests::prepared_jobs_are_locate_with_null_out_dir_and_unique_ids ... ok
+test tests::locate_docx_twin_finds_the_same_locator ... ok
+test tests::locate_enforces_read_caps ... ok
+
+test result: ok. 68 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/bin/parse-child.rs (/target/debug/deps/parse_child-59f13704b7f3de75)
+
+running 1 test
+test tests::docx_text_reads_runs_and_paragraphs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/parse-parent.rs (/target/debug/deps/parse_parent-9e4fed89da093aa6)
+
+running 12 tests
+test tests::child_per_doc_error_table ... ok
+test tests::different_status_fails ... ok
+test tests::failed_kind_among_alternatives_passes ... ok
+test tests::expected_outcome_without_oom_adj_fails ... ok
+test tests::failed_kind_outside_alternatives_fails ... ok
+test tests::in_process_reps_sink_error_is_fatal ... ok
+test tests::in_process_status_table ... ok
+test tests::in_process_reps_single_failure_keeps_all_rows ... ok
+test tests::ok_expected_ok_with_oom_adj_passes ... ok
+test tests::overhead_row_shapes ... ok
+test tests::quarantined_missing_expected_reason_fails ... ok
+test tests::quarantined_superset_passes_with_extra_reasons ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/target/debug/deps/s02_parser-c7e6f77f8c5762be)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test isolation
+ Container cka-spikes-runner-run-6c9a986cedfe Creating 
+ Container cka-spikes-runner-run-6c9a986cedfe Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.02s
+     Running tests/isolation.rs (/target/debug/deps/isolation-781647f326553891)
+
+running 37 tests
+test job_id_outside_regex_is_rejected ... ok
+test input_symlink_outside_roots_is_path_not_allowed ... ok
+test input_with_dotdot_outside_roots_is_path_not_allowed ... ok
+test excerpt_file_outside_roots_is_path_not_allowed ... ok
+test dpi_out_of_domain_is_invalid_params ... ok
+test missing_bin_is_child_missing ... ok
+test out_dir_presence_must_match_op ... ok
+test input_component_swapped_for_symlink_after_resolve_is_rejected ... ok
+test oversized_job_is_rejected ... ok
+test out_dir_wrong_forms_are_path_not_allowed ... ok
+test existing_out_dir_is_out_dir_exists_and_launches_nothing ... ok
+test argv_echo_passes_path_with_spaces_and_non_ascii_unchanged ... ok
+test batch_over_parent_reserve_exits_3_after_reports ... ok
+test reservation_over_budget_is_budget_exceeded_without_spawn ... ok
+test selftest_mode_outside_list_is_invalid_params ... ok
+test out_dir_symlink_planted_after_resolve_is_rejected_before_spawn ... ok
+test resolve_builds_fixed_argv_per_op ... ok
+test quota_counts_job_dir_plus_out_dir ... ok
+test unknown_op_is_unknown_op ... ok
+test unknown_param_is_invalid_params ... ok
+test parse_parent_prints_job_error_and_exits_2 ... ok
+test unknown_top_level_field_is_invalid_params ... ok
+test flood_on_both_pipes_is_output_limit_within_two_seconds ... ok
+test successful_parse_keeps_out_dir_and_removes_job_dir ... ok
+test successful_run_reports_isolation_fields ... ok
+test alloc_over_address_space_is_resource_limit ... ok
+test unapplicable_setrlimit_fails_the_spawn_with_errno ... ok
+test write_over_quota_is_resource_limit_out_quota ... ok
+test externally_killed_child_is_crashed ... ok
+test budget_admits_alloc_jobs_and_all_complete ... ok
+test quota_scan_entry_cap_is_out_quota ... ok
+test parse_child_data_schema ... ok
+test dropped_future_kills_group_and_cleans_within_one_second ... ok
+test timeout_kills_grandchild_group_and_removes_job_dir ... ok
+test child_is_the_designated_oom_victim ... ok
+test budget_admits_at_most_two_jobs_together ... ok
+test quota_sum_under_limit_is_not_out_quota ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.10s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test drivers
+ Container cka-spikes-runner-run-803b0a64467d Creating 
+ Container cka-spikes-runner-run-803b0a64467d Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.66s
+     Running tests/drivers.rs (/target/debug/deps/drivers-03ffc66b73b17873)
+
+running 4 tests
+test budget_budget_error_cleans_work_root ... ok
+test budget_csv_error_cleans_work_root ... ok
+test budget_success_cleans_work_root ... ok
+test overhead_in_process_errors_keep_all_rows ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test oom
+ Container cka-spikes-runner-run-30405444c65c Creating 
+ Container cka-spikes-runner-run-30405444c65c Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.63s
+     Running tests/oom.rs (/target/debug/deps/oom-d1548565b21cd2b3)
+
+running 12 tests
+test m11_all_checks_with_oom_is_verificato ... ok
+test m11_each_violated_check_with_oom_is_fallito_naming_the_check ... ok
+test m11_no_oom_kill_is_non_esercitato_with_reason ... ok
+test m11_more_than_one_oom_kill_is_still_verificato ... ok
+test m11_oom_group_does_not_decide_the_outcome ... ok
+test oom_kills_child_not_parent ... ignored, solo nel container a memoria bassa di 01-18
+test m11_reservation_not_below_cgroup_is_fallito ... ok
+test m11_without_oom_never_verificato_nor_fallito ... ok
+test result_json_fallito_carries_reason_and_observed_values ... ok
+test result_json_is_one_line_without_environment_values ... ok
+test result_json_verificato_has_exact_keys_and_types_checked_by_the_plan ... ok
+test result_json_precondition_is_non_esercitato_with_nulls ... ok
+
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked
+ Container cka-spikes-runner-run-5e5090c7dd39 Creating 
+ Container cka-spikes-runner-run-5e5090c7dd39 Created 
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.65s
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo build -p s02-parser --locked
+ Container cka-spikes-runner-run-98dcf75cf420 Creating 
+ Container cka-spikes-runner-run-98dcf75cf420 Created 
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+[exit 0]
+
+$ cd spikes && cargo fmt --check -p s02-parser  (host)
+[exit 0]
+
+$ cd spikes && cargo clippy -p s02-parser --all-targets --locked --offline -- -D warnings  (host)
+    Checking s02-parser v0.0.0 (C:\Users\Gianmarco\Documents\Portfolio projects\01-corporate-knowledge-assistant\.claude\worktrees\01.5-01\spikes\s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.04s
+[exit 0]
+
+
+nota scanner: il primo GREEN leggeva il prefisso Flate con read_to_end su un lettore limitato da take; lo scanner --fail-on HIGH lo segnala come upload-in-memory (HIGH, falso positivo: la lettura è limitata a IMAGE_HEADER_SCAN_BYTES + 1 byte) e l'hook pre-commit blocca gli HIGH. Correzione del codice, come vuole skills/security-scanner/SKILL.md: io::copy dallo stesso lettore limitato da take in un Vec, con lo stesso numero di byte letti e sommati a I2. Prova GREEN e regressione rilanciate qui sotto sul codice finale.
+
+## Rilancio sul codice finale (GREEN e regressione, dopo la correzione per lo scanner)
+
+sessione: run_id=01-5-01-20261023t164923z-62ba (session.sh with 01-5-01 --wait 1800)
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib
+ Container cka-spikes-runner-run-2bdfaf88519e Creating 
+ Container cka-spikes-runner-run-2bdfaf88519e Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.01s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 163 tests
+test isolate::tests::exit_zero_with_valid_failed_line_keeps_child_kind ... ok
+test isolate::tests::exit_zero_with_valid_quarantined_line_keeps_reasons ... ok
+test isolate::tests::exit_zero_with_valid_ok_line_returns_child_outcome ... ok
+test isolate::tests::parent_kill_is_evaluated_before_signal_and_oom ... ok
+test isolate::tests::parent_kill_out_quota_is_resource_limit_out_quota ... ok
+test isolate::tests::parent_kill_output_limit_is_output_limit ... ok
+test isolate::tests::missing_json_line_is_crashed ... ok
+test isolate::tests::malformed_json_line_is_crashed ... ok
+test isolate::tests::parent_kill_timeout_is_timeout ... ok
+test isolate::tests::sigabrt_with_bad_alloc_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_with_rust_alloc_failure_is_resource_limit_rlimit_as ... ok
+test isolate::tests::sigabrt_without_alloc_marker_is_crashed ... ok
+test isolate::tests::sigkill_with_oom_delta_is_resource_limit_cgroup_oom ... ok
+test isolate::tests::sigkill_without_oom_delta_is_crashed ... ok
+test isolate::tests::sigsegv_is_crashed ... ok
+test isolate::tests::sigxcpu_is_timeout ... ok
+test job::tests::ancestors_start_at_root ... ok
+test job::tests::job_error_line_has_contract_fields ... ok
+test job::tests::known_ops_parse_and_unknown_is_unknown_op ... ok
+test job::tests::numeric_selftest_modes_need_decimal_arg ... ok
+test job::tests::out_dir_must_be_exact_form ... ok
+test prescan::tests::c1_resolved_lopdf_is_0_45_0 ... ok
+test prescan::tests::corpus_pdfs_pass_prescan ... ignored, richiede spikes/data/corpus/raw (fetch.sh di 01-03)
+test prescan::tests::c6_pubsec_handler_is_password_required ... ok
+test prescan::tests::benign_docx_passes_with_none_and_zero_schema ... ok
+test prescan::tests::dct_data_without_soi_is_rejected ... ok
+test prescan::tests::content_stream_with_image_filter_keeps_detail ... ok
+test prescan::tests::dct_sof_after_ascii_hex_is_checked ... ok
+test prescan::tests::dct_sof_after_ascii85_is_checked ... ok
+test prescan::tests::c2_defer_objstm_returns_other_objects_unchanged ... ok
+test prescan::tests::c7_undecodable_flate_stream_is_corrupt ... ok
+test prescan::tests::dct_sof_after_exif_thumbnail_sof_passes ... ok
+test prescan::tests::benign_pdf_passes_with_unencrypted_schema ... ok
+test prescan::tests::c2_defer_objstm_keeps_objstm_compressed_on_unencrypted_load ... ok
+test prescan::tests::bare_js_key_is_javascript ... ok
+test prescan::tests::dct_sof_after_flate_is_checked ... ok
+test prescan::tests::dct_sof_boundary_first_of_two_sofs_wins ... ok
+test prescan::tests::dct_sof_boundary_dht_dac_jpg_payload_not_sof ... ok
+test prescan::tests::dct_sof_boundary_dct_abbreviation_stays_unsupported ... ok
+test prescan::tests::dct_sof_boundary_one_axis_smaller_passes ... ok
+test prescan::tests::dct_sof_extra_inconsistent_length_is_invalid ... ok
+test prescan::tests::dct_sof_after_large_app_segments_within_scan_passes ... ok
+test prescan::tests::dct_sof_equal_to_declared_passes ... ok
+test prescan::tests::dct_sof_extra_eoi_then_huge_jpeg_is_missing ... ok
+test prescan::tests::dct_sof_extra_one_axis_larger_is_rejected ... ok
+test prescan::tests::dct_sof_extra_junk_then_huge_jpeg_is_missing ... ok
+test prescan::tests::dct_sof_extra_non_ff_byte_and_marker_00_are_invalid ... ok
+test prescan::tests::dct_sof_beyond_scan_is_rejected ... ok
+test prescan::tests::dct_sof_extra_double_soi_is_missing ... ok
+test prescan::tests::dct_sof_boundary_sof_ending_at_window_passes ... ok
+test prescan::tests::dct_sof_extra_zero_width_or_components_is_invalid ... ok
+test prescan::tests::dct_sof_extra_sof_straddling_window_is_beyond_scan ... ok
+test prescan::tests::dct_sof_missing_is_rejected ... ok
+test prescan::tests::dct_sof_larger_than_declared_is_rejected ... ok
+test prescan::tests::dct_sof_extra_remaining_sof_markers_are_read ... ok
+test prescan::tests::dct_sof_inside_app_segment_does_not_hide_real_sof ... ok
+test prescan::tests::dct_sof_over_cap_is_rejected ... ok
+test prescan::tests::dct_sof_truncated_is_rejected ... ok
+test prescan::tests::dct_sof_smaller_than_declared_passes ... ok
+test prescan::tests::dct_sof_with_bad_ascii85_is_rejected ... ok
+test prescan::tests::dct_sof_boundary_many_empty_segments_pass ... ok
+test prescan::tests::default_caps_are_the_launcher_thresholds ... ok
+test prescan::tests::dct_sof_other_sof_markers_are_read ... ok
+test prescan::tests::dct_sof_with_zero_height_is_rejected ... ok
+test prescan::tests::docx_with_declared_total_over_cap_is_rejected ... ok
+test prescan::tests::docx_with_doctype_is_corrupt ... ok
+test prescan::tests::docx_with_entity_in_any_part_is_corrupt ... ok
+test prescan::tests::docx_with_external_relationship_is_quarantined ... ok
+test prescan::tests::docx_with_macro_content_type_is_unsupported ... ok
+test prescan::tests::docx_with_too_many_entries_is_rejected ... ok
+test prescan::tests::embedded_file_is_counted_not_quarantined ... ok
+test prescan::tests::encrypt_declared_with_corrupt_body_is_never_ok ... ok
+test prescan::tests::dct_sof_extra_flate_reread_counted_in_work ... ok
+test prescan::tests::docx_with_vba_project_is_unsupported ... ok
+test prescan::tests::dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan ... ok
+test prescan::tests::escaped_encrypt_name_is_never_ok ... ok
+test prescan::tests::filter_chain_longer_than_two_is_rejected ... ok
+test prescan::tests::fixture_image_doc_carries_sof_equal_to_declared ... ok
+test prescan::tests::filter_chain_of_two_allowed_filters_passes ... ok
+test prescan::tests::fixture_t_data_is_ascii85_of_sof_8x8 ... ok
+test prescan::tests::dct_sof_flate_bomb_keeps_decompression_limit ... ok
+test prescan::tests::embedded_file_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::flate_ratio_over_limit_is_decompression_limit ... ok
+test prescan::tests::flate_stream_at_per_stream_cap_passes ... ok
+test prescan::tests::garbage_pdf_is_corrupt ... ok
+test prescan::tests::flate_stream_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::c3_encrypted_load_ignores_filter_and_expands_members ... ok
+test prescan::tests::i2_work_counts_every_xref_stream ... ok
+test prescan::tests::image_filter_on_image_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_image_within_cap_passes ... ok
+test prescan::tests::image_filter_on_non_image_stream_is_rejected ... ok
+test prescan::tests::c6_user_password_is_password_required_never_object_dropped ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_over_cap_is_rejected ... ok
+test prescan::tests::image_filter_on_subtypeless_image_dict_passes ... ok
+test prescan::tests::javascript_hidden_in_compressed_objstm_is_quarantined ... ok
+test prescan::tests::dct_sof_flate_benign_keeps_work_within_bound ... ok
+test prescan::tests::jpx_siz_after_flate_is_checked ... ok
+test prescan::tests::jpx_siz_bad_box_length_is_invalid ... ok
+test prescan::tests::dct_sof_on_encrypted_branch_is_checked ... ok
+test prescan::tests::dct_sof_extra_thumb_form_on_encrypted_branch_is_checked ... ok
+test prescan::tests::jpx_siz_extra_after_ascii_hex_is_checked ... ok
+test prescan::tests::jpx_siz_beyond_scan_in_jp2_is_rejected ... ok
+test prescan::tests::jpx_siz_extra_first_of_two_jp2c_wins ... ok
+test prescan::tests::jpx_siz_equal_to_declared_passes ... ok
+test prescan::tests::i1_shared_stream_is_counted_once ... ok
+test prescan::tests::jpx_siz_extra_inconsistent_lsiz_is_invalid ... ok
+test prescan::tests::jpx_siz_extra_lbox_zero_not_jp2c_is_missing ... ok
+test prescan::tests::jpx_siz_extra_one_axis_larger_is_rejected ... ok
+test prescan::tests::jpx_siz_extra_first_codestream_wins_over_trailing_data ... ok
+test prescan::tests::jpx_siz_extra_xlbox_jp2c_is_checked ... ok
+test prescan::tests::jpx_siz_in_jp2_box_is_checked ... ok
+test prescan::tests::jpx_siz_extra_xlbox_overflow_is_invalid ... ok
+test prescan::tests::jpx_siz_in_jp2_equal_passes ... ok
+test prescan::tests::jpx_siz_larger_than_declared_is_rejected ... ok
+test prescan::tests::jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan ... ok
+test prescan::tests::jpx_siz_missing_is_rejected ... ok
+test prescan::tests::jpx_siz_origin_beyond_size_is_invalid ... ok
+test prescan::tests::jpx_siz_over_cap_is_rejected ... ok
+test prescan::tests::jpx_siz_not_first_marker_is_invalid ... ok
+test prescan::tests::jpx_siz_truncated_is_rejected ... ok
+test prescan::tests::jpx_siz_zero_components_is_invalid ... ok
+test prescan::tests::jpx_siz_with_origin_offset_within_declared_passes ... ok
+test prescan::tests::launch_action_is_quarantined ... ok
+test prescan::tests::launch_with_escaped_name_is_quarantined ... ok
+test prescan::tests::launch_pointing_to_embedded_file_is_quarantined_as_launch ... ok
+test prescan::tests::lzw_runlength_and_unknown_filters_are_unsupported ... ok
+test prescan::tests::nsany_pages_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::non_zip_docx_is_corrupt ... ok
+test prescan::tests::empty_user_password_is_admitted_as_empty_password ... ok
+test prescan::tests::objstm_count_uses_normalized_names ... ok
+test prescan::tests::objstm_within_caps_passes ... ok
+test prescan::tests::open_action_javascript_is_quarantined_with_both_reasons ... ok
+test prescan::tests::pages_at_limit_pass ... ok
+test prescan::tests::pages_over_limit_is_resource_limit ... ok
+test prescan::tests::s02_corpus_pdfs_pass_prescan ... ignored, richiede spikes/data/s02/raw (fetch.sh di 01-08)
+test prescan::tests::standard_handler_without_empty_password_is_password_required ... ok
+test prescan::tests::subtypeless_dict_with_ccitt_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_foreign_key_keeps_image_filter_rejection ... ok
+test prescan::tests::many_small_objstm_are_not_rejected_by_count ... ok
+test prescan::tests::subtypeless_dict_with_image_filter_not_last_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_overflowing_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_non_positive_or_indirect_size_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_subtype_not_image_or_indirect_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_unobserved_image_filter_is_rejected ... ok
+test prescan::tests::subtypeless_dict_with_type_other_than_xobject_is_rejected ... ok
+test prescan::tests::flate_total_over_cap_is_decompression_limit ... ok
+test prescan::tests::subtypeless_dict_without_size_keeps_image_filter_rejection ... ok
+test protocol::tests::status_value_is_read_in_kib ... ok
+test protocol::tests::emitted_line_round_trips ... ok
+test prescan::tests::encrypted_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::incompressible_flate_under_ratio_passes ... ok
+test prescan::tests::objstm_expanding_over_per_stream_cap_is_decompression_limit ... ok
+test prescan::tests::i1_objstm_reexpansion_is_not_counted_twice ... ok
+test prescan::tests::user_password_is_encrypted_password_required ... ok
+test prescan::tests::javascript_hidden_in_encrypted_objstm_is_quarantined ... ok
+test prescan::tests::c3_encrypted_objstm_over_quota_is_objstm_dropped ... ok
+test prescan::tests::jpx_siz_extra_on_encrypted_branch_is_checked ... ok
+test prescan::tests::objstm_sum_over_total_stops_at_total_plus_one_block ... ok
+test prescan::tests::encrypted_many_small_objstm_are_admitted ... ok
+test prescan::tests::c5_encrypted_unreadable_object_is_object_dropped ... ok
+test prescan::tests::c5_encrypted_corrupt_objstm_is_objstm_dropped ... ok
+test prescan::tests::i1_encrypted_counts_distinct_streams_once ... ok
+test prescan::tests::c4_xref_forms_and_incremental_update_have_no_false_drops ... ok
+
+test result: ok. 160 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::nsany_pages_pass_prescan --nocapture
+ Container cka-spikes-runner-run-d0fe3c6db279 Creating 
+ Container cka-spikes-runner-run-d0fe3c6db279 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+test prescan::tests::nsany_pages_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 0.03s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --bins
+ Container cka-spikes-runner-run-f31a0b627a6e Creating 
+ Container cka-spikes-runner-run-f31a0b627a6e Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.34s
+     Running unittests src/bin/docling-client/main.rs (/target/debug/deps/docling_client-adc092035ab46c0a)
+
+running 9 tests
+test tests::caller_timeout_is_document_timeout_plus_15s ... ok
+test tests::only_extract_pdf_jobs_with_ok_report_are_admitted ... ok
+test tests::statuses_and_exit_codes_are_distinct ... ok
+test tests::bench_script_restarts_with_stop_and_up_never_down_or_profiles ... ok
+test tests::service_error_is_error_not_timeout ... ok
+test tests::request_carries_page_range_and_fixed_options ... ok
+test tests::not_prescanned_input_never_reaches_docling ... ok
+test tests::abort_after_is_client_abort_exit_3 ... ok
+test tests::caller_timeout_is_client_timeout_exit_3 ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running unittests src/bin/extract/main.rs (/target/debug/deps/extract-8bdd6fa51cc7eca2)
+
+running 31 tests
+test score::tests::cells_are_a_multiset_matched_once_each ... ok
+test score::tests::iou_basics ... ok
+test pdf::tests::garbage_is_failed_by_prescan_and_writes_nothing ... ok
+test score::tests::identical_numbers_are_matched_one_to_one ... ok
+test score::tests::cer_is_levenshtein_over_expected_chars ... ok
+test score::tests::low_iou_match_is_counted_but_not_in_share ... ok
+test score::tests::missing_column_counts_as_missed_and_lowers_share ... ok
+test score::tests::region_recall_is_one_to_one_with_iou_ge_05 ... ok
+test score::tests::split_token_is_merged_with_union_bbox ... ok
+test score::tests::tables_pair_by_page_and_max_iou_and_unmatched_expected_is_all_miss ... ok
+test score::tests::tatdqa_pixels_top_left_to_pdf_points_bottom_left ... ok
+test score::tests::text_must_match_after_normalization ... ok
+test score::tests::bbox_iou_csv_has_fixed_header_and_consistent_counts ... ok
+test score::tests::token_normalization_is_nfc_and_trim_only ... ok
+test tables::tests::band_boundaries_and_uncertain_pages_go_to_docling ... ok
+test tables::tests::recall_precision_per_document ... ok
+test score::tests::tables_csv_has_fixed_header ... ok
+test score::tests::unscorable_words_are_counted_but_out_of_denominator ... ok
+test score::tests::three_pieces_merge_but_other_lines_do_not ... ok
+test score::tests::text_cer_csv_has_fixed_header_and_rows ... ok
+test tables::tests::splits_are_disjoint_by_item_and_document ... ok
+test tables::tests::params_never_fall_back_to_defaults ... ok
+test tables::tests::verdict_uses_only_holdout_rows_pooled ... ok
+test tests::pdf_accepts_exactly_the_resolve_argv ... ok
+test tests::pdf_rejects_extra_unknown_and_missing_args ... ok
+test tables::tests::table_pages_csv_has_fixed_header ... ok
+test pdf::tests::javascript_pdf_is_quarantined_before_pdfium_and_writes_nothing ... ok
+test pdf::tests::caps_from_caller_are_enforced_before_pdfium ... ok
+test score::tests::property_counts_and_uniqueness_hold_on_random_pages ... ok
+test pdf::tests::rotation_is_reported_in_degrees ... ok
+test pdf::tests::benign_pdf_gives_one_json_per_page_in_pdf_points_bottom_left ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/bin/fake-child.rs (/target/debug/deps/fake_child-8f4f2bdcd5f92c3a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/locator/main.rs (/target/debug/deps/locator-d0983cd924808b68)
+
+running 68 tests
+test canon::tests::canon_text_normalizes_newlines_and_nfc_only ... ok
+test canon::tests::absent_excerpt_yields_no_locator ... ok
+test canon::tests::changed_normalization_without_new_projection_fails_roundtrip ... ok
+test canon::tests::inserting_a_differently_titled_sibling_keeps_ordinals ... ok
+test canon::tests::homonymous_siblings_get_consecutive_ordinals ... ok
+test canon::tests::excerpt_is_canonicalized_before_search ... ok
+test canon::tests::locator_carries_section_text_hash ... ok
+test canon::tests::locator_from_v1_on_v2_is_version_mismatch ... ok
+test canon::tests::locator_with_other_projection_is_rejected ... ok
+test canon::tests::out_of_range_offsets_are_rejected ... ok
+test canon::tests::section_text_excludes_heading_and_subsections ... ok
+test canon::tests::offset_fixture_is_hand_written_with_required_cases ... ok
+test canon::tests::sha256_hex_is_lowercase_hex_of_bytes ... ok
+test canon::tests::scalar_slice_matches_hand_fixture ... ok
+test canon::tests::serialized_locator_requires_version_fields ... ok
+test canon::tests::tampered_section_hash_is_rejected ... ok
+test canon::tests::twin_sisters_yield_two_locators_distinct_by_ordinal ... ok
+test canon::tests::unknown_path_or_range_is_rejected ... ok
+test docx::tests::doctype_or_entity_in_xml_is_an_error ... ok
+test canon::tests::utf16_range_never_splits_a_surrogate_pair ... ok
+test canon::tests::utf16_conversion_matches_hand_fixture ... ok
+test docx::tests::heading_styles_map_to_levels ... ok
+test docx::tests::title_subtitle_author_date_are_excluded ... ok
+test md::tests::atx_headings_are_canonical_blocks ... ok
+test docx::tests::inline_runs_follow_cka_text_v1 ... ok
+test docx::tests::hyperlink_targets_and_field_codes_are_not_resolved ... ok
+test docx::tests::twin_docx_has_hand_written_canonical_text ... ok
+test docx::tests::md_and_docx_twins_agree_on_path_range_hash_and_projection ... ok
+test docx::tests::parse_file_rejects_non_zip ... ok
+test md::tests::links_and_raw_html_are_not_resolved ... ok
+test md::tests::lists_code_escapes_and_emphasis ... ok
+test md::tests::astral_combining_and_crlf_offsets_are_hand_checked ... ok
+test pdfrect::tests::rect_fixture_is_hand_written_with_eight_cases ... ok
+test pdfrect::tests::inverted_input_rect_is_normalized ... ok
+test pdfrect::tests::rot0_cropbox_equal ... ok
+test md::tests::front_matter_is_excluded ... ok
+test md::tests::footnotes_are_excluded ... ok
+test md::tests::paragraph_lines_join_with_single_space ... ok
+test pdfrect::tests::rot180_cropbox_equal ... ok
+test pdfrect::tests::rot180_cropbox_shifted ... ok
+test pdfrect::tests::rot270_cropbox_equal ... ok
+test pdfrect::tests::rot270_cropbox_shifted ... ok
+test pdfrect::tests::rot90_cropbox_equal ... ok
+test pdfrect::tests::rot0_cropbox_shifted ... ok
+test tests::locate_accepts_exactly_the_resolve_argv ... ok
+test md::tests::twin_markdown_has_hand_written_canonical_text ... ok
+test tests::excerpt_files_live_in_excerpt_dir_with_one_unusual_name ... ok
+test tests::expected_samples_cover_the_plan_cases ... ok
+test pdfrect::tests::rot90_cropbox_shifted ... ok
+test pdfrect::tests::rotate_is_normalized_modulo_360 ... ok
+test tests::locate_job_with_out_dir_is_rejected_by_the_contract ... ok
+test tests::locate_rejects_output_flags_and_extra_args ... ok
+test tests::normal_subcommands_parse ... ok
+test pdfrect::tests::transform_preserves_size_and_stays_in_viewport ... ok
+test tests::offsets_rows_carry_only_got_fields_matching_the_fixture ... ok
+test tests::reports_bind_one_to_one_by_job_id ... ok
+test tests::prepare_rejects_bad_run_tag_and_duplicate_ids ... ok
+test tests::negative_path_job_points_outside_allowed_roots ... ok
+test tests::locate_markdown_payload_is_minimal_and_exact ... ok
+test tests::offsets_ignore_expected_fields_of_the_input ... ok
+test docx::tests::parse_file_rejects_doctype_before_reading_xml ... ok
+test docx::tests::parse_file_quarantines_external_relationship ... ok
+test tests::locate_rejects_other_formats ... ok
+test tests::locate_docx_twin_finds_the_same_locator ... ok
+test tests::prepared_jobs_are_locate_with_null_out_dir_and_unique_ids ... ok
+test docx::tests::parse_file_reads_benign_docx ... ok
+test tests::locate_quarantines_docx_with_external_relationship ... ok
+test tests::locate_enforces_read_caps ... ok
+
+test result: ok. 68 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/bin/parse-child.rs (/target/debug/deps/parse_child-59f13704b7f3de75)
+
+running 1 test
+test tests::docx_text_reads_runs_and_paragraphs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/parse-parent.rs (/target/debug/deps/parse_parent-9e4fed89da093aa6)
+
+running 12 tests
+test tests::child_per_doc_error_table ... ok
+test tests::different_status_fails ... ok
+test tests::expected_outcome_without_oom_adj_fails ... ok
+test tests::failed_kind_among_alternatives_passes ... ok
+test tests::failed_kind_outside_alternatives_fails ... ok
+test tests::in_process_reps_sink_error_is_fatal ... ok
+test tests::in_process_reps_single_failure_keeps_all_rows ... ok
+test tests::in_process_status_table ... ok
+test tests::ok_expected_ok_with_oom_adj_passes ... ok
+test tests::overhead_row_shapes ... ok
+test tests::quarantined_missing_expected_reason_fails ... ok
+test tests::quarantined_superset_passes_with_extra_reasons ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (/target/debug/deps/s02_parser-c7e6f77f8c5762be)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test isolation
+ Container cka-spikes-runner-run-4fb235946db0 Creating 
+ Container cka-spikes-runner-run-4fb235946db0 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.18s
+     Running tests/isolation.rs (/target/debug/deps/isolation-781647f326553891)
+
+running 37 tests
+test excerpt_file_outside_roots_is_path_not_allowed ... ok
+test input_symlink_outside_roots_is_path_not_allowed ... ok
+test dpi_out_of_domain_is_invalid_params ... ok
+test input_with_dotdot_outside_roots_is_path_not_allowed ... ok
+test job_id_outside_regex_is_rejected ... ok
+test missing_bin_is_child_missing ... ok
+test out_dir_presence_must_match_op ... ok
+test existing_out_dir_is_out_dir_exists_and_launches_nothing ... ok
+test out_dir_wrong_forms_are_path_not_allowed ... ok
+test input_component_swapped_for_symlink_after_resolve_is_rejected ... ok
+test out_dir_symlink_planted_after_resolve_is_rejected_before_spawn ... ok
+test oversized_job_is_rejected ... ok
+test resolve_builds_fixed_argv_per_op ... ok
+test selftest_mode_outside_list_is_invalid_params ... ok
+test batch_over_parent_reserve_exits_3_after_reports ... ok
+test reservation_over_budget_is_budget_exceeded_without_spawn ... ok
+test parse_parent_prints_job_error_and_exits_2 ... ok
+test argv_echo_passes_path_with_spaces_and_non_ascii_unchanged ... ok
+test unknown_op_is_unknown_op ... ok
+test successful_parse_keeps_out_dir_and_removes_job_dir ... ok
+test flood_on_both_pipes_is_output_limit_within_two_seconds ... ok
+test unknown_param_is_invalid_params ... ok
+test unknown_top_level_field_is_invalid_params ... ok
+test successful_run_reports_isolation_fields ... ok
+test alloc_over_address_space_is_resource_limit ... ok
+test externally_killed_child_is_crashed ... ok
+test unapplicable_setrlimit_fails_the_spawn_with_errno ... ok
+test write_over_quota_is_resource_limit_out_quota ... ok
+test budget_admits_alloc_jobs_and_all_complete ... ok
+test parse_child_data_schema ... ok
+test quota_counts_job_dir_plus_out_dir ... ok
+test quota_scan_entry_cap_is_out_quota ... ok
+test dropped_future_kills_group_and_cleans_within_one_second ... ok
+test timeout_kills_grandchild_group_and_removes_job_dir ... ok
+test child_is_the_designated_oom_victim ... ok
+test quota_sum_under_limit_is_not_out_quota ... ok
+test budget_admits_at_most_two_jobs_together ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.21s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test drivers
+ Container cka-spikes-runner-run-b3ebe242c52a Creating 
+ Container cka-spikes-runner-run-b3ebe242c52a Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running tests/drivers.rs (/target/debug/deps/drivers-03ffc66b73b17873)
+
+running 4 tests
+test budget_budget_error_cleans_work_root ... ok
+test budget_csv_error_cleans_work_root ... ok
+test budget_success_cleans_work_root ... ok
+test overhead_in_process_errors_keep_all_rows ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --test oom
+ Container cka-spikes-runner-run-f34ab85407d3 Creating 
+ Container cka-spikes-runner-run-f34ab85407d3 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.64s
+     Running tests/oom.rs (/target/debug/deps/oom-d1548565b21cd2b3)
+
+running 12 tests
+test m11_all_checks_with_oom_is_verificato ... ok
+test m11_each_violated_check_with_oom_is_fallito_naming_the_check ... ok
+test m11_more_than_one_oom_kill_is_still_verificato ... ok
+test m11_no_oom_kill_is_non_esercitato_with_reason ... ok
+test m11_oom_group_does_not_decide_the_outcome ... ok
+test oom_kills_child_not_parent ... ignored, solo nel container a memoria bassa di 01-18
+test m11_reservation_not_below_cgroup_is_fallito ... ok
+test m11_without_oom_never_verificato_nor_fallito ... ok
+test result_json_fallito_carries_reason_and_observed_values ... ok
+test result_json_is_one_line_without_environment_values ... ok
+test result_json_verificato_has_exact_keys_and_types_checked_by_the_plan ... ok
+test result_json_precondition_is_non_esercitato_with_nulls ... ok
+
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo check -p s02-parser --all-targets --locked
+ Container cka-spikes-runner-run-abdf5fb8dbde Creating 
+ Container cka-spikes-runner-run-abdf5fb8dbde Created 
+    Checking s02-parser v0.0.0 (/src/s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.86s
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo build -p s02-parser --locked
+ Container cka-spikes-runner-run-0ab2df9f4196 Creating 
+ Container cka-spikes-runner-run-0ab2df9f4196 Created 
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.23s
+[exit 0]
+
+$ cd spikes && cargo fmt --check -p s02-parser  (host)
+[exit 0]
+
+$ cd spikes && cargo clippy -p s02-parser --all-targets --locked --offline -- -D warnings  (host)
+    Checking s02-parser v0.0.0 (C:\Users\Gianmarco\Documents\Portfolio projects\01-corporate-knowledge-assistant\.claude\worktrees\01.5-01\spikes\s02-parser)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.04s
+[exit 0]
+
+esito GREEN compilazione: Compiling s02-parser presente=si
+esito GREEN lib: 160 passed; 0 failed; 3 ignored (atteso 0 failed; p = test di BASE più i nuovi non ignorati: 23 fuori da prescan::tests + 92 verdi e 45 rossi del RED = 160; i 3 ignorati sono i test #[ignore] di D-03; stesso esito nella prima prova GREEN e nel rilancio sul codice finale)
+esito GREEN rossi del RED: 45 su 45 verdi (atteso n su n, n = rossi_attesi; contati per nome nell'uscita del rilancio)
+esito GREEN nsany: 4 su 4 ok (atteso 4 su 4; running 1 test, 1 passed)
+esito R: bins=ok isolation=ok drivers=ok oom=ok check=ok build=ok fmt=ok clippy_host=ok (atteso tutti ok; check exit 0 con 0 avvisi come la linea di base; clippy sull'host exit 0 come la linea di base; ogni cargo test mostra Compiling s02-parser)
+nota: GREEN, regressione e rilancio sono girati in tre prenotazioni consecutive (…164639z-49ba, …164711z-cb3d, …164923z-62ba) invece che in una: nessun effetto sugli esiti.
+

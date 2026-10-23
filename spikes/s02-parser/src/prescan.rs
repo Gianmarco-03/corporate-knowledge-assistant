@@ -19,6 +19,9 @@
 //!    contano e non causano quarantena. I filtri immagine sono ammessi, come ultimo filtro
 //!    e con il tetto `max_image_bytes`, su `/Subtype /Image` e, dalla gap-closure 1.4, sulla
 //!    forma T: il dizionario d'immagine miniatura senza `/Subtype` (`is_subtypeless_image`).
+//!    Dalla gap-closure 1.5, sui DCT e sui JPX il tetto vale anche sulle dimensioni codificate
+//!    nei dati (marker SOF del JPEG, marker SIZ del codestream JPEG 2000), lette entro
+//!    `IMAGE_HEADER_SCAN_BYTES` dopo i soli filtri che precedono il filtro immagine.
 //!
 //! I2 (lavoro cumulativo di tutte le passate) è `decompress_work_bytes`: byte contati più i
 //! limiti analitici delle espansioni del loader, mai una stima più bassa del reale; oltre il
@@ -28,6 +31,7 @@
 //! DOCX: voci, somma dichiarata, macro, `<!DOCTYPE`/`<!ENTITY`, relazioni esterne.
 
 // Modifica: Claude (gsd-executor 01.4-02) · 2026-10-23 · filtri immagine ammessi anche sulla forma T senza /Subtype, con lo stesso tetto (gap-closure 1.4, D-07)
+// Modifica: Claude (gsd-executor 01.5-01) · 2026-10-23 · tetto delle immagini DCT e JPX sulle dimensioni codificate (gap-closure 1.5, D-01, D-02, D-09, D-10)
 use std::collections::BTreeSet;
 use std::io::{self, Read};
 use std::path::Path;
@@ -768,6 +772,384 @@ fn check_chain(chain: &[Vec<u8>], dict: &lopdf::Dictionary, caps: &Caps) -> Resu
     Ok(())
 }
 
+// ---- dimensioni codificate delle immagini DCT e JPX (gap-closure 1.5) --------------------
+
+/// Segmento marker JPEG di lunghezza massima, marker compreso (2 + L massimo).
+const MAX_MARKER_SEGMENT: usize = 2 + 65_535;
+
+/// Finestra di lettura dell'intestazione di un'immagine: 262.925 byte di dati.
+///
+/// Motivo (D-10 di `01.5-CONTEXT.md`): copre il SOI, 4 segmenti APP pieni (per esempio JFIF,
+/// EXIF, XMP e un pezzo di profilo ICC) e l'intestazione di un SOF con il massimo di 255
+/// componenti (marker, L, P, Y, X, Nf e 3 × 255 byte di componenti). Per i JPX la stessa
+/// finestra copre SOC più un SIZ massimo (2 + 2 + 38 + 3 × 16.384 = 49.194 byte) e, nel formato
+/// JP2, i box che precedono `jp2c` (firma, `ftyp`, `jp2h` con un profilo ICC fino a circa
+/// 200 KiB). Oltre la finestra il marker non si cerca: l'esito è `beyond_scan`.
+const IMAGE_HEADER_SCAN_BYTES: usize = 2 + 4 * MAX_MARKER_SEGMENT + 2 + 8 + 3 * 255;
+
+/// Prefisso dei dati grezzi passato ad `ascii85` o ad `ascii_hex` durante la lettura
+/// dell'intestazione. Un prefisso troppo pieno di spazi produce `beyond_scan`, mai
+/// un'ammissione.
+const PREFILTER_RAW_BYTES: usize = 4 * IMAGE_HEADER_SCAN_BYTES;
+
+/// Codec dell'immagine, dal filtro immagine in coda alla catena.
+#[derive(Debug, Clone, Copy)]
+enum Codec {
+    Dct,
+    Jpx,
+}
+
+impl Codec {
+    /// Primo token del detail di rifiuto.
+    fn detail(self) -> &'static str {
+        match self {
+            Codec::Dct => "dct_sof",
+            Codec::Jpx => "jpx_siz",
+        }
+    }
+}
+
+/// Dimensioni codificate nei dati dell'immagine.
+#[derive(Debug, Clone, Copy)]
+struct Dims {
+    width: u64,
+    height: u64,
+    components: u64,
+}
+
+/// Errore della lettura del prefisso: un sottomotivo del detail, oppure il rifiuto di
+/// `Meter::add_work` (`Corrupt` / `work_bound`), propagato con il suo `Kind` e il suo detail
+/// (T-01.5-09).
+#[derive(Debug)]
+enum PrefixError {
+    Prefilter(&'static str),
+    Work(Rejection),
+}
+
+/// Al più `IMAGE_HEADER_SCAN_BYTES` byte di dati dell'immagine, più `more`, vero se i dati
+/// proseguono oltre. Applica in ordine i soli filtri che precedono il filtro immagine:
+/// ASCII85 e ASCIIHex su un prefisso grezzo di `PREFILTER_RAW_BYTES` byte, Flate letto sempre
+/// fino a `IMAGE_HEADER_SCAN_BYTES + 1` byte o alla fine dei dati, così la quantità letta è
+/// deterministica. I byte prodotti da Flate entrano nel lavoro I2. L'immagine non si
+/// decodifica mai.
+fn image_prefix(
+    chain: &[Vec<u8>],
+    raw: &[u8],
+    meter: &mut Meter,
+) -> Result<(Vec<u8>, bool), PrefixError> {
+    let pre = &chain[..chain.len().saturating_sub(1)];
+    let mut owned: Option<Vec<u8>> = None;
+    let mut more = false;
+    for f in pre {
+        let cur: &[u8] = owned.as_deref().unwrap_or(raw);
+        let next = match f.as_slice() {
+            b"ASCII85Decode" | b"ASCIIHexDecode" => {
+                let cut = cur.len().min(PREFILTER_RAW_BYTES);
+                more |= cut < cur.len();
+                let decoded = if f.as_slice() == b"ASCII85Decode" {
+                    ascii85(&cur[..cut])
+                } else {
+                    ascii_hex(&cur[..cut])
+                };
+                decoded.map_err(|_| PrefixError::Prefilter("prefilter"))?
+            }
+            b"FlateDecode" => {
+                // Copia limitata da `take`: al più IMAGE_HEADER_SCAN_BYTES + 1 byte in memoria.
+                let mut limited =
+                    flate2::read::ZlibDecoder::new(cur).take(IMAGE_HEADER_SCAN_BYTES as u64 + 1);
+                let mut out = Vec::new();
+                let n = io::copy(&mut limited, &mut out)
+                    .map_err(|_| PrefixError::Prefilter("prefilter"))?;
+                meter.add_work(n).map_err(PrefixError::Work)?;
+                out
+            }
+            _ => return Err(PrefixError::Prefilter("invalid")),
+        };
+        owned = Some(next);
+    }
+    let mut data = match owned {
+        Some(d) => d,
+        None => raw[..raw.len().min(IMAGE_HEADER_SCAN_BYTES + 1)].to_vec(),
+    };
+    if data.len() > IMAGE_HEADER_SCAN_BYTES {
+        data.truncate(IMAGE_HEADER_SCAN_BYTES);
+        more = true;
+    }
+    Ok((data, more))
+}
+
+/// Dimensioni del primo SOF di un JPEG, lette per segmenti dal SOI.
+///
+/// La lettura salta il contenuto di ogni segmento con la sua lunghezza: un SOF finto dentro
+/// APP1 (la miniatura EXIF), DHT, DAC o JPG non si vede. Sono SOF `C0`-`C3`, `C5`-`C7`,
+/// `C9`-`CB` e `CD`-`CF`; `C4` (DHT), `C8` (JPG) e `CC` (DAC) no. Il primo SOF decide.
+/// Sottomotivi: `missing` (niente SOI, oppure SOI, EOI o SOS prima del SOF), `invalid`
+/// (byte fuori marker, marker `00`, L < 2, SOF incoerente o con X, Y o Nf a 0), `truncated`
+/// (dati finiti dentro un marker o un segmento), `beyond_scan` (finestra finita prima del SOF).
+fn read_sof(data: &[u8], more: bool) -> Result<Dims, &'static str> {
+    // Fine dei dati: dentro un marker o un segmento (`inside`) oppure su un confine.
+    let end = |inside: bool| {
+        if more {
+            "beyond_scan"
+        } else if inside {
+            "truncated"
+        } else {
+            "missing"
+        }
+    };
+    if data.len() < 2 {
+        return Err(if more {
+            "beyond_scan"
+        } else if data == [0xFF] {
+            "truncated"
+        } else {
+            "missing"
+        });
+    }
+    if data[..2] != [0xFF, 0xD8] {
+        return Err("missing");
+    }
+    let mut i = 2;
+    loop {
+        match data.get(i) {
+            None => return Err(end(false)),
+            Some(&0xFF) => {}
+            Some(_) => return Err("invalid"),
+        }
+        // Byte FF di riempimento prima del codice del marker.
+        let mut j = i + 1;
+        while data.get(j) == Some(&0xFF) {
+            j += 1;
+        }
+        let Some(&marker) = data.get(j) else {
+            return Err(end(true));
+        };
+        i = j + 1;
+        match marker {
+            0x00 => return Err("invalid"),
+            0x01 | 0xD0..=0xD7 => continue,
+            0xD8..=0xDA => return Err("missing"),
+            _ => {}
+        }
+        let Some(len) = data.get(i..i + 2) else {
+            return Err(end(true));
+        };
+        let len = usize::from(u16::from_be_bytes([len[0], len[1]]));
+        if len < 2 {
+            return Err("invalid");
+        }
+        let is_sof = matches!(marker, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF);
+        let Some(segment) = data.get(i..i + len) else {
+            return Err(end(true));
+        };
+        if is_sof {
+            if len < 8 {
+                return Err("invalid");
+            }
+            let height = u16::from_be_bytes([segment[3], segment[4]]);
+            let width = u16::from_be_bytes([segment[5], segment[6]]);
+            let nf = segment[7];
+            if len != 8 + 3 * usize::from(nf) || width == 0 || height == 0 || nf == 0 {
+                return Err("invalid");
+            }
+            return Ok(Dims {
+                width: u64::from(width),
+                height: u64::from(height),
+                components: u64::from(nf),
+            });
+        }
+        i += len;
+    }
+}
+
+/// Dimensioni del marker SIZ di un JPEG 2000: codestream nudo (SOC) o file JP2, dove il
+/// codestream sta nel primo box `jp2c` di primo livello, come in OpenJPEG.
+///
+/// I box si scorrono con LBox (u32) e TBox; LBox = 1 vuole XLBox (u64) ≥ 16, LBox = 0 è ammesso
+/// solo sul `jp2c`, LBox fra 2 e 7 è `invalid`, la fine del box si somma con `checked_add`.
+/// Nel codestream il SIZ deve seguire subito SOC, con Lsiz ≥ 41 e Lsiz = 38 + 3 × Csiz; le
+/// dimensioni sono Xsiz − XOsiz e Ysiz − YOsiz, le componenti Csiz. Dopo il SIZ la lettura si
+/// ferma. Dati finiti prima di poter decidere: `beyond_scan` con `more`, altrimenti `truncated`.
+fn read_jpx_siz(data: &[u8], more: bool) -> Result<Dims, &'static str> {
+    const SOC: [u8; 2] = [0xFF, 0x4F];
+    const JP2_SIGNATURE: [u8; 12] = [
+        0x00, 0x00, 0x00, 0x0C, 0x6A, 0x50, 0x20, 0x20, 0x0D, 0x0A, 0x87, 0x0A,
+    ];
+    let short = |more: bool| if more { "beyond_scan" } else { "truncated" };
+    let be32 = |b: &[u8]| u32::from_be_bytes([b[0], b[1], b[2], b[3]]);
+
+    let (codestream, cs_more): (&[u8], bool) = if data.starts_with(&SOC) {
+        (data, more)
+    } else if data.starts_with(&JP2_SIGNATURE) {
+        let mut pos = JP2_SIGNATURE.len();
+        loop {
+            let Some(head) = data.get(pos..pos + 8) else {
+                return Err(short(more));
+            };
+            let lbox = be32(&head[..4]);
+            let is_jp2c = &head[4..8] == b"jp2c";
+            let (header, length) = match lbox {
+                0 if is_jp2c => (8, None),
+                0 => return Err("missing"),
+                1 => {
+                    let Some(xl) = data.get(pos + 8..pos + 16) else {
+                        return Err(short(more));
+                    };
+                    let xlbox = u64::from_be_bytes([
+                        xl[0], xl[1], xl[2], xl[3], xl[4], xl[5], xl[6], xl[7],
+                    ]);
+                    if xlbox < 16 {
+                        return Err("invalid");
+                    }
+                    (16, Some(xlbox))
+                }
+                2..=7 => return Err("invalid"),
+                n => (8, Some(u64::from(n))),
+            };
+            let end = match length {
+                Some(l) => Some((pos as u64).checked_add(l).ok_or("invalid")?),
+                None => None,
+            };
+            if is_jp2c {
+                let start = pos + header;
+                // Box chiuso entro i dati: il codestream finisce con il box.
+                break match end {
+                    Some(e) if e <= data.len() as u64 => {
+                        (data.get(start..e as usize).unwrap_or(&[]), false)
+                    }
+                    _ => (data.get(start..).unwrap_or(&[]), more),
+                };
+            }
+            match end {
+                Some(e) if e <= data.len() as u64 => pos = e as usize,
+                _ => return Err(short(more)),
+            }
+        }
+    } else if (data.len() < SOC.len() && SOC.starts_with(data))
+        || (data.len() < JP2_SIGNATURE.len() && JP2_SIGNATURE.starts_with(data))
+    {
+        return Err(short(more));
+    } else {
+        return Err("missing");
+    };
+
+    let Some(soc) = codestream.get(..2) else {
+        return Err(short(cs_more));
+    };
+    if soc != SOC {
+        return Err("invalid");
+    }
+    let Some(marker) = codestream.get(2..4) else {
+        return Err(short(cs_more));
+    };
+    if marker != [0xFF, 0x51] {
+        return Err("invalid");
+    }
+    let Some(lsiz) = codestream.get(4..6) else {
+        return Err(short(cs_more));
+    };
+    let lsiz = usize::from(u16::from_be_bytes([lsiz[0], lsiz[1]]));
+    if lsiz < 41 {
+        return Err("invalid");
+    }
+    // Segmento SIZ dal marker: FF 51, Lsiz, Rsiz, Xsiz, Ysiz, XOsiz, YOsiz, tile, Csiz, ...
+    let Some(siz) = codestream.get(2..4 + lsiz) else {
+        return Err(short(cs_more));
+    };
+    let csiz = u16::from_be_bytes([siz[38], siz[39]]);
+    if lsiz != 38 + 3 * usize::from(csiz) || csiz == 0 {
+        return Err("invalid");
+    }
+    let (xsiz, ysiz) = (be32(&siz[6..10]), be32(&siz[10..14]));
+    let (xo, yo) = (be32(&siz[14..18]), be32(&siz[18..22]));
+    if xo >= xsiz || yo >= ysiz {
+        return Err("invalid");
+    }
+    Ok(Dims {
+        width: u64::from(xsiz - xo),
+        height: u64::from(ysiz - yo),
+        components: u64::from(csiz),
+    })
+}
+
+/// Tetto delle immagini DCT e JPX sulle dimensioni codificate nei dati (gap-closure 1.5).
+///
+/// Motivo. Il tetto `max_image_bytes` di `check_chain` guarda `/Width × /Height ×
+/// componenti` dichiarati, mentre i decoder di PDFium leggono le dimensioni dentro i dati: il
+/// decoder DCT dal marker SOF del JPEG, il decoder JPX dal marker SIZ del codestream. Un PDF
+/// che dichiara 1 × 1 e porta un JPEG da 30000 × 30000 passava il prescan (RISK-16 di
+/// 01.4-02, TEST-14 di 01-13, D-39 di `01-CONTEXT.md`; D-09 per i JPX). Qui si leggono SOF o
+/// SIZ entro `IMAGE_HEADER_SCAN_BYTES`, dopo i soli filtri che precedono il filtro immagine
+/// (D-01, D-02, D-10), e lo stream si respinge con detail `dct_sof <sottomotivo>` o
+/// `jpx_siz <sottomotivo>`: `over_cap` (`DecompressionLimit`) se larghezza × altezza ×
+/// componenti supera il tetto; `larger_than_declared` se un asse supera il dichiarato;
+/// `missing`, `truncated`, `beyond_scan`, `invalid` o `prefilter` per un marker che non si
+/// legge (tutti `Unsupported`). Più piccolo del dichiarato è ammesso.
+///
+/// La lettura del JPEG è per segmenti e non una ricerca di byte `FF Cx`, perché un SOF finto
+/// (la miniatura EXIF in APP1) non deve nascondere quello vero. `check_stream` la chiama dopo
+/// i controlli `per_stream` e di rapporto, così una bomba Flate resta `DecompressionLimit`.
+/// Le immagini inline (`BI … ID … EI`) stanno negli stream di contenuto e restano fuori: sono
+/// debito del prescan di prodotto della fase 3 e di ADR-0004.
+fn check_image_header(
+    chain: &[Vec<u8>],
+    stream: &lopdf::Stream,
+    caps: &Caps,
+    meter: &mut Meter,
+) -> Result<(), Rejection> {
+    let codec = match chain.last().map(Vec::as_slice) {
+        Some(b"DCTDecode") => Codec::Dct,
+        Some(b"JPXDecode") => Codec::Jpx,
+        _ => return Ok(()),
+    };
+    let (data, more) = match image_prefix(chain, &stream.content, meter) {
+        Ok(p) => p,
+        Err(PrefixError::Work(r)) => return Err(r),
+        Err(PrefixError::Prefilter(sub)) => {
+            return Err(fail(Kind::Unsupported, format!("{} {sub}", codec.detail())));
+        }
+    };
+    let read = match codec {
+        Codec::Dct => read_sof(&data, more),
+        Codec::Jpx => read_jpx_siz(&data, more),
+    };
+    let Dims {
+        width: w,
+        height: h,
+        components: n,
+    } = read.map_err(|sub| fail(Kind::Unsupported, format!("{} {sub}", codec.detail())))?;
+    let cap = caps.max_image_bytes;
+    match w.checked_mul(h).and_then(|v| v.checked_mul(n)) {
+        Some(b) if b <= cap => {}
+        bytes => {
+            let b = bytes.map_or_else(|| "overflow".to_owned(), |b| b.to_string());
+            return Err(fail(
+                Kind::DecompressionLimit,
+                format!(
+                    "{} over_cap dims={w}x{h}x{n} bytes={b} cap={cap}",
+                    codec.detail()
+                ),
+            ));
+        }
+    }
+    let (Some(dw), Some(dh)) = (int(&stream.dict, b"Width"), int(&stream.dict, b"Height")) else {
+        return Err(fail(
+            Kind::Unsupported,
+            format!("{} invalid", codec.detail()),
+        ));
+    };
+    if w > dw || h > dh {
+        return Err(fail(
+            Kind::Unsupported,
+            format!(
+                "{} larger_than_declared dims={w}x{h} declared={dw}x{dh}",
+                codec.detail()
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// Massimi per stream registrati dalla calibrazione.
 #[derive(Debug, Default)]
 struct StreamStats {
@@ -786,7 +1168,7 @@ fn check_stream(
     let chain = filters(&stream.dict)?;
     check_chain(&chain, &stream.dict, caps)?;
     let Some(n) = flate_expansion(&chain, &stream.content, caps.per_stream_bytes, meter)? else {
-        return Ok(0);
+        return check_image_header(&chain, stream, caps, meter).map(|()| 0);
     };
     if n > caps.per_stream_bytes {
         return Err(fail(
@@ -806,6 +1188,7 @@ fn check_stream(
     if ratio > stats.max_flate_ratio {
         stats.max_flate_ratio = ratio;
     }
+    check_image_header(&chain, stream, caps, meter)?;
     Ok(n)
 }
 
