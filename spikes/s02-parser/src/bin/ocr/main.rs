@@ -160,8 +160,8 @@ mod tests {
         for f in ["main.rs", "tsv.rs", "geom.rs", "score.rs", "ttq.rs"] {
             let src = std::fs::read_to_string(dir.join(f)).unwrap();
             let code: String = src.split("#[cfg(test)]").next().unwrap().to_owned();
-            assert!(!code.contains(concat!("Command::new", "(\"sh\")")), "{f}");
-            assert!(!code.contains(concat!("Command::new", "(\"bash\")")), "{f}");
+            assert!(!code.contains(r#"Command::new("sh")"#), "{f}");
+            assert!(!code.contains(r#"Command::new("bash")"#), "{f}");
             // OMP_THREAD_LIMIT lo mette solo il padre (job::resolve di 01-07).
             assert!(!code.contains(".env(\"OMP_THREAD_LIMIT\""), "{f}");
         }
