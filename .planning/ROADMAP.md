@@ -74,6 +74,17 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Perimetro file**: `spikes/**` (usa-e-getta), nuovi ADR in `docs/adr/`, `DEPENDENCIES.md`, `docs/security/threat-model.md`
 **Plans**: TBD
 
+### Phase 01.5: Gap-closure prescan: tetto delle immagini DCT sul SOF del JPEG (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 01
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 01.5 to break down)
+
 ### Phase 01.4: Gap-closure driver di misura di 01-07: pulizia di budget sul percorso d'errore e overhead in-process completo (INSERTED)
 
 **Goal:** [Urgent work - to be planned]
