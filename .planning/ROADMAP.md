@@ -79,11 +79,11 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
 **Depends on:** Phase 01
-**Plans:** 0 plans
+**Plans:** 1/1 plans complete
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 01.5 to break down)
+- [x] TBD (run /gsd:plan-phase 01.5 to break down) (completed 2026-10-23)
 
 ### Phase 01.4: Gap-closure driver di misura di 01-07: pulizia di budget sul percorso d'errore e overhead in-process completo (INSERTED)
 

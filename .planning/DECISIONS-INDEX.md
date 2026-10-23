@@ -63,6 +63,9 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 ## Fase 1.4 — Gap-closure dei driver di misura e del prescan di 01-07
 - 2026-10-23 · 1.4: DOCX ostili non deterministici per timestamp zip (D-11); M10 non ripetuta dopo ricalibrazione, 2 job con margine 8% (D-12) → `phases/01.4-gap-closure-driver-di-misura-di-01-07-pulizia-di-budget-sul-/01.4-CONTEXT.md#decisioni`
 
+## Fase 1.5 — Gap-closure del prescan sulle dimensioni codificate delle immagini
+- 2026-10-23 · 1.5: tetto delle immagini DCT e JPX sulle dimensioni codificate SOF/SIZ (D-39, D-09); inline debito fase 3; ocr_render obbligo di 01-13 → `phases/01.5-gap-closure-prescan-tetto-delle-immagini-dct-sul-sof-del-jpe/01.5-CONTEXT.md#decisioni`
+
 ## Fase 2 — Fondazione (discuss)
 
 - 2026-10-21 · Contract-first: YAML OpenAPI per servizio, trait Contract (from_json + validate) in crates/contracts, classi Rust a mano, nessun generatore → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`
