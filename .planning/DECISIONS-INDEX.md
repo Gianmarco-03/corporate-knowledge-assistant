@@ -60,6 +60,9 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Docker monta il tmpfs con noexec/nosuid/nodev: per 01-07 nessun binario si esegue da /work → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#punti-aperti`
 - 2026-10-21 · TEST-5 e TEST-13 del design 01.3-01 difettosi (regex non ancorata, conflitto su «nessun down -v»): da correggere se riusati → `phases/01.3-gap-closure-compose-yaml-work-del-worker-scrivibile-dall-ute/01.3-01-SUMMARY.md#deviations-from-plan`
 
+## Fase 1.4 — Gap-closure dei driver di misura e del prescan di 01-07
+- 2026-10-23 · 1.4: DOCX ostili non deterministici per timestamp zip (D-11); M10 non ripetuta dopo ricalibrazione, 2 job con margine 8% (D-12) → `phases/01.4-gap-closure-driver-di-misura-di-01-07-pulizia-di-budget-sul-/01.4-CONTEXT.md#decisioni`
+
 ## Fase 2 — Fondazione (discuss)
 
 - 2026-10-21 · Contract-first: YAML OpenAPI per servizio, trait Contract (from_json + validate) in crates/contracts, classi Rust a mano, nessun generatore → `phases/02-fondazione/02-CONTEXT.md#contratti-api-a-01-plat-03`

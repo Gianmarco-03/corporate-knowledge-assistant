@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-23T13:54:40.633Z"
-last_activity: 2026-10-23 — 01-10 completato (bridge); onda 6 chiusa
+last_updated: "2026-10-23T14:30:20.421Z"
+last_activity: 2026-10-23 — 01.4-02 completato; fase 1.4 pronta per verify
 progress:
   total_phases: 19
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 23
-  completed_plans: 17
-  percent: 16
+  completed_plans: 18
+  percent: 21
 ---
 
 # Project State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 9 of 18 in current phase
 Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-23 — 01-10 completato (bridge); onda 6 chiusa
+Last activity: 2026-10-23 — 01.4-02 completato; fase 1.4 pronta per verify
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -138,6 +138,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: M8 di 01-18 dichiarata non raggiunta 24/26 (D-34, JBIG2 a 01-13); driver budget/overhead di 01-07 alla gap-closure 1.4 (D-35) → `phases/01-spike-tecnici/01-18-SUMMARY.md#decisions-made`
 - [Phase ?]: D-27 chiusa con l'opzione 4 (D-36), riavvio Docling e precisione pagine-tabella aperti per l'ADR di ingestion; falso positivo del prescan alla 1.4 (D-37) → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - [Phase ?]: Modello di embedding bge-m3 su TEI CUDA (D-38, emenda D-14): nDCG@10 0,723 contro Qwen3 0,660 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
+- [Phase ?]: 1.4: DOCX ostili non deterministici per timestamp zip (D-11); M10 non ripetuta dopo ricalibrazione, 2 job con margine 8% (D-12) → `phases/01.4-gap-closure-driver-di-misura-di-01-07-pulizia-di-budget-sul-/01.4-CONTEXT.md#decisioni`
 
 ### Pending Todos
 
