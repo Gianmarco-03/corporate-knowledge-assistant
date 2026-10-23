@@ -734,3 +734,108 @@ PASS con avvisi: 0 CRITICAL, 0 HIGH, 27 MEDIUM (5 archive-decompress, 22 pdf-unt
 
 Deviazione scanner: con la soglia di default (MEDIUM) prescan.rs esce 1 già sulla base, con 25 MEDIUM; si usa --fail-on HIGH, come in 01-07 e 01.4-01. I 2 MEDIUM nuovi sono la regola lessicale pdf-untrusted-parse sulle firme di positive_int e is_subtypeless_image (tipo lopdf::Dictionary): percorsi di tipo, nessun parsing nuovo; il prescan gira nel figlio isolato.
 
+
+## Decisione dell'utente sullo STOP (D-11)
+
+Decisione utente D-11 del 2026-10-23 («Accetta e prosegui», registrata in 01.4-CONTEXT.md sul main): i quattro casi docx-zip-bomb, docx-xml-bomb, docm-macro e docx-external-link cambiano byte a ogni rigenerazione per il timestamp che zf.writestr(name, data) mette nelle voci zip (gen_hostile.py:577), ma l'esito del lanciatore è identico (78 righe su 78 uguali a hostile.csv di BASE, 72 pass). Sono accettati come non deterministici per costruzione, come i casi encrypted-*. Deviazione dichiarata rispetto all'atteso della riga «esito fixture» (solo encrypted-*): gen_hostile.py e il manifest dei casi ostili non si toccano; il timestamp resta un difetto minore di 01-18 (file chiuso), da valutare in verify. Il Task 2 resta valido così e il Task 3 prosegue.
+esito fixture dopo D-11: diversi ammessi = encrypted-* (4) + DOCX/DOCM con timestamp zip (4); nessun altro caso diverso.
+
+## Ricalibrazione (D-09)
+
+run_id = 01-4-02-20261023t140926z-1448 (session.sh with 01-4-02 --wait 1800)
+run-tag calibrazione = 5346ef03, budget = 5346ef04
+hw.json non rigenerato (scelta del planner, deviazione dichiarata rispetto al Task 4 di 01-07)
+
+immagine worker: 801f12e52bb7 (atteso 801f12e52bb7, immagine worker dopo del Task 2)
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-4-02-20261023t140926z-1448 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-02-20261023t140926z-1448  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-4-02-20261023t140926z-1448 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-4-02-20261023t140926z-1448  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent calibrate --op parse --inputs /data/corpus/raw --out /results/isolation/limits.json --run-tag "5346ef03"
+{"job_id":"cal-der-it-01-relazione-annuale-2025-5346ef03","outcome":{"status":"ok","pages":25,"output":"/results/raw/isolation/cal-der-it-01-relazione-annuale-2025-5346ef03/text.txt","data":{"chars":53717,"decompress_work_bytes":152781550,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":312.6072611308721,"max_stream_bytes":2548687,"objstm_count":160,"objstm_decompressed_bytes":8739354,"pages":25,"parse_ms":220,"total_decompressed_bytes":9824468,"vm_hwm_kb":228076,"vm_peak_kb":764588,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":228076,"wall_ms":230,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-01-berkshire-annual-repor-5346ef03","outcome":{"status":"ok","pages":154,"output":"/results/raw/isolation/cal-pub-en-01-berkshire-annual-repor-5346ef03/text.txt","data":{"chars":565234,"decompress_work_bytes":185145587,"embedded_files":1,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":29.6,"max_stream_bytes":842301,"objstm_count":4,"objstm_decompressed_bytes":50390,"pages":154,"parse_ms":1378,"total_decompressed_bytes":50877469,"vm_hwm_kb":49576,"vm_peak_kb":585388,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":49576,"wall_ms":1381,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-02-federal-reserve-annual-5346ef03","outcome":{"status":"ok","pages":214,"output":"/results/raw/isolation/cal-pub-en-02-federal-reserve-annual-5346ef03/text.txt","data":{"chars":514242,"decompress_work_bytes":409480896,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":8.228555224727067,"max_stream_bytes":185403,"objstm_count":220,"objstm_decompressed_bytes":188252,"pages":214,"parse_ms":308,"total_decompressed_bytes":6639460,"vm_hwm_kb":28176,"vm_peak_kb":616064,"xref_streams":3}},"exit_signal":null,"peak_rss_kb":28176,"wall_ms":310,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-03-bank-of-england-annual-5346ef03","outcome":{"status":"ok","pages":220,"output":"/results/raw/isolation/cal-pub-en-03-bank-of-england-annual-5346ef03/text.txt","data":{"chars":357466,"decompress_work_bytes":681256883,"embedded_files":0,"encryption":"empty_password","entries":0,"format":"pdf","max_flate_ratio":84.36594867094409,"max_stream_bytes":2850120,"objstm_count":164,"objstm_decompressed_bytes":3261362,"pages":220,"parse_ms":556,"total_decompressed_bytes":10168263,"vm_hwm_kb":142776,"vm_peak_kb":676496,"xref_streams":2}},"exit_signal":null,"peak_rss_kb":142776,"wall_ms":560,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-04-bis-annual-economic-re-5346ef03","outcome":{"status":"ok","pages":126,"output":"/results/raw/isolation/cal-pub-en-04-bis-annual-economic-re-5346ef03/text.txt","data":{"chars":377013,"decompress_work_bytes":42209432,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":901.68,"max_stream_bytes":8630718,"objstm_count":0,"objstm_decompressed_bytes":0,"pages":126,"parse_ms":623,"total_decompressed_bytes":42209432,"vm_hwm_kb":129784,"vm_peak_kb":625720,"xref_streams":0}},"exit_signal":null,"peak_rss_kb":129784,"wall_ms":627,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-01-bdi-relazione-annuale-5346ef03","outcome":{"status":"ok","pages":228,"output":"/results/raw/isolation/cal-pub-it-01-bdi-relazione-annuale-5346ef03/text.txt","data":{"chars":673918,"decompress_work_bytes":575012657,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":321.1169944528492,"max_stream_bytes":12381481,"objstm_count":312,"objstm_decompressed_bytes":9085282,"pages":228,"parse_ms":963,"total_decompressed_bytes":29056463,"vm_hwm_kb":282480,"vm_peak_kb":697464,"xref_streams":4}},"exit_signal":null,"peak_rss_kb":282480,"wall_ms":971,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-02-bdi-bilancio-esercizio-5346ef03","outcome":{"status":"ok","pages":105,"output":"/results/raw/isolation/cal-pub-it-02-bdi-bilancio-esercizio-5346ef03/text.txt","data":{"chars":230496,"decompress_work_bytes":283036149,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":834.09375,"max_stream_bytes":3483851,"objstm_count":139,"objstm_decompressed_bytes":2232559,"pages":105,"parse_ms":376,"total_decompressed_bytes":12368134,"vm_hwm_kb":97904,"vm_peak_kb":610572,"xref_streams":2}},"exit_signal":null,"peak_rss_kb":97904,"wall_ms":380,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-03-bdi-sintesi-relazione-5346ef03","outcome":{"status":"ok","pages":36,"output":"/results/raw/isolation/cal-pub-it-03-bdi-sintesi-relazione-5346ef03/text.txt","data":{"chars":58034,"decompress_work_bytes":138609763,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":104.64912280701756,"max_stream_bytes":85443,"objstm_count":12,"objstm_decompressed_bytes":254436,"pages":36,"parse_ms":199,"total_decompressed_bytes":4137599,"vm_hwm_kb":45748,"vm_peak_kb":618304,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":45748,"wall_ms":202,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-04-bdi-bollettino-economi-5346ef03","outcome":{"status":"ok","pages":42,"output":"/results/raw/isolation/cal-pub-it-04-bdi-bollettino-economi-5346ef03/text.txt","data":{"chars":138788,"decompress_work_bytes":137989602,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":171.3855421686747,"max_stream_bytes":493338,"objstm_count":29,"objstm_decompressed_bytes":491824,"pages":42,"parse_ms":176,"total_decompressed_bytes":3280050,"vm_hwm_kb":41240,"vm_peak_kb":616420,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":41240,"wall_ms":179,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-05-bdi-relazione-gestione-5346ef03","outcome":{"status":"ok","pages":212,"output":"/results/raw/isolation/cal-pub-it-05-bdi-relazione-gestione-5346ef03/text.txt","data":{"chars":589417,"decompress_work_bytes":227192504,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":295.4615755239701,"max_stream_bytes":9462534,"objstm_count":79,"objstm_decompressed_bytes":6868734,"pages":212,"parse_ms":638,"total_decompressed_bytes":86106042,"vm_hwm_kb":200832,"vm_peak_kb":691904,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":200832,"wall_ms":643,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"anomalies":0,"docs":10,"limits":{"address_space_bytes":1879048192,"cpu_seconds":60,"file_size_bytes":1369666,"max_open_files":64,"memory_reservation_bytes":867778560,"out_quota_bytes":1369666,"wall_timeout":{"nanos":0,"secs":120}},"ok_docs":10,"op":"parse","status":"calibration_summary"}
+[exit 0]
+
+esito calibrazione: docs=10 ok_docs=10 anomalie=0 righe_csv=10 rejected_filter_streams_zero=si exit=0 (atteso 10, 10, 0, 10, si, 0)
+esito limiti: memory_reservation_bytes 820961280->867778560 out_quota_bytes 1369666->1369666 address_space_bytes 1879048192->1879048192 max_vm_hwm_kb 267240->282480 profili_cambiati=si
+formula: memory_reservation_bytes del profilo default = 3 x 282480 (max vm_hwm_kb di calibration.csv, pub-it-01) x 1024 = 867778560, uguale al valore scritto (controllo node: ok). Profilo parse identico al default.
+lettura: le colonne che dipendono dal prescan e dal documento (out_bytes, max_flate_ratio, max_stream_bytes, total_decompressed_bytes, objstm_*, rejected_filter_streams) sono identiche a calibration.csv di BASE su tutte e 10 le righe; cambiano solo vm_peak_kb e vm_hwm_kb, cioe la memoria residente misurata (pub-it-01 267240 -> 282480 KB, +5,7%), rumore di misura fra due esecuzioni e non effetto della regola nuova. vm_hwm massimo che tiene ancora 2 job parse: circa 305388 KB (margine 8,1%).
+
+## Budget (D-09)
+
+job scritti in results/raw/p1402-jobs/budget-5346ef04.jsonl: 4 (pub-it-01, pub-it-05, der-it-01-relazione-annuale-2025, pub-en-03)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent batch --jobs /results/raw/p1402-jobs/budget-5346ef04.jsonl --concurrency 4
+job p1402-bud-j2-5346ef04 status=ok kind=None detail=None pages=212 peak_rss_kb=199944 wall_ms=616 oom_kill_delta=0 leftover_procs=0
+job p1402-bud-j3-5346ef04 status=ok kind=None detail=None pages=25 peak_rss_kb=224940 wall_ms=176 oom_kill_delta=0 leftover_procs=0
+job p1402-bud-j1-5346ef04 status=ok kind=None detail=None pages=228 peak_rss_kb=338104 wall_ms=988 oom_kill_delta=0 leftover_procs=0
+job p1402-bud-j4-5346ef04 status=ok kind=None detail=None pages=220 peak_rss_kb=125424 wall_ms=587 oom_kill_delta=0 leftover_procs=0
+summary: {"concurrency": 4, "job_errors": 0, "jobs": 4, "launch_errors": 0, "max_admitted": 2, "status": "batch_summary"}
+stderr: 0 righe
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+$ node <driver>/budget.js spikes/s02-parser/results/isolation/limits.json
+prenotazione R = 867778560 x (1 + 0) + 1369666 = 869148226; capacita C = 2147483648 - 268435456 = 1879048192; ammessi = floor(C / R) = 2
+[exit 0]
+
+esito budget: prenotazione=869148226 capacita=1879048192 ammessi_formula=2 (atteso >= 2) max_admitted_batch=2 (atteso min(4, ammessi_formula)) exit=0 job_errors=0 ok=4 su 4 (atteso exit 0, 0, 4 su 4)
+/work: 0 prima della calibrazione, 0 dopo il batch. id -u = 10001. with ha eseguito down (rimossi 1, residui 0) e release.
+nota: nel batch a 4 job il picco RSS di pub-it-01 e 338104 KB, sopra il suo vm_hwm di calibrazione (282480 KB); il batch e passato senza OOM (oom_kill_delta 0) e la prenotazione e un budget di ammissione, non un tetto per job (il tetto e address_space_bytes, invariato). Si registra come osservazione, non come anomalia della calibrazione.
+nota M10: i profili sono cambiati, quindi le misure di M10 (budget-real*.csv) restano quelle fatte con i limiti precedenti; la regola di M10 chiede di ripeterle quando cambiano i limiti. Qui non si rifa nulla: la decisione va all'utente.
+
+## Pulizia
+
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+[exit 0]
+
+$ docker ps -a --filter label=com.docker.compose.project=cka-spikes --format '{{.Names}} {{.Label "cka.run_id"}}' | grep 01-4-02
+(fine elenco)
+
+cartella del driver (mktemp -d fuori dal repo) e file cka-01-4-02-driver.path cancellati: si (ls: No such file or directory su entrambi)
+
+$ python skills/security-scanner/security_scan.py spikes/s02-parser/src/prescan.rs spikes/results/prescan-image-filter-benigno.txt spikes/s02-parser/RISULTATI-isolamento.md spikes/s02-parser/RISULTATI-estrazione.md
+FAIL: 27 rilevamenti bloccanti (CRITICAL=0, HIGH=0, MEDIUM=27), tutti in prescan.rs: gli stessi 27 MEDIUM del Task 2 (25 della base, 5 archive-decompress + 20 pdf-untrusted-parse, più 2 pdf-untrusted-parse lessicali sulle firme di positive_int e is_subtypeless_image). Nessun rilevamento su evidenza e RISULTATI.
+[exit 1]
+
+$ python skills/security-scanner/security_scan.py --fail-on HIGH (stessi quattro file)
+PASS con avvisi: nessun rilevamento bloccante.
+[exit 0]
+
+Deviazione scanner, come nel Task 2: con la soglia di default (MEDIUM) prescan.rs esce 1 già sulla base; si usa --fail-on HIGH, come in 01-07 e 01.4-01. Il prescan gira nel figlio isolato.
