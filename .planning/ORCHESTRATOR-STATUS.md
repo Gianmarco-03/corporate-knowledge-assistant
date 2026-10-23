@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 6 + 1.4 onda 2 / slice 01.4-02 / exec in corso (onde 5 e 6 chiuse; 01.4-01 chiuso b3fb3ac) · aggiornato: 2026-10-23T13:55Z
+fase 01.4 / — / — / verify completato (passed, chiusa) · aggiornato: 2026-10-23T14:45Z
 
 ## Prossima azione
 
-attendere esecutore 01.4-02 (Task 2-3) → merge --no-ff, gate runner, bridge, /verify 1.4; attendere risk_audit_26 (01-13 v4) → trascrizione+ACK, test_design GPT, TEST_SPEC_READY; poi riallineare worktree 01-13 a main e onda 7.
+attendere risk_audit_26 (01-13 v4) da GPT → trascrizione+ACK, test_design GPT, TEST_SPEC_READY; poi riallineare worktree 01-13 a main (merge, senza ri-registrare) e onda 7; brief 01-13: margine budget 8,1% (D-12), RISK-16 tetto immagini su dimensioni dichiarate.
 
 ## Findings
 
@@ -85,6 +85,8 @@ attendere esecutore 01.4-02 (Task 2-3) → merge --no-ff, gate runner, bridge, /
 - 01.4-02 T1 diagnosi: forma T (/Thumb DCT, ColorSpace indiretto) uguale su 4 file (bf0ecc1); test-write RED_EXPECTED 5c07320, TEST-8 non scritto (P2, rischio residuo accettato in 01.4-GATE)
 - difetti fuori perimetro registrati per verify: isolate.rs:534 (01-07) results_raw mancante → detail «symlink» fuorviante; anomalia ORACOLI.md:39 vs queries.json (H1 nel section_path) per 01-06
 
+- verify 1.4: passed 16/16, contratto onorato (aggiornato in verify con 01.4-02, mancava), WIRING-MAP invariata; phase complete spostava STATE a fase 2 → riportato a fase 1 (13/18); REQUIREMENTS: solo riga vuota, ripristinato → 01.4-VERIFICATION.md
+
 ## Limiti trovati
 
 - 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7
@@ -100,12 +102,15 @@ attendere esecutore 01.4-02 (Task 2-3) → merge --no-ff, gate runner, bridge, /
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| 01.4-02 | conforme 6/6 (1° giro) → 01.4-GATE.md | verde: fmt/clippy host, runner -p s02-parser 269 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review APPROVE 0 gravi, LOW accettati (test overflow accetta 2 Kind; forma T non legata a /Thumb = RISK-7); security APPROVATO 0 gravi: forma T più stretta del ramo /Image; debito preesistente 01-07 tetto su /Width /Height non su SOF JPEG (RISK-16) → verify fase 1 | passed 16/16 (fase), 0 gap; UAT 4/4 accettate → 01.4-VERIFICATION.md |
+| 01.4-01 | conforme 6/6 (1° giro) → 01.4-GATE.md | verde (stesso gate); rust-review APPROVE, LOW: status misto maiuscole/minuscole (error:Corrupt vs error:pdfium_*) e riepilogo stderr solo in-process → nota per consumatori 01-18; remove_file su run_tag preesistente teorico (run_tag univoco); security: Drop + valid_run_tag senza traversal | passed 16/16 (fase), 0 gap → 01.4-VERIFICATION.md |
 | 01.3-01 | conforme 6/6 (1° giro) → 01.3-GATE.md | verde: compose config, fmt/clippy/test spikes, lint-stato; security 0 gravi (0700+10001 restringe, isolamento invariato, evidenza pulita, noexec coerente con 01-07); code review non applicabile (1 riga YAML + commento) | passed 7/7, 0 gap → 01.3-VERIFICATION.md |
 | 01.2-01 | conforme 6/6 (1° giro) + 2 ritocchi post-gate (TEST-15/16, errata RED) → 01.2-GATE.md | verde: lint-stato verde; cargo fmt/clippy/test spikes verdi dopo `cargo clean -p common` (common 17/17); security HIGH «3 FAILED» = falso allarme da binario di test stale del RED (decaduto, confermato da rust-reviewer); LOW accettati: assert `max_us <= 2047` debole in TEST-15 (rejected==3 e n==4 già asseriti), tolleranza 0,1 % vicina a 1/1024 con valori scelti lontani dal caso peggiore, doc «anche u64::MAX» poggia su test upstream, `saturating_add` superfluo, commento storico s05-cancel/src/main.rs:280 (fuori perimetro D-03) | passed 7/7, 0 gap → 01.2-VERIFICATION.md |
 | 01.1-01 | conforme 6/6 (1° giro) → 01.1-GATE.md | verde: Rust/web/e2e/eval n/a (no manifest, no retrieval); lint-stato verde; code-review 0 gravi, 2 LOW accettati (diagnostica ripetuta per dc(), chiavi con `.`/`-` non esportabili da bash); security 0 gravi, 3 LOW accettati (chiavi compose assenti dal file = RISK-14 già accettato; DC_ENV_KEEP interpolata in futuro = fragilità; COMPOSE_PROJECT_NAME/DOCKER_HOST host ancora passate, preesistente) → TODO | passed 7/7, 0 gap → 01.1-VERIFICATION.md |
 
 ## UAT
 
+- 01.4 accettata · utente 2026-10-23 · gate runner come prova 01.4-01, TEST-8 non scritto (RISK-7), docker version fuori session.sh: accettati; exit 0 di overhead con errori in status confermato (D-02); RISK-16 → verify fase 1 / 01-13 → 01.4-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · RISK-14 vuoto (manca solo CKA_RUN_ID, impostato da dc()); RISK-15 0 collisioni; RISK-16 0 nomi non ASCII/non validi → 01.1-01-SUMMARY.md
 - 01.2 accettata · utente 2026-10-21 · RISK-12 memoria auto-resize ≤ ~704 KiB allocati/Recorder (≈3,4 MiB caso peggiore con 5 Recorder, ≈880 KiB a 60 s), calcolo da sorgente, misura diretta fallita (LNK1104); RISK-13 commento s05 accettato, correzione alla prossima riapertura fase 1 → 01.2-01-SUMMARY.md
@@ -171,3 +176,5 @@ attendere esecutore 01.4-02 (Task 2-3) → merge --no-ff, gate runner, bridge, /
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --verify fase 01.3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · --uat fase 01.3 accettata
 **Modifica:** Claude (Anthropic) · 2026-10-23 · --exec: onde 5 e 6 chiuse, 01.4-01 chiuso, D-36..D-38, limiti (rate limit, cache cargo-target)
+**Modifica:** Claude (Anthropic) · 2026-10-23 · --verify-ecc: fase 1.4
+**Modifica:** Claude (Anthropic) · 2026-10-23 · --verify e --uat: fase 1.4 chiusa
