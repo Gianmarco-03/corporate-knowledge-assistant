@@ -1834,3 +1834,333 @@ esito GREEN nsany: 4 su 4 ok (atteso 4 su 4; running 1 test, 1 passed)
 esito R: bins=ok isolation=ok drivers=ok oom=ok check=ok build=ok fmt=ok clippy_host=ok (atteso tutti ok; check exit 0 con 0 avvisi come la linea di base; clippy sull'host exit 0 come la linea di base; ogni cargo test mostra Compiling s02-parser)
 nota: GREEN, regressione e rilancio sono girati in tre prenotazioni consecutive (…164639z-49ba, …164711z-cb3d, …164923z-62ba) invece che in una: nessun effetto sugli esiti.
 
+## Worker (D-05, D-06)
+
+sessione: run_id=01-5-01-20261023t165248z-0e34 (session.sh with 01-5-01 --wait 1800)
+run-tag: RT6 = primi 6 esadecimali dello sha256 del run_id = 1b90a3; ostili 01-18 1b90a301, ostili sof 1b90a302, D-05 1b90a303, ocr_render 1b90a304
+eccezioni della regola 2 usate qui: docker image inspect --format (sola lettura) e docker compose -f spikes/compose.yaml build worker (ricostruzione dentro la prenotazione).
+
+immagine worker prima: 801f12e52bb7
+
+$ docker compose -f spikes/compose.yaml build worker
+(uscita completa 612 righe nel driver; qui le ultime 5)
+#22 DONE 0.9s
+
+#23 resolving provenance for metadata file
+#23 DONE 0.0s
+ Image cka-spikes-worker Built 
+[exit 0]
+
+immagine worker dopo: 74b8659cab71
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_hostile.py --out /src/data/hostile/generated
+ Container cka-spikes-runner-run-155d7691b41a Creating 
+ Container cka-spikes-runner-run-155d7691b41a Created 
+generato encrypted-user: encrypted-user.pdf 1378 byte 0947c62b34ae3f19…
+generato encrypted-owner-only: encrypted-owner-only.pdf 1378 byte f55da193c75466c0…
+generato encrypted-pubsec: encrypted-pubsec.pdf 843 byte 346bce9476801f6e…
+generato encrypted-object-dropped: encrypted-object-dropped.pdf 1536 byte 64fccd0d066554ab…
+generato encrypted-objstm-quota: encrypted-objstm-quota.pdf 1133208 byte 7bd4ffc928ab5760…
+generato truncated: truncated.pdf 302 byte 1956de9cdf771e7b…
+generato flate-bomb: flate-bomb.pdf 1044227 byte 0543b96cf3014989…
+generato objstm-bomb: objstm-bomb.pdf 131209 byte 4f6986a35ff285f8…
+generato objstm-many: objstm-many.pdf 11668 byte 89e4fcf5a8c2adce…
+generato objstm-sum-bomb: objstm-sum-bomb.pdf 16392283 byte 23c908d610a3775a…
+generato filter-chain-bomb: filter-chain-bomb.pdf 2391 byte 317b543f644d6519…
+generato lzw-stream: lzw-stream.pdf 580 byte f9647e0769a7a2c2…
+generato pages-10k: pages-10k.pdf 1578427 byte 77d7fde5b2a6e391…
+generato deep-nesting: deep-nesting.pdf 200740 byte b2213454d34041fb…
+generato jbig2-malformed: jbig2-malformed.pdf 960 byte 5542f10e79bbc091…
+generato docx-zip-bomb: docx-zip-bomb.docx 214903 byte 74e1b3adf950040c…
+generato docx-xml-bomb: docx-xml-bomb.docx 951 byte 01675999ad5bf513…
+generato docm-macro: docm-macro.docm 965 byte 6c2980756e9d4114…
+generato docx-external-link: docx-external-link.docx 1151 byte e1b7f6ea990433a0…
+generato magic-mismatch: magic-mismatch.pdf 2064 byte 15aa38038d8d42ea…
+generato pdf-javascript: pdf-javascript.pdf 858 byte 5fd351f64311deb1…
+generato pdf-launch: pdf-launch.pdf 829 byte d44041ba149d4e9d…
+generato pdf-embedded-file: pdf-embedded-file.pdf 1021 byte 841f989ad1cce425…
+generato pdf-embedded-launch: pdf-embedded-launch.pdf 1103 byte ff039fdc7653ab1b…
+generato pdf-embedded-bomb: pdf-embedded-bomb.pdf 131494 byte 67be555365bc8ccb…
+generato pdf-objstm-hidden-js: pdf-objstm-hidden-js.pdf 777 byte a4faae924e33f122…
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_hostile.py --out /src/data/hostile/generated --verify-only --manifest /src/data/hostile/manifest.json
+ Container cka-spikes-runner-run-b9c9669c6fce Creating 
+ Container cka-spikes-runner-run-b9c9669c6fce Created 
+DIVERSO encrypted-user: sha256 del file diverso dal manifest
+DIVERSO encrypted-owner-only: sha256 del file diverso dal manifest
+DIVERSO encrypted-object-dropped: sha256 del file diverso dal manifest
+DIVERSO encrypted-objstm-quota: sha256 del file diverso dal manifest
+DIVERSO docx-zip-bomb: sha256 del file diverso dal manifest
+DIVERSO docx-xml-bomb: sha256 del file diverso dal manifest
+DIVERSO docm-macro: sha256 del file diverso dal manifest
+DIVERSO docx-external-link: sha256 del file diverso dal manifest
+verifica manifest: 18 casi conformi su 26
+
+[exit 1]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_sof.py --out /src/data/hostile/generated/sof --verify-only --manifest /src/data/hostile/sof/manifest.json
+ Container cka-spikes-runner-run-d265a5a0e7ac Creating 
+ Container cka-spikes-runner-run-d265a5a0e7ac Created 
+verifica manifest: 7 casi conformi su 7
+[exit 0]
+
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-5-01-20261023t165248z-0e34 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t165248z-0e34  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-5-01-20261023t165248z-0e34 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t165248z-0e34  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+hw.json presente in results/raw/isolation-1-5-01/ (copiato nel Task 1)
+controllo immagine prima di hostile 01-18: 74b8659cab71 (atteso 74b8659cab71)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent hostile --manifest /data/hostile/manifest.json --cases-dir /data/hostile/generated --runs 3 --run-tag "1b90a301" --out /results/raw/isolation-1-5-01/hostile.csv
+[exit 0]
+
+$ python -I <driver>/cmp_hostile.py <hostile.csv di BASE> results/raw/isolation-1-5-01/hostile.csv
+righe=78 uguali=78 pass=72 mancanti=0
+
+controllo immagine prima di hostile sof: 74b8659cab71 (atteso 74b8659cab71)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent hostile --manifest /data/hostile/sof/manifest.json --cases-dir /data/hostile/generated/sof --runs 3 --run-tag "1b90a302" --out /results/raw/isolation-1-5-01/hostile-sof.csv
+[exit 0]
+
+$ python -I <driver>/cnt_sof.py results/raw/isolation-1-5-01/hostile-sof.csv
+righe=21 pass=21 parent_alive=21 leftover_zero=21
+  dct-sof-huge-image run=1 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-huge-image run=2 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-huge-image run=3 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-huge-thumb run=1 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-huge-thumb run=2 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-huge-thumb run=3 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-flate-huge run=1 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-flate-huge run=2 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-flate-huge run=3 outcome=failed kind=DecompressionLimit pass=true
+  dct-sof-larger-within-cap run=1 outcome=failed kind=Unsupported pass=true
+  dct-sof-larger-within-cap run=2 outcome=failed kind=Unsupported pass=true
+  dct-sof-larger-within-cap run=3 outcome=failed kind=Unsupported pass=true
+  dct-sof-missing run=1 outcome=failed kind=Unsupported pass=true
+  dct-sof-missing run=2 outcome=failed kind=Unsupported pass=true
+  dct-sof-missing run=3 outcome=failed kind=Unsupported pass=true
+  jpx-siz-huge-image run=1 outcome=failed kind=DecompressionLimit pass=true
+  jpx-siz-huge-image run=2 outcome=failed kind=DecompressionLimit pass=true
+  jpx-siz-huge-image run=3 outcome=failed kind=DecompressionLimit pass=true
+  jpx-siz-huge-jp2 run=1 outcome=failed kind=DecompressionLimit pass=true
+  jpx-siz-huge-jp2 run=2 outcome=failed kind=DecompressionLimit pass=true
+  jpx-siz-huge-jp2 run=3 outcome=failed kind=DecompressionLimit pass=true
+
+job scritti dal driver: job d05=14 ocr=1 (results/raw/p1501-jobs/d05-1b90a303.jsonl e ocr-1b90a304.jsonl)
+controllo immagine prima di batch D-05: 74b8659cab71 (atteso 74b8659cab71)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent batch --jobs /results/raw/p1501-jobs/d05-1b90a303.jsonl --concurrency 1
+(stdout riassunto dal driver con python -I <driver>/chk_d05.py: una riga per RunReport, più batch_summary)
+job p1501-parse-dct-sof-huge-image-1b90a303 status=failed kind=DecompressionLimit detail=dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-parse-dct-sof-huge-thumb-1b90a303 status=failed kind=DecompressionLimit detail=dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-parse-dct-sof-flate-huge-1b90a303 status=failed kind=DecompressionLimit detail=dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-parse-dct-sof-larger-within-cap-1b90a303 status=failed kind=Unsupported detail=dct_sof larger_than_declared dims=4000x4000 declared=16x16 leftover_procs=0
+job p1501-parse-dct-sof-missing-1b90a303 status=failed kind=Unsupported detail=dct_sof missing leftover_procs=0
+job p1501-parse-jpx-siz-huge-image-1b90a303 status=failed kind=DecompressionLimit detail=jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-parse-jpx-siz-huge-jp2-1b90a303 status=failed kind=DecompressionLimit detail=jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-extract-dct-sof-huge-image-1b90a303 status=failed kind=DecompressionLimit detail=dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-extract-dct-sof-huge-thumb-1b90a303 status=failed kind=DecompressionLimit detail=dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-extract-dct-sof-flate-huge-1b90a303 status=failed kind=DecompressionLimit detail=dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-extract-dct-sof-larger-within-cap-1b90a303 status=failed kind=Unsupported detail=dct_sof larger_than_declared dims=4000x4000 declared=16x16 leftover_procs=0
+job p1501-extract-dct-sof-missing-1b90a303 status=failed kind=Unsupported detail=dct_sof missing leftover_procs=0
+job p1501-extract-jpx-siz-huge-image-1b90a303 status=failed kind=DecompressionLimit detail=jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+job p1501-extract-jpx-siz-huge-jp2-1b90a303 status=failed kind=DecompressionLimit detail=jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864 leftover_procs=0
+summary: {"concurrency": 1, "job_errors": 0, "jobs": 14, "launch_errors": 0, "max_admitted": 1, "status": "batch_summary"}
+RIS parse=7,7 extract=7,7 job_errors=0 launch_errors=0
+stderr: 0 righe
+[exit 0]
+
+controllo immagine prima di batch ocr_render: 74b8659cab71 (atteso 74b8659cab71)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent batch --jobs /results/raw/p1501-jobs/ocr-1b90a304.jsonl --concurrency 1
+{"code":"ChildMissing","detail":"bin ocr assente in S02_BIN_DIR","job_id":"p1501-ocr-huge-image-1b90a304","status":"job_error"}
+{"concurrency":1,"job_errors":1,"jobs":0,"launch_errors":0,"max_admitted":0,"status":"batch_summary"}
+stderr: 0 righe
+[exit 2]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-5-01-20261023t165248z-0e34 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t165248z-0e34  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+esito fixture 01-18: conformi=18 diversi=encrypted-user,encrypted-owner-only,encrypted-object-dropped,encrypted-objstm-quota,docx-zip-bomb,docx-xml-bomb,docm-macro,docx-external-link (atteso: diversi solo encrypted-* e i 4 DOCX di D-11 della 1.4)
+esito fixture sof: conformi=7 diversi= (atteso 7, nessuno)
+esito ostili 01-18: righe=78 uguali=78 pass=72 (atteso 78, 78, 72; confronto per (case_id, run) su outcome, kind, extra_reasons e pass con hostile.csv di BASE; nessuna differenza)
+esito ostili sof: righe=21 pass=21 parent_alive=21 leftover_zero=21 (atteso 21, 21, 21, 21)
+esito D-05 parse: 7 su 7 rifiuti attesi (kind e sottomotivo) leftover_zero=7 (atteso 7, 7)
+esito D-05 extract_pdf: 7 su 7 rifiuti attesi (kind e sottomotivo) leftover_zero=7 (atteso 7, 7)
+esito D-05 batch: exit=0 job_errors=0 launch_errors=0 (atteso 0, 0, 0)
+esito D-05 ocr_render: status=job_error code=ChildMissing exit=2 (atteso job_error ChildMissing: il figlio ocr non esiste su main; la prova su ocr_render è un obbligo di 01-13 in 01.5-CONTRATTO.md, D-05 Storia; l'exit del batch non è un gate)
+esito worker vivo: ps=0 id=10001 work=0
+nota: immagine worker ricostruita da 801f12e52bb7 a 74b8659cab71 (codice del commit fix), uguale prima di ogni exec dei punti 5-8. Le uscite del generatore di 01-18 hanno gli sha256 troncati a 16 caratteri dal driver (regola 3). with ha eseguito down (rimossi 1, residui 0) e release.
+
+$ python skills/security-scanner/security_scan.py --fail-on HIGH spikes/s02-parser/src/prescan.rs spikes/s02-parser/hostile-gen/gen_sof.py  (host; righe dei rilevamenti nel driver, qui il riepilogo)
+== Security scan: 29 rilevamenti (CRITICAL=0, HIGH=0, MEDIUM=29) su 2 file ==
+PASS con avvisi: nessun rilevamento bloccante.
+[exit 0]
+
+esito scanner: exit=0 medium=29 (atteso exit 0; MEDIUM nuovi solo lessicali pdf-untrusted-parse, motivati nel SUMMARY): sulla base gli stessi due file danno 27 MEDIUM; i 2 nuovi sono lessicali, archive-decompress su prescan.rs:859 (ZlibDecoder letto con take entro IMAGE_HEADER_SCAN_BYTES + 1 byte) e pdf-untrusted-parse su prescan.rs:1096 (firma di check_image_header con il tipo lopdf::Stream); nessun parsing nuovo fuori dal figlio isolato.
+
+## D-03 (dopo la correzione)
+
+sessione: run_id=01-5-01-20261023t165554z-96d8 (session.sh with 01-5-01 --wait 1800)
+run-tag: RT6 = 9301d0; calibrazione di prova 9301d005, job nsany 9301d006
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::s02_corpus_pdfs_pass_prescan --nocapture
+ Container cka-spikes-runner-run-8caed6c3e9e3 Creating 
+ Container cka-spikes-runner-run-8caed6c3e9e3 Created 
+   Compiling s02-parser v0.0.0 (/src/s02-parser)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.70s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+s02: 63 su 63 ok, stream_dct=57 stream_jpx=0
+test prescan::tests::s02_corpus_pdfs_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 1.31s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::corpus_pdfs_pass_prescan --nocapture
+ Container cka-spikes-runner-run-4f6ccdf201b8 Creating 
+ Container cka-spikes-runner-run-4f6ccdf201b8 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+corpus: 10 su 10 ok, stream_dct=6488 stream_jpx=0
+test prescan::tests::corpus_pdfs_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 6.37s
+
+[exit 0]
+
+$ bash spikes/tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --lib -- --ignored --exact prescan::tests::nsany_pages_pass_prescan --nocapture
+ Container cka-spikes-runner-run-d911f8e50a62 Creating 
+ Container cka-spikes-runner-run-d911f8e50a62 Created 
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (/target/debug/deps/s02_parser-eb15149d63876d32)
+
+running 1 test
+test prescan::tests::nsany_pages_pass_prescan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 0.03s
+
+[exit 0]
+
+### Worker: D-03 e D-07
+
+controllo immagine prima di up: 74b8659cab71 (atteso 74b8659cab71)
+$ bash spikes/tools/session.sh up "$CKA_RUN_ID" worker
+SET RISOLTO = NOMINATO: {worker }
+ Container cka-spikes-worker-1 Creating 
+ Container cka-spikes-worker-1 Created 
+ Container cka-spikes-worker-1 Starting 
+ Container cka-spikes-worker-1 Started 
+ Container cka-spikes-worker-1 Waiting 
+ Container cka-spikes-worker-1 Healthy 
+CONTAINER della sessione 01-5-01-20261023t165554z-96d8 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t165554z-96d8  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-5-01-20261023t165554z-96d8 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t165554z-96d8  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+hw.json copiato in results/raw/p1501-cal/ (calibrazione di prova, mai sui file ufficiali)
+controllo immagine prima di calibrate: 74b8659cab71 (atteso 74b8659cab71)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent calibrate --op parse --inputs /data/corpus/raw --out /results/raw/p1501-cal/limits.json --run-tag "9301d005"
+{"job_id":"cal-der-it-01-relazione-annuale-2025-9301d005","outcome":{"status":"ok","pages":25,"output":"/results/raw/isolation/cal-der-it-01-relazione-annuale-2025-9301d005/text.txt","data":{"chars":53717,"decompress_work_bytes":152781550,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":312.6072611308721,"max_stream_bytes":2548687,"objstm_count":160,"objstm_decompressed_bytes":8739354,"pages":25,"parse_ms":141,"total_decompressed_bytes":9824468,"vm_hwm_kb":221640,"vm_peak_kb":742432,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":221640,"wall_ms":145,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-01-berkshire-annual-repor-9301d005","outcome":{"status":"ok","pages":154,"output":"/results/raw/isolation/cal-pub-en-01-berkshire-annual-repor-9301d005/text.txt","data":{"chars":565234,"decompress_work_bytes":185145587,"embedded_files":1,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":29.6,"max_stream_bytes":842301,"objstm_count":4,"objstm_decompressed_bytes":50390,"pages":154,"parse_ms":1165,"total_decompressed_bytes":50877469,"vm_hwm_kb":49048,"vm_peak_kb":623388,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":49048,"wall_ms":1169,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-02-federal-reserve-annual-9301d005","outcome":{"status":"ok","pages":214,"output":"/results/raw/isolation/cal-pub-en-02-federal-reserve-annual-9301d005/text.txt","data":{"chars":514242,"decompress_work_bytes":409480896,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":8.228555224727067,"max_stream_bytes":185403,"objstm_count":220,"objstm_decompressed_bytes":188252,"pages":214,"parse_ms":343,"total_decompressed_bytes":6639460,"vm_hwm_kb":28596,"vm_peak_kb":616072,"xref_streams":3}},"exit_signal":null,"peak_rss_kb":28596,"wall_ms":346,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-03-bank-of-england-annual-9301d005","outcome":{"status":"ok","pages":220,"output":"/results/raw/isolation/cal-pub-en-03-bank-of-england-annual-9301d005/text.txt","data":{"chars":357466,"decompress_work_bytes":681256883,"embedded_files":0,"encryption":"empty_password","entries":0,"format":"pdf","max_flate_ratio":84.36594867094409,"max_stream_bytes":2850120,"objstm_count":164,"objstm_decompressed_bytes":3261362,"pages":220,"parse_ms":440,"total_decompressed_bytes":10168263,"vm_hwm_kb":133348,"vm_peak_kb":669048,"xref_streams":2}},"exit_signal":null,"peak_rss_kb":133348,"wall_ms":444,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-en-04-bis-annual-economic-re-9301d005","outcome":{"status":"ok","pages":126,"output":"/results/raw/isolation/cal-pub-en-04-bis-annual-economic-re-9301d005/text.txt","data":{"chars":377013,"decompress_work_bytes":42209432,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":901.68,"max_stream_bytes":8630718,"objstm_count":0,"objstm_decompressed_bytes":0,"pages":126,"parse_ms":578,"total_decompressed_bytes":42209432,"vm_hwm_kb":130960,"vm_peak_kb":622156,"xref_streams":0}},"exit_signal":null,"peak_rss_kb":130960,"wall_ms":583,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-01-bdi-relazione-annuale-9301d005","outcome":{"status":"ok","pages":228,"output":"/results/raw/isolation/cal-pub-it-01-bdi-relazione-annuale-9301d005/text.txt","data":{"chars":673918,"decompress_work_bytes":575012657,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":321.1169944528492,"max_stream_bytes":12381481,"objstm_count":312,"objstm_decompressed_bytes":9085282,"pages":228,"parse_ms":757,"total_decompressed_bytes":29056463,"vm_hwm_kb":310308,"vm_peak_kb":697472,"xref_streams":4}},"exit_signal":null,"peak_rss_kb":310308,"wall_ms":766,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-02-bdi-bilancio-esercizio-9301d005","outcome":{"status":"ok","pages":105,"output":"/results/raw/isolation/cal-pub-it-02-bdi-bilancio-esercizio-9301d005/text.txt","data":{"chars":230496,"decompress_work_bytes":283036149,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":834.09375,"max_stream_bytes":3483851,"objstm_count":139,"objstm_decompressed_bytes":2232559,"pages":105,"parse_ms":350,"total_decompressed_bytes":12368134,"vm_hwm_kb":98404,"vm_peak_kb":618376,"xref_streams":2}},"exit_signal":null,"peak_rss_kb":98404,"wall_ms":354,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-03-bdi-sintesi-relazione-9301d005","outcome":{"status":"ok","pages":36,"output":"/results/raw/isolation/cal-pub-it-03-bdi-sintesi-relazione-9301d005/text.txt","data":{"chars":58034,"decompress_work_bytes":138609763,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":104.64912280701756,"max_stream_bytes":85443,"objstm_count":12,"objstm_decompressed_bytes":254436,"pages":36,"parse_ms":132,"total_decompressed_bytes":4137599,"vm_hwm_kb":45296,"vm_peak_kb":618312,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":45296,"wall_ms":135,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-04-bdi-bollettino-economi-9301d005","outcome":{"status":"ok","pages":42,"output":"/results/raw/isolation/cal-pub-it-04-bdi-bollettino-economi-9301d005/text.txt","data":{"chars":138788,"decompress_work_bytes":137989602,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":171.3855421686747,"max_stream_bytes":493338,"objstm_count":29,"objstm_decompressed_bytes":491824,"pages":42,"parse_ms":121,"total_decompressed_bytes":3280050,"vm_hwm_kb":41668,"vm_peak_kb":616428,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":41668,"wall_ms":124,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"job_id":"cal-pub-it-05-bdi-relazione-gestione-9301d005","outcome":{"status":"ok","pages":212,"output":"/results/raw/isolation/cal-pub-it-05-bdi-relazione-gestione-9301d005/text.txt","data":{"chars":589417,"decompress_work_bytes":227192504,"embedded_files":0,"encryption":"none","entries":0,"format":"pdf","max_flate_ratio":295.4615755239701,"max_stream_bytes":9462534,"objstm_count":79,"objstm_decompressed_bytes":6868734,"pages":212,"parse_ms":467,"total_decompressed_bytes":86106042,"vm_hwm_kb":194752,"vm_peak_kb":692248,"xref_streams":1}},"exit_signal":null,"peak_rss_kb":194752,"wall_ms":472,"oom_kill_delta":0,"leftover_procs":0,"oom_adj_set":true}
+{"anomalies":0,"docs":10,"limits":{"address_space_bytes":1879048192,"cpu_seconds":60,"file_size_bytes":1369666,"max_open_files":64,"memory_reservation_bytes":953266176,"out_quota_bytes":1369666,"wall_timeout":{"nanos":0,"secs":120}},"ok_docs":10,"op":"parse","status":"calibration_summary"}
+[exit 0]
+
+$ python -I <driver>/cmp_cal.py results/isolation/calibration.csv results/raw/p1501-cal/calibration.csv
+header uguale=True righe=10 righe_ufficiali=10 colonne_prescan_uguali=si
+vm_peak_kb 616072..742432 vm_hwm_kb 28596..310308 (solo intervallo)
+
+job scritti dal driver: job nsany=4 in results/raw/p1501-jobs/nsany-9301d006.jsonl (input /data/s02/raw/doclaynet/<nome troncato nell'evidenza>)
+controllo immagine prima di batch nsany: 74b8659cab71 (atteso 74b8659cab71)
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent batch --jobs /results/raw/p1501-jobs/nsany-9301d006.jsonl --concurrency 1
+(stdout riassunto dal driver con python -I <driver>/sumbatch.py)
+job p1501-dln-otc-nsany-2004-p97-9301d006 status=ok kind=None detail=None leftover_procs=0
+job p1501-dln-otc-nsany-2004-p75-9301d006 status=ok kind=None detail=None leftover_procs=0
+job p1501-dln-otc-nsany-2004-p47-9301d006 status=ok kind=None detail=None leftover_procs=0
+job p1501-dln-otc-nsany-2004-p105-9301d006 status=ok kind=None detail=None leftover_procs=0
+summary: {"concurrency": 1, "job_errors": 0, "jobs": 4, "launch_errors": 0, "max_admitted": 1, "status": "batch_summary"}
+RIS ok=4
+stderr: 0 righe
+[exit 0]
+
+$ bash spikes/tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+CONTAINER della sessione 01-5-01-20261023t165554z-96d8 (nome, servizio, run_id, stato):
+cka-spikes-worker-1  worker  01-5-01-20261023t165554z-96d8  running
+ASSERT-ONLY ok: in esecuzione solo {worker}
+[exit 0]
+
+$ bash spikes/tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+[exit 0]
+
+esito D-03 GREEN: s02 63 su 63 ok stream_dct=57 stream_jpx=0; corpus 10 su 10 ok stream_dct=6488 stream_jpx=0; nsany 4 su 4 ok (atteso 63, 10, 4; conteggi uguali alla base)
+nota D-03: nessun PDF benigno respinto; stream_jpx=0 in entrambi i corpora, come sulla base, quindi per i JPX D-03 non vede nessun JPX reale (limite dichiarato, RISK-5 del test design).
+esito D-07: ok_docs=10 anomalie=0 righe=10 colonne_prescan_uguali=si (atteso 10, 0, 10, si) limits.json e calibration.csv invariati
+nota D-07: la calibrazione di prova (run-tag 9301d005) è scritta solo sotto results/raw/p1501-cal/; vm_peak_kb e vm_hwm_kb, misure di memoria del figlio e non del prescan, sono riportati solo come intervallo e non decidono D-07. limits.json e calibration.csv ufficiali restano quelli della 1.4.
+esito D-03 worker nsany: 4 su 4 ok exit=0 (atteso 4 su 4, exit 0)
+nota: immagine 74b8659cab71 controllata prima di ogni exec; id -u = 10001; /work 0 prima e dopo; with ha eseguito down (rimossi 1, residui 0) e release.
+
+## Pulizia
+
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+[exit 0]
+
+$ docker ps -a --filter label=com.docker.compose.project=cka-spikes --format '{{.Names}} {{.Label "cka.run_id"}}' | grep 01-5-01; echo '(fine elenco)'
+(fine elenco)
+[exit 0]
+
+driver: cartella mktemp -d del driver e file ${TMPDIR:-/tmp}/cka-01-5-01-driver.path cancellati alla chiusura (regola 7).
