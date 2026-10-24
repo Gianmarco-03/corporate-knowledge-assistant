@@ -1,0 +1,39 @@
+{
+  "_meta_ocr_tesseract": {
+    "anomalies": [],
+    "budget_total_bytes": 2147483648,
+    "calibrated_by": "ocr limits-from-runs (formula di 01-07 v6 applicata ai RunReport; parse-parent calibrate rifiuta le op con discendenti con BudgetExceeded)",
+    "docs": 25,
+    "formula": "memory_reservation_bytes = 3 × max VmHWM; address_space_bytes = min(3 × max VmPeak, totale − riserva del padre); out_quota_bytes = 2 × max byte scritti nell'out_dir; file_size_bytes = max(quota, 1 MiB); cpu_seconds 60, wall_timeout 120 s, max_open_files 64 fissi",
+    "inputs": "/results/raw/ocr-cal/01-13-20261024t131946z-94a8-png (25 pagine a 300 DPI del documento IT da 25 pagine)",
+    "max_out_bytes": 0,
+    "max_vm_hwm_kb": 137208,
+    "max_vm_peak_kb": 275248,
+    "ok_docs": 25,
+    "parent_reserve_bytes": 268435456
+  },
+  "default": {
+    "address_space_bytes": 845561856,
+    "cpu_seconds": 60,
+    "file_size_bytes": 1048576,
+    "max_open_files": 64,
+    "memory_reservation_bytes": 421502976,
+    "out_quota_bytes": 0,
+    "wall_timeout": {
+      "nanos": 0,
+      "secs": 120
+    }
+  },
+  "ocr_tesseract": {
+    "address_space_bytes": 845561856,
+    "cpu_seconds": 60,
+    "file_size_bytes": 1048576,
+    "max_open_files": 64,
+    "memory_reservation_bytes": 421502976,
+    "out_quota_bytes": 0,
+    "wall_timeout": {
+      "nanos": 0,
+      "secs": 120
+    }
+  }
+}
