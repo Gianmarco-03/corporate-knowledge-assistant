@@ -101,6 +101,9 @@ pub(crate) fn parse_cli(args: Vec<OsString>) -> Result<Cmd, String> {
     }
 }
 
+/// Cartella dei config del pacchetto Debian di Tesseract 5 (contiene `tsv`), cartella corrente
+/// del discendente.
+const TESS_CONFIG_DIR: &str = "/usr/share/tesseract-ocr/5/tessdata/configs";
 /// Tetto dello stdout di Tesseract letto dal figlio.
 const TSV_CAP: u64 = 512 * 1024;
 /// Intervallo di campionamento della memoria del discendente.
@@ -407,6 +410,11 @@ fn tesseract(image: &Path) -> (ChildOutcome, Option<u64>) {
     // il discendente non si cerca nel PATH.
     let mut child = match std::process::Command::new("/usr/bin/tesseract")
         .args(tesseract_args(image, dpi))
+        // Il config `tsv` dell'argv si cerca in `<tessdata-dir>/configs/`, che in
+        // /opt/tessdata_best non c'è (solo i traineddata); Tesseract ripiega allora sul nome
+        // relativo alla cartella corrente, e qui la cartella corrente è quella dei config del
+        // pacchetto Debian, in sola lettura. Nessun file scritto nella cartella del job.
+        .current_dir(TESS_CONFIG_DIR)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

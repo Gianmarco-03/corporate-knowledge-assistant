@@ -63,13 +63,19 @@ subdir_of() {
     *) echo "sof/" ;;
   esac
 }
+# Percorso host per node (Windows): con MSYS_NO_PATHCONV la conversione automatica è spenta.
+nodepath() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
+}
 field_of() {
-  node -e '
+  local out
+  out=$(node -e '
     const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
     const c = m.find(x => x.case_id === process.argv[2]);
     if (!c) process.exit(3);
     console.log(c[process.argv[3]]);
-  ' "$1" "$2" "$3" | tr -d '\r'
+  ' "$(nodepath "$1")" "$2" "$3") || return 1
+  printf '%s\n' "${out//$'\r'/}"
 }
 
 # ---- precondizione: fixture con gli sha256 dei manifest -----------------------------------

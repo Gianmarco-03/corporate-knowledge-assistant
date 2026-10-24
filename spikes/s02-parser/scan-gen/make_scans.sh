@@ -54,6 +54,10 @@ EXTRACT_LIMITS=/results/extract/limits-extract_pdf.json
 MIXED_TEXT_PAGES=1-5
 MIXED_IMAGE_PAGES=(6 7 8 9 10)
 
+# Percorso host per node (Windows): con MSYS_NO_PATHCONV la conversione automatica è spenta.
+nodepath() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s\n' "$1"; fi
+}
 log() { printf 'make_scans.sh: %s\n' "$*" >&2; }
 die() { local code=$1; shift; printf 'make_scans.sh: ERRORE: %s\n' "$*" >&2; exit "$code"; }
 
@@ -75,7 +79,7 @@ mapfile -t ORACLE < <(node -e '
   const o = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
   for (const e of o) if (e.parser_kind === "page-text")
     console.log([e.oracle_id, e.source_ref.document_id, e.source_ref.page].join(" "));
-' "$SPIKES/data/corpus/oracles/parser-it.json" | tr -d '\r')
+' "$(nodepath "$SPIKES/data/corpus/oracles/parser-it.json")" | tr -d '\r')
 (( ${#ORACLE[@]} > 0 )) || die 1 "nessuna voce page-text in parser-it.json"
 
 QPDF_CMDS=""
@@ -151,7 +155,7 @@ grep -q '"job_error"' "$RAW/ocr-runs/$RID/extract.jsonl" && die 1 "job_error nel
 join_json() { local IFS=,; printf '%s' "$*"; }
 printf '{"run_id":"%s","renders":[%s],"extract":[%s]}\n' "$RID" "$(join_json "${RENDERS[@]}")" \
   "$(join_json "${EXTRACTS[@]}")" > "$RAW/ocr-index/$RID.json"
-node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$RAW/ocr-index/$RID.json" \
+node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$(nodepath "$RAW/ocr-index/$RID.json")" \
   || die 1 "indice non valido"
 log "indice: results/raw/ocr-index/$RID.json"
 
