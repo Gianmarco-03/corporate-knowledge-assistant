@@ -66,6 +66,14 @@ Ricerca a supporto: `03-RICERCA-DISCUSSIONE.md`, Aree A-J, con fonti (URL e data
 - **D-17: Fake deterministici con copione di guasti.** Fixture iniettabili; errore tipizzato alla N-esima chiamata; `OutcomeUnknown`; latenza con il clock di tokio in pausa; conteggio delle chiamate; nessuna casualità. L'API del fake fa parte del contratto della fase 3, perché le fasi 6, 7 e 12 la usano senza poterla modificare. Fonte: CLAUDE.md (fake deterministico nei test); U-04 (insiemi di file chiusi).
 - **D-18: Fixture ostili copiate con manifest.** I file di `spikes/data/hostile/` si copiano in `services/document-service/tests/fixtures/hostile/` con un manifest (esito atteso, sha256, origine o licenza). Si copiano file, non codice. Fonte: `01-CONTRATTO.md` §6 (nessuna dipendenza da `spikes/`); ROADMAP fase 3 criterio 2.
 
+### Letture di dati non fidati (da D-41 di fase 1)
+- **D-19: Lettore limitato unico e divieto Clippy** (decisione utente 2026-10-24, D-41 di fase 1). Il document-service legge ogni dato non fidato (upload, fonti online, stream decompressi di PDF e DOCX) attraverso un solo helper di dominio. L'helper:
+  - riceve il reader già decodificato e una quota sui byte di **output**;
+  - legge a blocchi con `Read::read` e un contatore `checked_add`, e fallisce appena supera la quota (si legge al più quota + 1);
+  - alimenta un budget condiviso per documento fra tutti gli stream.
+
+  Fuori dall'helper, `clippy.toml` vieta con `disallowed-methods` (con `reason` e sostituto) `Read::read_to_end`, `Read::read_to_string`, `std::io::copy`, `std::fs::read` e gli equivalenti async di tokio. Si aggiunge `allow_attributes_without_reason`. I test coprono: output esattamente alla quota, quota + 1, errore a metà stream, molti stream che superano il budget insieme, `take` messo prima del decoder. Fonte: ASVS 4.0.3 V12.1.2 e ASVS 5.0 V5.2.3 (limite sulla dimensione decompressa prima di consumare risorse), CWE-409/770/789, Clippy `disallowed-methods`, tramite `../01-spike-tecnici/01-DEEPSEARCH-7.md` (ChatGPT Deep Research, `deepsearch_7`, fonti non riverificate). Scartato anticipare l'helper nello spike, che si butta.
+
 ### Vincoli dalla WIRING-MAP e dalle fasi precedenti
 - La WIRING-MAP non ha righe (il `plan` della fase 2 non è ancora fatto): nessun `WM-NNN` da citare. La fase 3 **riempie** gli innesti che la Fondazione pre-registrerà (02-CONTEXT §Vincoli e D-22):
   - slot dei provider nel composition root del document-service;
@@ -170,3 +178,4 @@ Ricerca a supporto: `03-RICERCA-DISCUSSIONE.md`, Aree A-J, con fonti (URL e data
 *Context gathered: 2026-10-21*
 
 **Modifica:** Claude (Anthropic) · 2026-10-21 · creazione (discuss fase 03)
+**Modifica:** Claude (Anthropic) · 2026-10-24 · D-19 (lettore limitato unico e divieto Clippy, da D-41 di fase 1)

@@ -41,6 +41,7 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-22 · D-27 chiusa con l'opzione 4 (D-36), riavvio Docling e precisione pagine-tabella aperti per l'ADR di ingestion; falso positivo del prescan alla 1.4 (D-37) → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - 2026-10-23 · Modello di embedding bge-m3 su TEI CUDA (D-38, emenda D-14): nDCG@10 0,723 contro Qwen3 0,660 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - 2026-10-24 · Scanner upload-in-memory: niente HIGH su read_to_end con .take(, nuova regola su io::copy verso Vec senza take; prescan torna a read_to_end; in /verify 1 → `phases/01-spike-tecnici/01-CONTEXT.md#decisioni`
+- 2026-10-24 · D-41 corretta su deepsearch_7: eccezione solo con take dopo il decoder, casi ambigui «da verificare», test dello scanner; helper limitato alla fase 3 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 
 ## Fase 1.1 — Gap-closure di session.sh
 
@@ -93,6 +94,7 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · SSRF: resolver che scarta IP non globali, redirect controllati, https, tetti, rete Compose dedicata; niente proxy egress → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#connettore-online-area-h`
 - 2026-10-21 · Contract suite unica su reale e fake; reali in CI (PG, Garage, PDFium+Tesseract, TEI CPU) + gate locale GPU in verify → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
 - 2026-10-21 · Fake deterministici con copione di guasti dietro feature testkit, mai in release; fixture ostili copiate con manifest → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
+- 2026-10-24 · D-19: lettore limitato unico (quota sull'output, budget per documento) e divieto Clippy di read_to_end/io::copy fuori da esso (da D-41) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#implementation-decisions`
 
 ## Fase 4 — Provider di decisione, risposta e trasversali (discuss)
 

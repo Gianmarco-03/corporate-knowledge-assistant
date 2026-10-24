@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-24T12:55:37.490Z"
+last_updated: "2026-10-24T13:16:23.051Z"
 last_activity: 2026-10-24 — fase 1.5 verificata (passed) e chiusa; fase 1 riprende con 01-13
 progress:
   total_phases: 20
@@ -143,6 +143,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: 1.4: DOCX ostili non deterministici per timestamp zip (D-11); M10 non ripetuta dopo ricalibrazione, 2 job con margine 8% (D-12) → `phases/01.4-gap-closure-driver-di-misura-di-01-07-pulizia-di-budget-sul-/01.4-CONTEXT.md#decisioni`
 - [Phase ?]: 1.5: tetto delle immagini DCT e JPX sulle dimensioni codificate SOF/SIZ (D-39, D-09); inline debito fase 3; ocr_render obbligo di 01-13 → `phases/01.5-gap-closure-prescan-tetto-delle-immagini-dct-sul-sof-del-jpe/01.5-CONTEXT.md#decisioni`
 - [Phase ?]: D-41 scanner upload-in-memory opzione B: read_to_end con .take( ammesso, io::copy verso Vec senza take segnalato; in /verify 1 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
+- [Phase ?]: D-41 corretta su deepsearch_7: eccezione solo con take dopo il decoder, ambigui «da verificare»; helper limitato e divieto Clippy alla fase 3 (D-19) → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 
 ### Pending Todos
 
