@@ -4,7 +4,7 @@
 //!   sottocomandi da figlio isolato, con la CLI esatta di `job::resolve` di 01-07; girano solo
 //!   tramite un job `ocr_render` / `ocr_tesseract` di `parse-parent`;
 //! - `map`, `score`, `hostile-verdict`, `throughput-row`, `paddle-check`, `tess-jobs`,
-//!   `ttq-select`, `ttq-merge`: bin normali su dati derivati, nel runner.
+//!   `ttq-select`, `ttq-merge`, `limits-from-runs`: bin normali su dati derivati, nel runner.
 //!
 //! `render`: `prescan::check_pdf` prima di PDFium (un rifiuto si emette com'è), poi
 //! `render_with_config` con `scale_page_by_factor(dpi/72)`, PNG in scala di grigi a 8 bit con
@@ -58,6 +58,7 @@ pub(crate) enum Cmd {
     TessJobs(Vec<OsString>),
     ThroughputRow(Vec<OsString>),
     PaddleCheck(Vec<OsString>),
+    LimitsFromRuns(Vec<OsString>),
 }
 
 /// Argomenti senza il nome del programma. Forme diverse da quelle dell'allowlist → `Err`.
@@ -95,6 +96,7 @@ pub(crate) fn parse_cli(args: Vec<OsString>) -> Result<Cmd, String> {
         Some("tess-jobs") => Ok(Cmd::TessJobs(rest)),
         Some("throughput-row") => Ok(Cmd::ThroughputRow(rest)),
         Some("paddle-check") => Ok(Cmd::PaddleCheck(rest)),
+        Some("limits-from-runs") => Ok(Cmd::LimitsFromRuns(rest)),
         _ => Err(format!("sottocomando sconosciuto: {sub:?}")),
     }
 }
@@ -151,6 +153,7 @@ fn main() -> ExitCode {
         Cmd::HostileVerdict(a) => score::run_hostile_verdict(a),
         Cmd::ThroughputRow(a) => score::run_throughput_row(a),
         Cmd::PaddleCheck(a) => score::run_paddle_check(a),
+        Cmd::LimitsFromRuns(a) => score::run_limits_from_runs(a),
         Cmd::TtqMerge(a) => run_ttq_merge(a),
         Cmd::TtqSelect(a) => run_ttq_select(a),
         Cmd::TessJobs(a) => run_tess_jobs(a),

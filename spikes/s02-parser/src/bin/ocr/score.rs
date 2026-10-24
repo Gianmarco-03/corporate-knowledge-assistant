@@ -1256,6 +1256,119 @@ pub(crate) fn run_throughput_row(args: Vec<std::ffi::OsString>) -> anyhow::Resul
     Ok(())
 }
 
+// ---- `limits-from-runs` ---------------------------------------------------------------------
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr limits-from-runs")]
+struct LimitsCli {
+    /// Op del profilo (in allowlist, con discendenti: `ocr_tesseract`).
+    #[arg(long)]
+    op: String,
+    /// `RunReport` dei job di calibrazione (stdout di `parse-parent batch`).
+    #[arg(long)]
+    runs: PathBuf,
+    /// Totale del budget (`memory.max` del worker) e riserva del padre, come `calibrate`.
+    #[arg(long)]
+    budget_total_bytes: u64,
+    #[arg(long, default_value_t = 256 * 1024 * 1024)]
+    parent_reserve_bytes: u64,
+    /// Massimo di byte scritti nell'`out_dir` dai job (0 per un'op con `out_dir` null).
+    #[arg(long, default_value_t = 0)]
+    max_out_bytes: u64,
+    /// Descrizione degli input (cartella del worker), riportata in `_meta_<op>`.
+    #[arg(long)]
+    inputs: String,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+/// Profilo di `limits.json` per un'op con discendenti, con la formula di 01-07 v6 applicata
+/// ai `RunReport` di job benigni: `memory_reservation_bytes` = 3 × max `VmHWM`,
+/// `address_space_bytes` = min(3 × max `VmPeak`, totale − riserva), `out_quota_bytes` = 2 × max
+/// byte scritti, `file_size_bytes` = max(quota, 1 MiB), CPU 60 s, parete 120 s, 64 file aperti.
+/// Serve perché `parse-parent calibrate` (01-07, file chiuso) prenota per i job di calibrazione
+/// `(totale − riserva − 256 MiB) × (1 + discendenti) + 256 MiB`, che con un discendente supera
+/// sempre il budget (`BudgetExceeded`): difetto registrato in RISULTATI-ocr.md, non corretto qui.
+pub(crate) fn run_limits_from_runs(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    const MIB: u64 = 1024 * 1024;
+    let cli = LimitsCli::try_parse_from(std::iter::once("ocr-limits-from-runs".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let text =
+        std::fs::read_to_string(&cli.runs).with_context(|| format!("{}", cli.runs.display()))?;
+    let (mut max_hwm, mut max_peak, mut ok_docs, mut docs) = (0u64, 0u64, 0u32, 0u32);
+    let mut anomalies: Vec<String> = Vec::new();
+    for l in text.lines().filter(|l| l.trim_start().starts_with('{')) {
+        let v: Value = serde_json::from_str(l)?;
+        if v["status"].as_str() == Some("job_error") {
+            bail!("job_error nei job di calibrazione: {l}");
+        }
+        if v.get("outcome").is_none() {
+            continue;
+        }
+        docs += 1;
+        let id = v["job_id"].as_str().unwrap_or_default();
+        if v["oom_adj_set"].as_bool() != Some(true) {
+            anomalies.push(format!("{id}: oom_adj_set=false"));
+        }
+        if v["outcome"]["status"].as_str() != Some("ok") {
+            anomalies.push(format!("{id}: {}", v["outcome"]));
+            continue;
+        }
+        let d = &v["outcome"]["data"];
+        let hwm = v["peak_rss_kb"]
+            .as_u64()
+            .or_else(|| d["vm_hwm_kb"].as_u64());
+        let peak = d["vm_peak_kb"].as_u64();
+        max_hwm = max_hwm.max(hwm.unwrap_or(0));
+        max_peak = max_peak.max(peak.unwrap_or(0));
+        ok_docs += 1;
+    }
+    if ok_docs == 0 || max_hwm == 0 || max_peak == 0 {
+        bail!("nessun job riuscito con VmPeak e VmHWM: limiti non calcolabili");
+    }
+    let capacity = (cli
+        .budget_total_bytes
+        .saturating_sub(cli.parent_reserve_bytes)
+        / MIB)
+        * MIB;
+    let quota = cli.max_out_bytes.saturating_mul(2);
+    let profile = serde_json::json!({
+        "address_space_bytes": max_peak.saturating_mul(1024).saturating_mul(3).min(capacity),
+        "cpu_seconds": 60,
+        "file_size_bytes": quota.max(MIB),
+        "max_open_files": 64,
+        "memory_reservation_bytes": max_hwm.saturating_mul(1024).saturating_mul(3),
+        "out_quota_bytes": quota,
+        "wall_timeout": {"nanos": 0, "secs": 120},
+    });
+    let doc = serde_json::json!({
+        "default": profile,
+        cli.op.clone(): profile,
+        format!("_meta_{}", cli.op): {
+            "formula": "memory_reservation_bytes = 3 × max VmHWM; address_space_bytes = min(3 × max VmPeak, totale − riserva del padre); out_quota_bytes = 2 × max byte scritti nell'out_dir; file_size_bytes = max(quota, 1 MiB); cpu_seconds 60, wall_timeout 120 s, max_open_files 64 fissi",
+            "calibrated_by": "ocr limits-from-runs (formula di 01-07 v6 applicata ai RunReport; parse-parent calibrate rifiuta le op con discendenti con BudgetExceeded)",
+            "inputs": cli.inputs,
+            "docs": docs,
+            "ok_docs": ok_docs,
+            "max_vm_peak_kb": max_peak,
+            "max_vm_hwm_kb": max_hwm,
+            "budget_total_bytes": cli.budget_total_bytes,
+            "parent_reserve_bytes": cli.parent_reserve_bytes,
+            "max_out_bytes": cli.max_out_bytes,
+            "anomalies": anomalies,
+        },
+    });
+    std::fs::write(&cli.out, serde_json::to_string_pretty(&doc)? + "\n")
+        .with_context(|| format!("{}", cli.out.display()))?;
+    println!(
+        "limits-from-runs {}: {ok_docs}/{docs} ok, max VmHWM {max_hwm} kB, max VmPeak {max_peak} kB, prenotazione per job {} B",
+        cli.op,
+        ocr_tesseract_reservation_bytes(&doc)
+    );
+    Ok(())
+}
+
 // ---- `paddle-check` -------------------------------------------------------------------------
 
 #[derive(clap::Parser, Debug)]

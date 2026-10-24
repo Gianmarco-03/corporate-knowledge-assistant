@@ -28,7 +28,7 @@
 # scrive una riga di `results/ocr/ttq_parse.csv`.
 #
 # `TTQ_INJECT_DELAY_MS` (default 0) inserisce un ritardo dentro la finestra misurata, solo per
-# l'autocontrollo del cronometro.
+# l'autocontrollo del cronometro, che scrive in un CSV a parte (`TTQ_CSV`, sotto results/).
 #
 # **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · driver del TTQ-parse composto (Task 2)
 
@@ -72,6 +72,9 @@ EXTRACT_LIMITS=/results/extract/limits-extract_pdf.json
 RENDER_LIMITS=/results/ocr/limits-ocr_render.json
 TESS_LIMITS=/results/ocr/limits-ocr_tesseract.json
 TESS_CONCURRENCY=${TTQ_TESS_CONCURRENCY:-8}
+# CSV d'uscita nel runner (default l'evidenza del piano; l'autocontrollo del ritardo ne usa un altro).
+CSV=${TTQ_CSV:-/src/s02-parser/results/ocr/ttq_parse.csv}
+[[ $CSV =~ ^/src/s02-parser/results/[a-z0-9/_.-]+\.csv$ ]] || { printf 'run_ttq.sh: TTQ_CSV fuori da results/\n' >&2; exit 2; }
 
 log() { printf 'run_ttq.sh: %s\n' "$*" >&2; }
 die() { local code=$1; shift; printf 'run_ttq.sh: ERRORE: %s\n' "$*" >&2; exit "$code"; }
@@ -93,7 +96,9 @@ runner_of() {
 HOST_DOC=$(host_of "$DOC")
 [[ -f $HOST_DOC ]] || die 1 "documento assente: $HOST_DOC"
 DOC_ID=$(basename "$DOC" .pdf)
-SHA=$(sha256sum "$HOST_DOC" | cut -d' ' -f1 | tr -d '\\')
+# sha256 del documento troncato a 16 caratteri nell'evidenza (regola delle evidenze del progetto);
+# basta a legare le componenti della stessa run allo stesso input.
+SHA=$(sha256sum "$HOST_DOC" | cut -d' ' -f1 | tr -d '\\' | cut -c1-16)
 mkdir -p "$RAW/ttq" "$RAW/ttq-logs" "$RAW/ttq-src" "$SPIKES/s02-parser/results/ocr"
 
 wexec() { "${SESSION[@]}" exec "$RID" worker -- "$@"; }
@@ -214,5 +219,5 @@ for r in $(seq 1 "$RUNS"); do
   cat "$LOG/extract.out" "$LOG/render.out" "$LOG/tess.out" 2>/dev/null | grep '^{' > "$LOG/reports.jsonl" || true
   printf 'run_id\t%s\ndoc_id\t%s\ndoc_sha256\t%s\npages\t%s\nrun\t%s\nwarm\t%s\ndocling_device\t%s\nt_start_ns\t%s\nt_end_ns\t%s\ninject_delay_ms\t%s\n' \
     "$RUN_ID" "$DOC_ID" "$SHA" "$PAGES" "$r" "$WARM" "$DEVICE" "$T0" "$T1" "$DELAY" > "$LOG/meta.tsv"
-  rexec "$OCR" ttq-merge --run-dir "$RLOG" --csv /src/s02-parser/results/ocr/ttq_parse.csv | tr -d '\r'
+  rexec "$OCR" ttq-merge --run-dir "$RLOG" --csv "$CSV" | tr -d '\r'
 done
