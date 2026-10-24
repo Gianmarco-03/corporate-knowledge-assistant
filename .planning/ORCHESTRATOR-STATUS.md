@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.4 / — / — / verify completato (passed, chiusa) · aggiornato: 2026-10-23T14:45Z
+fase 01.5 / — / — / verify completato (passed, chiusa) · aggiornato: 2026-10-24
 
 ## Prossima azione
 
-attendere risk_audit_26 (01-13 v4) da GPT → trascrizione+ACK, test_design GPT, TEST_SPEC_READY; poi riallineare worktree 01-13 a main (merge, senza ri-registrare) e onda 7; brief 01-13: margine budget 8,1% (D-12), RISK-16 tetto immagini su dimensioni dichiarate.
+riallineare worktree 01-13 a main (merge, senza ri-registrare) ed eseguire 01-13 (onda 7): brief con obblighi 01.5-CONTRATTO (ocr_render su dct-sof-huge-image, jpx-siz-huge-image, jpx-siz-huge-jp2; ADR-0004 debito inline), D-40 (M10 parse dichiarata), margine 8,1% (D-12), RISK-001 di risk_audit_26.
 
 ## Findings
 
@@ -87,6 +87,8 @@ attendere risk_audit_26 (01-13 v4) da GPT → trascrizione+ACK, test_design GPT,
 
 - verify 1.4: passed 16/16, contratto onorato (aggiornato in verify con 01.4-02, mancava), WIRING-MAP invariata; phase complete spostava STATE a fase 2 → riportato a fase 1 (13/18); REQUIREMENTS: solo riga vuota, ripristinato → 01.4-VERIFICATION.md
 
+- verify 1.5: passed 11/11, contratto onorato (2 formulazioni corrette in verify), WIRING-MAP invariata; io::copy giudicato equivalente dalla security review, commento 5239f0e; STATE riportato a fase 1 dopo phase complete → 01.5-VERIFICATION.md
+
 ## Limiti trovati
 
 - 2026-10-19 · Docker Desktop 29.8.2 + Compose v5.6.0, WSL2, runtime nvidia; `.wslconfig` memory=20GB processors=16 swap=0 applicato (VM: 16 CPU, 20000 MiB, swap 0); GPU check container verde · impatto: VRAM libera ~4,3 GiB (desktop Windows ~1,8 GiB su 6) → considerarlo in 01-15 VRAM e gate GPU di 01-02 · rif. HANDOFF §7
@@ -102,6 +104,7 @@ attendere risk_audit_26 (01-13 v4) da GPT → trascrizione+ACK, test_design GPT,
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| 01.5-01 | conforme 6/6 (3 giri sul test design: D-09 JPX, D-10, residui a-c) → 01.5-GATE.md | verde: fmt/clippy host, runner -p s02-parser 333 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review Warning 0 gravi: MEDIUM un byte per campione (12/16 bit, JPX Ssiz>8) = RISK-14 accettato (dimensioni codificate ≤ dichiarate, RLIMIT_AS), LOW fail-closed accettati; security PASS con riserve: io::copy equivalente a read_to_end su Take (falso positivo lessicale upload-in-memory), deviazione non dichiarata → commento corretto 5239f0e e SUMMARY; follow-up scanner → TODO | passed 11/11, 0 gap; UAT 3/3 accettate → 01.5-VERIFICATION.md |
 | 01.4-02 | conforme 6/6 (1° giro) → 01.4-GATE.md | verde: fmt/clippy host, runner -p s02-parser 269 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review APPROVE 0 gravi, LOW accettati (test overflow accetta 2 Kind; forma T non legata a /Thumb = RISK-7); security APPROVATO 0 gravi: forma T più stretta del ramo /Image; debito preesistente 01-07 tetto su /Width /Height non su SOF JPEG (RISK-16) → verify fase 1 | passed 16/16 (fase), 0 gap; UAT 4/4 accettate → 01.4-VERIFICATION.md |
 | 01.4-01 | conforme 6/6 (1° giro) → 01.4-GATE.md | verde (stesso gate); rust-review APPROVE, LOW: status misto maiuscole/minuscole (error:Corrupt vs error:pdfium_*) e riepilogo stderr solo in-process → nota per consumatori 01-18; remove_file su run_tag preesistente teorico (run_tag univoco); security: Drop + valid_run_tag senza traversal | passed 16/16 (fase), 0 gap → 01.4-VERIFICATION.md |
 | 01.3-01 | conforme 6/6 (1° giro) → 01.3-GATE.md | verde: compose config, fmt/clippy/test spikes, lint-stato; security 0 gravi (0700+10001 restringe, isolamento invariato, evidenza pulita, noexec coerente con 01-07); code review non applicabile (1 riga YAML + commento) | passed 7/7, 0 gap → 01.3-VERIFICATION.md |
@@ -110,6 +113,7 @@ attendere risk_audit_26 (01-13 v4) da GPT → trascrizione+ACK, test_design GPT,
 
 ## UAT
 
+- 01.5 accettata · utente 2026-10-23 · JPX solo sintetico (RISK-5), immagini inline debito fase 3/ADR-0004 (D-09), residui RISK-14/17 e T-01.5-09 accettati → 01.5-VERIFICATION.md
 - 01.4 accettata · utente 2026-10-23 · gate runner come prova 01.4-01, TEST-8 non scritto (RISK-7), docker version fuori session.sh: accettati; exit 0 di overhead con errori in status confermato (D-02); RISK-16 → verify fase 1 / 01-13 → 01.4-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · RISK-14 vuoto (manca solo CKA_RUN_ID, impostato da dc()); RISK-15 0 collisioni; RISK-16 0 nomi non ASCII/non validi → 01.1-01-SUMMARY.md
@@ -118,6 +122,7 @@ attendere risk_audit_26 (01-13 v4) da GPT → trascrizione+ACK, test_design GPT,
 
 ## TODO
 
+- scanner security_scan.py: regola upload-in-memory segnala read_to_end anche su reader limitato da .take( (falso positivo, fase 1.5) → ignorare con take o waiver motivato · da proporre all'utente
 - hardware spike: i7-13700K 16C/24T, 32 GB RAM, RTX 3050 6 GB VRAM, Windows 11.
 - Docker Desktop non installato: prerequisito execute 1 (passthrough GPU WSL2, .wslconfig) → HANDOFF §7.
 - S-07 porte: Embedder copre embedding query; validate_query restituisce complessità; locator in contracts.
@@ -178,3 +183,5 @@ attendere risk_audit_26 (01-13 v4) da GPT → trascrizione+ACK, test_design GPT,
 **Modifica:** Claude (Anthropic) · 2026-10-23 · --exec: onde 5 e 6 chiuse, 01.4-01 chiuso, D-36..D-38, limiti (rate limit, cache cargo-target)
 **Modifica:** Claude (Anthropic) · 2026-10-23 · --verify-ecc: fase 1.4
 **Modifica:** Claude (Anthropic) · 2026-10-23 · --verify e --uat: fase 1.4 chiusa
+**Modifica:** Claude (Anthropic) · 2026-10-23 · --verify-ecc: fase 1.5
+**Modifica:** Claude (Anthropic) · 2026-10-24 · --verify e --uat: fase 1.5 chiusa
