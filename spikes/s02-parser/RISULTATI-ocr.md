@@ -59,3 +59,115 @@ Attesi copiati letterali dai manifest (nessun atteso nuovo), classe `derivazione
 ### TTQ-parse
 
 - p95 del documento digitale da 25 pagine ≤ 5 s e del documento da 100 pagine ≤ 20 s (M1), tempo di parete esterno della sequenza reale nella stessa run (prescan + PDFium via `extract_pdf`, Docling sulle pagine-tabella, `ocr_render` + `ocr_tesseract` sulle pagine senza testo), container già avviati; p95 nearest-rank sui totali per run (mai somma di percentili), n utile dichiarato; il PDF misto (pagine immagine) misurato e riportato senza soglia propria. Scarto > 10% fra `wall_ms` e somma delle componenti → «Anomalie».
+
+## Setup
+
+**Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · Setup, Risultati, Anomalie ed Esito parziale (Task 3 del piano 01-13)
+
+- **Hardware:** [`results/ocr/hw.json`](results/ocr/hw.json): i7-13700K 16 core / 24 thread, 32 GB, RTX 3050 6 GB, Docker 29.8.2 su WSL2 (16 CPU e 19,5 GiB a Docker Desktop), rustc 1.95.0. Il file è normalizzato allo schema di `common::manifest` come in 01-07 e 01-08, con gli sha256 delle immagini troncati a 16 caratteri; l'originale resta in `results/raw/ocr-hw-raw.json`. Immagini: worker `cka-spikes-worker@sha256:4209c2754c10d8b5…` (ricostruito da questo piano con il bin `ocr`, `worker.Dockerfile` di 01-07 invariato), `docling-serve-cu128@sha256:2aa6fc687c921191…`. Tesseract 5.5.0 (Debian trixie), `tessdata_best` ita, eng, osd, PDFium `chromium/8100`.
+- **Sessioni** (`session.sh with 01-13`): scansioni e calibrazione del render `01-13-20261024t131946z-94a8` (run degli indici e dei `job_id`), limiti `ocr_tesseract`, misure Tesseract e throughput `01-13-20261024t132452z-9523`, autocontrolli e prova ostile `01-13-20261024t134109z-e471`, TTQ-parse in «TTQ-parse».
+- **Dati:** corpus comune verificato da `data/corpus/fetch.sh` (sha256 del manifest). Le 6 pagine IT dell'oracolo (`parser-it.json`, voci `page-text` P-001…P-006, tutte con i tre assi verdi) sono estratte con `qpdf --deterministic-id` in PDF di una pagina (`p-001` = `pub-it-01` p. 11 … `p-006` = `pub-it-03` p. 12); documento da 25 pagine `der-it-01-relazione-annuale-2025-p1-25`; 4 pagine di `gen_geom.py` (193 parole; corpi 24, 14, 10 e misti).
+- **Scansioni** (`scan-gen/make_scans.sh`): 22 job `ocr_render` a 300 e 200 DPI (`render-<doc>-<dpi>-<run>`), 7 job `extract_pdf` per il riferimento PDFium, indice in `results/raw/ocr-index/<run>.json`. Variante degradata dalle Soglie con `magick` (input `png:`, uscite `jpg:`/`png:`), seme del rumore fissato a 1301 per la riproducibilità (non cambia i parametri dichiarati), tela invariata verificata (dimensioni uguali al render). Ogni PNG degradato ha un `<pagina>.transform.json` (`dpi` 200, dimensioni, `rotation_deg` 1,5, centro `[w/2, h/2]`, rumore, qualità JPEG 60, render e sha256 d'origine). PDF misto: pagine 1-5 di testo del documento da 25 pagine più le pagine 6-10 come immagini JPEG a 300 DPI, composto con `qpdf` (sha256 `e021295772a55135…`, 10 pagine).
+- **sha256 (16 caratteri)** delle immagini usate per CER e bbox, in `results/raw/ocr-degraded/<run>/sha256.txt` (106 file, sha256 della lista `02399091151eeb4a…`). Per pagina: 300 DPI, 200 DPI, degradata. `p-001` `c6d97bab720a8d20`, `0c90d2c09883dd2a`, `f4512acae7e757de`; `p-002` `3a6042061ebba7b2`, `6bba5cb2d8c952ef`, `42ae2a89eb9ed096`; `p-003` `7555c5e017e76694`, `f842e15ca3f135c7`, `54ad32a56eceddb9`; `p-004` `a9976b48fdd9450b`, `7d30500e487c490c`, `3c57d24fe46b9a03`; `p-005` `e65dd3d48132a544`, `ad82e6be8c2a2408`, `5426cb2aad7884b7`; `p-006` `bd44ae1966a02712`, `5c239e6f3d54fd62`, `ade2d4185e1467b0`. `geom-1…4` a 300 DPI `524c1d4beb6db1c5`, `add31d1a2bc3de78`, `67388cc1cd394aa9`, `a149a50a0b472679`; degradate `b94d06b6d692380c`, `b0a9a692b1b9d2e6`, `8726d7003e641171`, `216bddd48487f615`. PDF di `gen_geom.py` `3d9d97aa9451c870`, `3a6b9d8d27b5f5c8`, `ff422812a0849d79`, `9d357141ee1f89e7`; `geom-cases.json` `590e3d3434249f45`.
+- **Controllo analitico, svolgimento** (`derivation_ref`): metriche da `Helvetica.afm` di Adobe (Core14, copia di Apache PDFBox, consultata il 2026-10-24; le 36 righe `C` di cifre e maiuscole copiate nello script sono ricontrollate contro il file scaricato, 0 differenze). Per una parola `t₁…tₙ` di corpo `s` e origine `(x, y_base)`: `x0 = x + s·llx(t₁)/1000`, `x1 = x + s·(Σ_{i<n} WX(tᵢ) + urx(tₙ))/1000`, `y0 = y_base + s·min lly/1000`, `y1 = y_base + s·max ury/1000`. Esempio: `ATTIVO` a 24 pt in `(36, 788,768)` → `[36,336, 788,312, 121,752, 806,456]` (llx di A 14; Σ WX di ATTIV = 667+611+611+278+667 = 2834 più urx di O 739 = 3573, per 24/1000 = 85,752; lly minimo −19 e ury massimo 737, di O).
+- **Trasformazioni:** buona `px = x·300/72`, `py = (page_h − y)·300/72`; degradata la stessa a 200 DPI seguita dalla rotazione di 1,5° attorno a `[w/2, h/2]`, angolo positivo = orario a vista in coordinate immagine (y in basso), come `magick -distort SRT`. Il verso è verificato con le parole OCR delle 4 pagine geometriche degradate: col verso scelto p95 1,34-2,66 pt, col verso opposto 24,0-24,2 pt. Unità del risultato: punti PDF, origine in basso a sinistra (come `extract_pdf`); rettangolo = involucro dei quattro vertici riportati con l'inversa.
+- **Limiti** ([`limits-ocr_render.json`](results/ocr/limits-ocr_render.json), [`limits-ocr_tesseract.json`](results/ocr/limits-ocr_tesseract.json)), formula di 01-07 v6:
+  - `ocr_render`: `parse-parent calibrate --op ocr_render --inputs /data/corpus/raw --params '{"dpi":300}'`, 10 PDF su 10 `ok` (fino a 228 pagine, nessun timeout); max `VmHWM` 370.532 kB, max `VmPeak` 776.152 kB, massimo scritto 142.243.923 byte (228 PNG). Prenotazione 1.138.274.304 B, `RLIMIT_AS` 1.879.048.192 B (tetto del budget), quota 284.487.846 B: un job di render prenota 1.422.762.150 B e il budget ne ammette uno alla volta.
+  - `ocr_tesseract`: `parse-parent calibrate --op ocr_tesseract` esce 2 con `job_error` `BudgetExceeded` («prenotazione 3328 MiB oltre il budget 1792 MiB») al primo input. La calibrazione prenota `(totale − riserva − 256 MiB) × (1 + discendenti) + 256 MiB`, che con un discendente supera sempre il budget: difetto di `parse-parent.rs`, file chiuso di 01-07 («Anomalie»). La formula si applica allora con `ocr limits-from-runs` ai `RunReport` di 25 job `ocr_tesseract` benigni (le 25 pagine a 300 DPI del documento da 25 pagine) lanciati con un profilo provvisorio che entra nel budget (768 MiB × 2 + 256 MiB): 25 `ok` su 25, max `VmHWM` 137.208 kB e max `VmPeak` 275.248 kB del discendente `tesseract` (campionati dal figlio, Soglie), prenotazione 421.502.976 B, `RLIMIT_AS` 845.561.856 B, quota 0 (nessun `out_dir`), `file_size` 1 MiB. Prenotazione per job: 2 × 421.502.976 + 0 = 843.005.952 B (823.248 KiB).
+- **Autocontrolli** (nel worker con `parse-parent run`, evidenze in `results/raw/selfcheck/<run>/`): job `ocr_render` a 300 DPI → `ok`, PNG 2479 × 3508 px con `pHYs` 11.811 ppm (300 DPI) contro 2479,2 × 3508,3 attesi, pass; `dpi` 1000 → `job_error` `InvalidParams` («dpi fuori da 72..=600»), exit 2; lo stesso job valido rilanciato con lo stesso `job_id` → `job_error` `PathNotAllowed` `out_dir_exists`, exit 2; `ocr_tesseract` con `out_dir` non null → `job_error` `InvalidParams`, exit 2; `ocr_tesseract` su un PNG valido → `ok` con 31 parole in `data`, `leftover_procs` 0; su un PNG troncato a 20.000 byte → `failed/Corrupt` (`tesseract_exit code=1`, libpng), padre vivo e worker in esecuzione; `ocr map` stadio 1 → errore massimo 7,1 × 10⁻¹³ px su 8 casi su 8, pass. L'autocontrollo del ritardo del TTQ è in «TTQ-parse».
+- **[NV] RESEARCH §11.5-§11.7.** `scale_page_by_factor(dpi/72)` dà le dimensioni attese (±1 px); header TSV di Tesseract 5.5.0 uguale a quello atteso (ogni job `ok` lo ha passato al parser stretto di `tsv.rs`); conversione px → pt come sopra.
+- **PaddleOCR:** lock con hash generato (Task 1) e `paddle.Dockerfile` scritto, nessuna build né installazione: manca l'approvazione dei pacchetti da parte dell'utente («Domande per l'utente»). `v6.selection.json`, `v6.resolved.json`, variabile di cache di PaddleX, [NV-v6-flag] e [NV-v6-lang] restano da verificare in build.
+
+## Risultati
+
+### OCR Tesseract (`ocr.csv`)
+
+Concorrenza 1, 3 ripetizioni per pagina e qualità, la prima scartata: 2 righe utili per pagina (le due ripetizioni danno lo stesso testo).
+
+| Pagina | CER buona | CER degradata | s/pagina buona | s/pagina degradata |
+|---|---|---|---|---|
+| p-001 | 1,84% | 1,69% | 2,74 | 2,41-2,45 |
+| p-002 | 2,07% | 2,33% | 2,84-2,87 | 2,38-2,42 |
+| p-003 | 1,63% | 2,51% | 3,47-3,50 | 2,84-2,96 |
+| p-004 | 0,71% | 0,80% | 2,54-2,57 | 2,20-2,21 |
+| p-005 | **8,36%** | 3,14% | 3,22-3,23 | 2,66-2,73 |
+| p-006 | **4,70%** | 6,16% | 3,20-3,23 | 2,33-2,35 |
+| aggregato (Σ edit / Σ caratteri) | **3,16%** | 2,74% | mediana 3,03 | mediana 2,41 |
+
+Soglia CER ≤ 3% sulle buone: **non raggiunta** (4 pagine su 6 sotto la soglia, aggregato 3,16%). Diagnostica, non esito: le parole dell'oracolo ritrovate in qualunque ordine sono il 98-99% su p-001…p-003, il 96% su p-004 e il 92% su p-005 e p-006, buone e degradate allo stesso modo; su p-005 il CER passa da 8,4% (buona) a 3,1% (degradata) con le stesse parole ritrovate. Il CER di queste due pagine viene quindi dall'ordine dei blocchi e dal testo fuori oracolo (testatine, didascalie), non dal riconoscimento dei caratteri; PDFium sul PDF digitale delle stesse pagine ha CER 41% e 12,6% (`results/extract/text_cer.csv`).
+
+### Fedeltà delle bbox (`bbox_map.csv`)
+
+- **Controllo analitico (`reference=analytic`), ripetizione 2:** 8 pass su 8. Buone: p95 agli angoli 0,48-0,84 pt (soglia 1 pt), IoU mediana 0,978-0,994; degradate: p95 1,34-2,66 pt (soglia 3 pt), IoU mediana 0,819-0,836; abbinate 31, 55, 76 e 31 parole su 31, 55, 76 e 31. Stadio 1 (sola geometria): errore massimo 7,1 × 10⁻¹³ px, pass.
+- **Riferimento PDFium (`reference=pdfium`): «non valutabile»** su ogni riga, perché 01-08 non ha superato la propria soglia IoU (E-3 77,0% contro 95%, `RISULTATI-estrazione.md`). Numeri riportati, mai come PASS: sulle 26 pagine con almeno 50 parole abbinate (6 dell'oracolo e 20 del documento da 25 pagine) IoU mediana 0,553-0,611 (buone) e 0,600-0,692 (degradate), quota di parole con IoU ≥ 0,5 0,72-0,93 e 0,84-0,95, p95 agli angoli 3,4-6,1 pt e 3,1-6,0 pt. Plafond di 01-08 (PDFium contro TAT-DQA, `bbox_iou.csv`, 20 pagine): `iou_mean` medio 0,666, `share_iou_ge_05` medio 0,779. L'IoU OCR-vs-PDFium sta al livello del plafond: lo scarto è il bias dichiarato di `loose_bounds()` (box del font contro box d'inchiostro), non un difetto della mappatura, che il controllo analitico assolve.
+
+### Throughput e conformità dei batch (`ocr_throughput.csv`)
+
+25 pagine a 300 DPI del documento da 25 pagine, `parse-parent batch --concurrency N`, 3 run per N, worker a 2 GiB, prenotazione 823.248 KiB per job; la parete comprende il `docker exec` del batch.
+
+| N richiesto | `max_admitted` | parete (s) | s/pagina | `peak_rss_kb` max | prenotazione/picco min | `m10_pass` |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 64,1-76,1 | 2,57-3,04 | 137.116 | 6,00 | 3/3 |
+| 4 | 2 | 35,5-36,1 | 1,42-1,44 | 137.136 | 6,00 | 3/3 |
+| 8 | 2 | 34,5-34,9 | 1,38-1,40 | 137.240 | 6,00 | 3/3 |
+| 16 | 2 | 34,7 | 1,39 | 137.240 | 6,00 | 3/3 |
+
+Ogni batch è conforme col metodo di M10 (padre vivo ed exit 0, `batch_summary`, `memory.max` = 2 GiB, `oom_kill_delta` 0, nessun `job_error`, `leftover_procs` 0, rapporto ≥ 1 su ogni job, prenotazione uguale a quella dei limiti correnti). **Concorrenza OCR pubblicata: 2 job `ocr_tesseract` insieme nel worker da 2 GiB** (il più grande N conforme, 16, limitato dal `max_admitted` misurato, 2), per i carichi misurati. Termine di confronto per `parse`: 2 job da `budget-real.csv` di 01-18 (M10), non da `budget.csv`. Soglia 25 pagine ≤ 30 s con N = 8: **non raggiunta** (34,5-34,9 s con 2 job ammessi). Il rapporto prenotazione/picco ≥ 6 viene dal fattore 3 della formula moltiplicato per (1 + 1 discendente) con un figlio `ocr` che pesa pochi MiB: la prenotazione è prudente, ma non è un tetto rigido (RISK-001), e la conclusione vale solo per questi carichi.
+
+*Dimensionamento estrapolato, non misurato* (D-28): con la prenotazione misurata (804 MiB per job) e la riserva del padre (256 MiB), N job ammessi richiedono `memory.max` ≥ 256 + 804·N MiB, cioè 3,4 GiB per 4 job e 6,5 GiB per 8. Con 8 CPU e circa 2,7 s di CPU per pagina a 300 DPI, 8 job porterebbero le 25 pagine a circa 9-10 s. Ipotesi: scaling lineare, stesso workload, CPU non saturata, nessuna contesa di I/O sul bind mount. Va misurato se cambia la memoria del worker.
+
+### Prova ostile sul render (`hostile-render.csv`)
+
+| Caso | Atteso (manifest) | Ottenuto | pass | `peak_rss_kb` | `wall_ms` | `leftover_procs` | padre vivo |
+|---|---|---|---|---|---|---|---|
+| `jbig2-malformed` | `failed/Corrupt\|Crashed` | `ok` 3 su 3 | 0/3 | 73.600-73.984 | 58-72 | 0 | 3/3 |
+| `deep-nesting` | `failed/Corrupt\|Crashed` | `ok` 3 su 3 | 0/3 | 74.240-74.624 | 57-69 | 0 | 3/3 |
+| `dct-sof-huge-image` | `failed/DecompressionLimit`, `dct_sof over_cap` | uguale | 3/3 | 4.096-4.480 | 5-7 | 0 | 3/3 |
+| `jpx-siz-huge-image` | `failed/DecompressionLimit`, `jpx_siz over_cap` | uguale | 3/3 | 4.096-4.224 | 3-4 | 0 | 3/3 |
+| `jpx-siz-huge-jp2` | `failed/DecompressionLimit`, `jpx_siz over_cap` | uguale | 3/3 | 4.096-4.352 | 3-6 | 0 | 3/3 |
+
+Fixture rigenerate senza rete (`gen_hostile.py` e `gen_sof.py` in sola lettura, in un container del runner con `--network none`) con gli sha256 dei manifest; manifest e generatori invariati rispetto a `main`. Padre uscito da sé (exit 0) e worker in esecuzione dopo ogni job, `oom_kill_delta` 0, `oom_adj_set` true, `/work` vuoto a fine batch (0 voci). I casi della 1.5 stanno nello stesso `hostile-render.csv` (lo schema lo consente: `expected` e `detail` sono colonne del CSV); il loro pass richiede anche il prefisso del detail.
+
+- **Residuo T-09 JBIG2: aperto** (0 righe pass su 3). La pagina disegna l'immagine (`/Im1 Do`), quindi `render_with_config` passa dal decoder JBIG2: PDFium gestisce il flusso rotto senza restituire un errore all'API e il figlio emette `ok`. Il contenimento regge su 3 righe su 3; un `ok` non dimostra però che il decoder sia sicuro.
+- **`deep-nesting`:** `ok` 3 su 3 con contenimento intatto; l'annidamento sta in un oggetto citato solo da `/Extra` e la render non lo visita. Nessuna conclusione oltre la misura.
+- **Casi della 1.5 (TEST-14, obbligo di `01.5-CONTRATTO.md`):** il prescan respinge sul percorso `ocr_render` i 3 casi con detail `dct_sof over_cap` / `jpx_siz over_cap` (dimensioni codificate 30000 × 30000 × 3 = 2,7 GB contro il tetto di 64 MiB) in 3-7 ms, con picco di 4 MiB e padre vivo: PDFium non viene mai toccato.
+
+### TTQ-parse (`ttq_parse.csv`)
+
+Sessione `01-13-20261024t143200z-384b` (`ocr-run/run_ttq.sh`): worker, Docling GPU (`docling`) e runner avviati fuori dalla finestra; per documento una serie calda (prima run scartata come riscaldamento) e una run fredda con i container di worker e Docling riavviati (`warm=false`). Ogni riga ha un `run_id` univoco (46 su 46) e componenti con lo stesso `run_id` e lo stesso sha256 (16 caratteri) del documento, verificati da `ocr ttq-merge`. Valori in ms, mediana sulle run utili.
+
+| Documento | Pagine | n utile | p95 parete | mediana | extract_pdf | pagine-tabella → Docling | Docling | pagine OCR | render | tesseract | fredda |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `der-it-01` (digitale) | 25 | 20 | **20.188** | 19.826 | 1.067 | 13 | 15.251 | 2 | 1.498 | 1.036 | 21.858 |
+| `doc100-pub-it-02-p1-100` (digitale) | 100 | 10 | **73.072** | 67.612 | 1.736 | 56 | 57.250 | 6 | 1.876 | 5.517 | 68.297 |
+| misto (5 pagine immagine) | 10 | 10 | 11.626 | 11.420 | 928 | 1 | 2.742 | 6 | 2.131 | 4.643 | 13.480 |
+
+- **Soglie M1: non raggiunte.** p95 di 20,2 s contro 5 s per le 25 pagine e di 73,1 s contro 20 s per le 100 pagine. Il costo è quasi tutto Docling sulle pagine selezionate dall'euristica di 01-08 (13 su 25, 56 su 100; circa 1,0-1,2 s per pagina su GPU): prescan + PDFium costano 1,1 s e 1,7 s, l'OCR delle pagine senza testo 2,5 s (2 pagine bianche) e 7,4 s (6 pagine).
+- **Pagine OCR:** nel documento da 25 pagine le pagine 2 e 10 non hanno caratteri (pagine bianche) e passano dall'OCR come ogni pagina senza testo; nel PDF misto sono le 5 pagine immagine più la pagina bianca 2.
+- **Parete contro somma delle componenti:** scarto mediano 4,7%, 1,7% e 8,5%, massimo 5,7%, 2,5% e 9,0%, sotto il 10%: lo scarto è il costo dei `docker exec` di selezione e di merge fra i passi, nella finestra.
+- **Autocontrollo del cronometro** (CSV a parte, `results/raw/ttq-selfcheck.csv`, PDF misto, 6 run senza ritardo e 6 con `TTQ_INJECT_DELAY_MS=500`, prima run scartata): parete mediana 10.817 → 11.332 ms (+515 ms), scarto parete − componenti 890 → 1.398 ms (+508 ms): il ritardo dentro la finestra si vede per intero, pass.
+
+## Anomalie e deviazioni
+
+- **Riga «oracoli parser-it pendenti esclusi e contati»: 0.** Le 6 voci `page-text` di `parser-it.json` hanno i tre assi verdi (`ORACOLI.md`, `ocr score cer`).
+- **`parse-parent calibrate` rifiuta le op con discendenti** (deviazione registrata, nessuna modifica a `parse-parent.rs`): con `--op ocr_tesseract` esce 2 al primo input con `BudgetExceeded` («prenotazione 3328 MiB oltre il budget 1792 MiB»), perché la prenotazione di calibrazione `(totale − riserva − 256 MiB) × (1 + 1) + 256 MiB` supera sempre il budget. I limiti si calcolano con la stessa formula da `ocr limits-from-runs` su 25 job benigni (Setup). Difetto da correggere in una gap-closure di 01-07 (`riapre_perimetro: [1]`).
+- **Config `tsv` di Tesseract** (deviazione di regola 3): con l'argv del piano e `--tessdata-dir /opt/tessdata_best` Tesseract cerca `configs/tsv` dentro `tessdata_best`, che ha solo i traineddata, e scrive testo semplice (25 job su 25 `failed/Corrupt` per header TSV inatteso nel primo giro di calibrazione, non usato). Il figlio lancia ora `tesseract` con la cartella corrente `/usr/share/tesseract-ocr/5/tessdata/configs` del pacchetto Debian, dove il ripiego relativo di Tesseract trova `tsv` (`tessedit_create_tsv 1`): argv invariato e uguale al test, nessun file scritto nella cartella del job, `worker.Dockerfile` invariato.
+- **Picco del discendente nel `vm_hwm_kb`** (deviazione di regola 2, Soglie): il figlio `ocr tesseract` scrive la riga d'esito nella stessa forma di `protocol::emit` ma con `vm_hwm_kb` = massimo fra il proprio `VmHWM` e quello di `tesseract`; con `emit` il `peak_rss_kb` del job sarebbe stato quello del solo figlio (pochi MiB), e prenotazione e rapporto prenotazione/picco non avrebbero visto il discendente.
+- **Job come file** in `run_hostile_render.sh` (`parse-parent run --job <file>` invece di `--job -`): `session.sh exec` non inoltra lo stdin. Contratto del lanciatore invariato.
+- **Calibrazione `ocr_tesseract` su una copia dei soli PNG** (`results/raw/ocr-cal/<run>-png/`) e non sull'`out_dir` del render, che contiene anche i sidecar `render.json`.
+- **Seme del rumore** (`-seed 1301`) aggiunto alla degradazione per la riproducibilità; i parametri dichiarati sono invariati.
+- **sha256 troncati a 16 caratteri** nelle evidenze scritte da questo piano (`ttq_parse.csv`, `hw.json`, questo file), come nelle evidenze della 1.5.
+- **Interruzioni di Docker Desktop** (deviazione (c)): Docker Desktop si è fermato due volte durante la misura del TTQ (container usciti con 255). Le due serie interrotte sono invalide e non sono usate come evidenza (spostate in `results/raw/invalid-ttq-docker-restart*/`); la serie riportata è stata rilanciata da capo in una sessione nuova, senza run scartate. Le misure OCR, di throughput e la prova ostile erano già concluse in sessioni precedenti e non sono toccate.
+- **[NV-v6-flag], [NV-v6-lang], variabile di cache di PaddleX:** non verificati, perché l'immagine `paddle` non è stata costruita (in attesa dell'approvazione dei pacchetti).
+
+## Domande per l'utente
+
+- **Approvazione dei pacchetti pip di PaddleOCR** (checkpoint bloccante del Task 1): `spikes/docker/paddle-requirements.lock` fissa `paddlepaddle==3.3.1`, `paddleocr==3.7.0` e 68 dipendenze transitive, ognuna con `==` e `--hash=sha256:`, base `python:3.12-slim` per digest. Senza approvazione lo sfidante PP-OCRv6 non si misura e la riga OCR dell'ADR-0004 resta provvisoria. Il cgroup del worker resta a 2 GiB (D-28).
+
+## Esito parziale
+
+- **OCR: Tesseract confermato in via provvisoria.** CER aggregato 3,16% sulle buone (soglia 3% non raggiunta, per l'ordine dei blocchi di p-005 e p-006) e 2,74% sulle degradate; 2,4-3,0 s per pagina per job. La regola «vince nettamente» contro PP-OCRv6 non è applicabile perché lo sfidante non è misurato (approvazione dei pacchetti in attesa); PP-OCRv5 non misurato.
+- **Concorrenza OCR ammessa a 2 GiB: 2 job `ocr_tesseract`**, 12 batch su 12 conformi col metodo di M10; 25 pagine in 34,5-34,9 s (soglia 30 s non raggiunta). Il dimensionamento per altri tagli di memoria è **estrapolato** (3,4 GiB per 4 job, 6,5 GiB per 8), non misurato (D-28).
+- **Prova ostile sul render (D-34):** residuo T-09 JBIG2 **aperto** (0 righe pass su 3, contenimento intatto); `deep-nesting` `ok` su 3 righe su 3 con contenimento intatto; casi DCT e JPX della 1.5 respinti dal prescan su `ocr_render` (9 righe su 9).
+- **Fedeltà bbox:** controllo analitico pass (buone p95 ≤ 0,84 pt, degradate ≤ 2,66 pt); riferimento PDFium «non valutabile» (01-08 sotto la propria soglia IoU), IoU mediana 0,55-0,69 accanto al plafond di 01-08 (0,666).
+- **TTQ-parse:** p95 20,2 s (25 pagine, n utile 20) e 73,1 s (100 pagine, n utile 10) contro 5 s e 20 s: non raggiunto, dominato da Docling sulle pagine-tabella selezionate.
