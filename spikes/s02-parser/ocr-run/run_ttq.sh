@@ -121,6 +121,8 @@ for svc in worker "$DOCLING"; do
   "${SESSION[@]}" cid "$RID" "$svc" >/dev/null 2>&1 || "${SESSION[@]}" up "$RID" "$svc" >&2
 done
 if ! rexec true >/dev/null 2>&1; then
+  # Un runner della sessione fermo (per esempio dopo un riavvio di Docker) si toglie prima.
+  "${SESSION[@]}" stop "$RID" "$RUNNER" >/dev/null 2>&1 || true
   "${SESSION[@]}" run "$RID" "$RUNNER" -- sleep infinity >&2
 fi
 rexec cargo build --release --locked -p s02-parser --bin ocr --bin docling-client >&2
