@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-24T12:32:48.629Z"
+last_updated: "2026-10-24T12:55:37.490Z"
 last_activity: 2026-10-24 — fase 1.5 verificata (passed) e chiusa; fase 1 riprende con 01-13
 progress:
   total_phases: 20
@@ -142,6 +142,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: Modello di embedding bge-m3 su TEI CUDA (D-38, emenda D-14): nDCG@10 0,723 contro Qwen3 0,660 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - [Phase ?]: 1.4: DOCX ostili non deterministici per timestamp zip (D-11); M10 non ripetuta dopo ricalibrazione, 2 job con margine 8% (D-12) → `phases/01.4-gap-closure-driver-di-misura-di-01-07-pulizia-di-budget-sul-/01.4-CONTEXT.md#decisioni`
 - [Phase ?]: 1.5: tetto delle immagini DCT e JPX sulle dimensioni codificate SOF/SIZ (D-39, D-09); inline debito fase 3; ocr_render obbligo di 01-13 → `phases/01.5-gap-closure-prescan-tetto-delle-immagini-dct-sul-sof-del-jpe/01.5-CONTEXT.md#decisioni`
+- [Phase ?]: D-41 scanner upload-in-memory opzione B: read_to_end con .take( ammesso, io::copy verso Vec senza take segnalato; in /verify 1 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 
 ### Pending Todos
 
