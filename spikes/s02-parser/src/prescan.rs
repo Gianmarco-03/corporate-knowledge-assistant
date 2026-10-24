@@ -19,6 +19,9 @@
 //!    contano e non causano quarantena. I filtri immagine sono ammessi, come ultimo filtro
 //!    e con il tetto `max_image_bytes`, su `/Subtype /Image` e, dalla gap-closure 1.4, sulla
 //!    forma T: il dizionario d'immagine miniatura senza `/Subtype` (`is_subtypeless_image`).
+//!    Dalla gap-closure 1.5, sui DCT e sui JPX il tetto vale anche sulle dimensioni codificate
+//!    nei dati (marker SOF del JPEG, marker SIZ del codestream JPEG 2000), lette entro
+//!    `IMAGE_HEADER_SCAN_BYTES` dopo i soli filtri che precedono il filtro immagine.
 //!
 //! I2 (lavoro cumulativo di tutte le passate) è `decompress_work_bytes`: byte contati più i
 //! limiti analitici delle espansioni del loader, mai una stima più bassa del reale; oltre il
@@ -28,6 +31,7 @@
 //! DOCX: voci, somma dichiarata, macro, `<!DOCTYPE`/`<!ENTITY`, relazioni esterne.
 
 // Modifica: Claude (gsd-executor 01.4-02) · 2026-10-23 · filtri immagine ammessi anche sulla forma T senza /Subtype, con lo stesso tetto (gap-closure 1.4, D-07)
+// Modifica: Claude (gsd-executor 01.5-01) · 2026-10-23 · tetto delle immagini DCT e JPX sulle dimensioni codificate (gap-closure 1.5, D-01, D-02, D-09, D-10)
 use std::collections::BTreeSet;
 use std::io::{self, Read};
 use std::path::Path;
@@ -768,6 +772,388 @@ fn check_chain(chain: &[Vec<u8>], dict: &lopdf::Dictionary, caps: &Caps) -> Resu
     Ok(())
 }
 
+// ---- dimensioni codificate delle immagini DCT e JPX (gap-closure 1.5) --------------------
+
+/// Segmento marker JPEG di lunghezza massima, marker compreso (2 + L massimo).
+const MAX_MARKER_SEGMENT: usize = 2 + 65_535;
+
+/// Finestra di lettura dell'intestazione di un'immagine: 262.925 byte di dati.
+///
+/// Motivo (D-10 di `01.5-CONTEXT.md`): copre il SOI, 4 segmenti APP pieni (per esempio JFIF,
+/// EXIF, XMP e un pezzo di profilo ICC) e l'intestazione di un SOF con il massimo di 255
+/// componenti (marker, L, P, Y, X, Nf e 3 × 255 byte di componenti). Per i JPX la stessa
+/// finestra copre SOC più un SIZ massimo (2 + 2 + 38 + 3 × 16.384 = 49.194 byte) e, nel formato
+/// JP2, i box che precedono `jp2c` (firma, `ftyp`, `jp2h` con un profilo ICC fino a circa
+/// 200 KiB). Oltre la finestra il marker non si cerca: l'esito è `beyond_scan`.
+const IMAGE_HEADER_SCAN_BYTES: usize = 2 + 4 * MAX_MARKER_SEGMENT + 2 + 8 + 3 * 255;
+
+/// Prefisso dei dati grezzi passato ad `ascii85` o ad `ascii_hex` durante la lettura
+/// dell'intestazione. Un prefisso troppo pieno di spazi produce `beyond_scan`, mai
+/// un'ammissione.
+const PREFILTER_RAW_BYTES: usize = 4 * IMAGE_HEADER_SCAN_BYTES;
+
+/// Codec dell'immagine, dal filtro immagine in coda alla catena.
+#[derive(Debug, Clone, Copy)]
+enum Codec {
+    Dct,
+    Jpx,
+}
+
+impl Codec {
+    /// Primo token del detail di rifiuto.
+    fn detail(self) -> &'static str {
+        match self {
+            Codec::Dct => "dct_sof",
+            Codec::Jpx => "jpx_siz",
+        }
+    }
+}
+
+/// Dimensioni codificate nei dati dell'immagine.
+#[derive(Debug, Clone, Copy)]
+struct Dims {
+    width: u64,
+    height: u64,
+    components: u64,
+}
+
+/// Errore della lettura del prefisso: un sottomotivo del detail, oppure il rifiuto di
+/// `Meter::add_work` (`Corrupt` / `work_bound`), propagato con il suo `Kind` e il suo detail
+/// (T-01.5-09).
+#[derive(Debug)]
+enum PrefixError {
+    Prefilter(&'static str),
+    Work(Rejection),
+}
+
+/// Al più `IMAGE_HEADER_SCAN_BYTES` byte di dati dell'immagine, più `more`, vero se i dati
+/// proseguono oltre. Applica in ordine i soli filtri che precedono il filtro immagine:
+/// ASCII85 e ASCIIHex su un prefisso grezzo di `PREFILTER_RAW_BYTES` byte, Flate letto sempre
+/// fino a `IMAGE_HEADER_SCAN_BYTES + 1` byte o alla fine dei dati, così la quantità letta è
+/// deterministica. I byte prodotti da Flate entrano nel lavoro I2. L'immagine non si
+/// decodifica mai.
+fn image_prefix(
+    chain: &[Vec<u8>],
+    raw: &[u8],
+    meter: &mut Meter,
+) -> Result<(Vec<u8>, bool), PrefixError> {
+    let pre = &chain[..chain.len().saturating_sub(1)];
+    let mut owned: Option<Vec<u8>> = None;
+    let mut more = false;
+    for f in pre {
+        let cur: &[u8] = owned.as_deref().unwrap_or(raw);
+        let next = match f.as_slice() {
+            b"ASCII85Decode" | b"ASCIIHexDecode" => {
+                let cut = cur.len().min(PREFILTER_RAW_BYTES);
+                more |= cut < cur.len();
+                let decoded = if f.as_slice() == b"ASCII85Decode" {
+                    ascii85(&cur[..cut])
+                } else {
+                    ascii_hex(&cur[..cut])
+                };
+                decoded.map_err(|_| PrefixError::Prefilter("prefilter"))?
+            }
+            b"FlateDecode" => {
+                // Copia limitata da `take`: al più IMAGE_HEADER_SCAN_BYTES + 1 byte in memoria.
+                // Equivale a `read_to_end` sullo stesso `Take`, che il piano prescriveva:
+                // `io::copy` è stato scelto perché la regola lessicale `upload-in-memory`
+                // dello scanner segnala `read_to_end` senza vedere il `take` (falso
+                // positivo, verify della fase 1.5).
+                let mut limited =
+                    flate2::read::ZlibDecoder::new(cur).take(IMAGE_HEADER_SCAN_BYTES as u64 + 1);
+                let mut out = Vec::new();
+                let n = io::copy(&mut limited, &mut out)
+                    .map_err(|_| PrefixError::Prefilter("prefilter"))?;
+                meter.add_work(n).map_err(PrefixError::Work)?;
+                out
+            }
+            _ => return Err(PrefixError::Prefilter("invalid")),
+        };
+        owned = Some(next);
+    }
+    let mut data = match owned {
+        Some(d) => d,
+        None => raw[..raw.len().min(IMAGE_HEADER_SCAN_BYTES + 1)].to_vec(),
+    };
+    if data.len() > IMAGE_HEADER_SCAN_BYTES {
+        data.truncate(IMAGE_HEADER_SCAN_BYTES);
+        more = true;
+    }
+    Ok((data, more))
+}
+
+/// Dimensioni del primo SOF di un JPEG, lette per segmenti dal SOI.
+///
+/// La lettura salta il contenuto di ogni segmento con la sua lunghezza: un SOF finto dentro
+/// APP1 (la miniatura EXIF), DHT, DAC o JPG non si vede. Sono SOF `C0`-`C3`, `C5`-`C7`,
+/// `C9`-`CB` e `CD`-`CF`; `C4` (DHT), `C8` (JPG) e `CC` (DAC) no. Il primo SOF decide.
+/// Sottomotivi: `missing` (niente SOI, oppure SOI, EOI o SOS prima del SOF), `invalid`
+/// (byte fuori marker, marker `00`, L < 2, SOF incoerente o con X, Y o Nf a 0), `truncated`
+/// (dati finiti dentro un marker o un segmento), `beyond_scan` (finestra finita prima del SOF).
+fn read_sof(data: &[u8], more: bool) -> Result<Dims, &'static str> {
+    // Fine dei dati: dentro un marker o un segmento (`inside`) oppure su un confine.
+    let end = |inside: bool| {
+        if more {
+            "beyond_scan"
+        } else if inside {
+            "truncated"
+        } else {
+            "missing"
+        }
+    };
+    if data.len() < 2 {
+        return Err(if more {
+            "beyond_scan"
+        } else if data == [0xFF] {
+            "truncated"
+        } else {
+            "missing"
+        });
+    }
+    if data[..2] != [0xFF, 0xD8] {
+        return Err("missing");
+    }
+    let mut i = 2;
+    loop {
+        match data.get(i) {
+            None => return Err(end(false)),
+            Some(&0xFF) => {}
+            Some(_) => return Err("invalid"),
+        }
+        // Byte FF di riempimento prima del codice del marker.
+        let mut j = i + 1;
+        while data.get(j) == Some(&0xFF) {
+            j += 1;
+        }
+        let Some(&marker) = data.get(j) else {
+            return Err(end(true));
+        };
+        i = j + 1;
+        match marker {
+            0x00 => return Err("invalid"),
+            0x01 | 0xD0..=0xD7 => continue,
+            0xD8..=0xDA => return Err("missing"),
+            _ => {}
+        }
+        let Some(len) = data.get(i..i + 2) else {
+            return Err(end(true));
+        };
+        let len = usize::from(u16::from_be_bytes([len[0], len[1]]));
+        if len < 2 {
+            return Err("invalid");
+        }
+        let is_sof = matches!(marker, 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF);
+        let Some(segment) = data.get(i..i + len) else {
+            return Err(end(true));
+        };
+        if is_sof {
+            if len < 8 {
+                return Err("invalid");
+            }
+            let height = u16::from_be_bytes([segment[3], segment[4]]);
+            let width = u16::from_be_bytes([segment[5], segment[6]]);
+            let nf = segment[7];
+            if len != 8 + 3 * usize::from(nf) || width == 0 || height == 0 || nf == 0 {
+                return Err("invalid");
+            }
+            return Ok(Dims {
+                width: u64::from(width),
+                height: u64::from(height),
+                components: u64::from(nf),
+            });
+        }
+        i += len;
+    }
+}
+
+/// Dimensioni del marker SIZ di un JPEG 2000: codestream nudo (SOC) o file JP2, dove il
+/// codestream sta nel primo box `jp2c` di primo livello, come in OpenJPEG.
+///
+/// I box si scorrono con LBox (u32) e TBox; LBox = 1 vuole XLBox (u64) ≥ 16, LBox = 0 è ammesso
+/// solo sul `jp2c`, LBox fra 2 e 7 è `invalid`, la fine del box si somma con `checked_add`.
+/// Nel codestream il SIZ deve seguire subito SOC, con Lsiz ≥ 41 e Lsiz = 38 + 3 × Csiz; le
+/// dimensioni sono Xsiz − XOsiz e Ysiz − YOsiz, le componenti Csiz. Dopo il SIZ la lettura si
+/// ferma. Dati finiti prima di poter decidere: `beyond_scan` con `more`, altrimenti `truncated`.
+fn read_jpx_siz(data: &[u8], more: bool) -> Result<Dims, &'static str> {
+    const SOC: [u8; 2] = [0xFF, 0x4F];
+    const JP2_SIGNATURE: [u8; 12] = [
+        0x00, 0x00, 0x00, 0x0C, 0x6A, 0x50, 0x20, 0x20, 0x0D, 0x0A, 0x87, 0x0A,
+    ];
+    let short = |more: bool| if more { "beyond_scan" } else { "truncated" };
+    let be32 = |b: &[u8]| u32::from_be_bytes([b[0], b[1], b[2], b[3]]);
+
+    let (codestream, cs_more): (&[u8], bool) = if data.starts_with(&SOC) {
+        (data, more)
+    } else if data.starts_with(&JP2_SIGNATURE) {
+        let mut pos = JP2_SIGNATURE.len();
+        loop {
+            let Some(head) = data.get(pos..pos + 8) else {
+                return Err(short(more));
+            };
+            let lbox = be32(&head[..4]);
+            let is_jp2c = &head[4..8] == b"jp2c";
+            let (header, length) = match lbox {
+                0 if is_jp2c => (8, None),
+                0 => return Err("missing"),
+                1 => {
+                    let Some(xl) = data.get(pos + 8..pos + 16) else {
+                        return Err(short(more));
+                    };
+                    let xlbox = u64::from_be_bytes([
+                        xl[0], xl[1], xl[2], xl[3], xl[4], xl[5], xl[6], xl[7],
+                    ]);
+                    if xlbox < 16 {
+                        return Err("invalid");
+                    }
+                    (16, Some(xlbox))
+                }
+                2..=7 => return Err("invalid"),
+                n => (8, Some(u64::from(n))),
+            };
+            let end = match length {
+                Some(l) => Some((pos as u64).checked_add(l).ok_or("invalid")?),
+                None => None,
+            };
+            if is_jp2c {
+                let start = pos + header;
+                // Box chiuso entro i dati: il codestream finisce con il box.
+                break match end {
+                    Some(e) if e <= data.len() as u64 => {
+                        (data.get(start..e as usize).unwrap_or(&[]), false)
+                    }
+                    _ => (data.get(start..).unwrap_or(&[]), more),
+                };
+            }
+            match end {
+                Some(e) if e <= data.len() as u64 => pos = e as usize,
+                _ => return Err(short(more)),
+            }
+        }
+    } else if (data.len() < SOC.len() && SOC.starts_with(data))
+        || (data.len() < JP2_SIGNATURE.len() && JP2_SIGNATURE.starts_with(data))
+    {
+        return Err(short(more));
+    } else {
+        return Err("missing");
+    };
+
+    let Some(soc) = codestream.get(..2) else {
+        return Err(short(cs_more));
+    };
+    if soc != SOC {
+        return Err("invalid");
+    }
+    let Some(marker) = codestream.get(2..4) else {
+        return Err(short(cs_more));
+    };
+    if marker != [0xFF, 0x51] {
+        return Err("invalid");
+    }
+    let Some(lsiz) = codestream.get(4..6) else {
+        return Err(short(cs_more));
+    };
+    let lsiz = usize::from(u16::from_be_bytes([lsiz[0], lsiz[1]]));
+    if lsiz < 41 {
+        return Err("invalid");
+    }
+    // Segmento SIZ dal marker: FF 51, Lsiz, Rsiz, Xsiz, Ysiz, XOsiz, YOsiz, tile, Csiz, ...
+    let Some(siz) = codestream.get(2..4 + lsiz) else {
+        return Err(short(cs_more));
+    };
+    let csiz = u16::from_be_bytes([siz[38], siz[39]]);
+    if lsiz != 38 + 3 * usize::from(csiz) || csiz == 0 {
+        return Err("invalid");
+    }
+    let (xsiz, ysiz) = (be32(&siz[6..10]), be32(&siz[10..14]));
+    let (xo, yo) = (be32(&siz[14..18]), be32(&siz[18..22]));
+    if xo >= xsiz || yo >= ysiz {
+        return Err("invalid");
+    }
+    Ok(Dims {
+        width: u64::from(xsiz - xo),
+        height: u64::from(ysiz - yo),
+        components: u64::from(csiz),
+    })
+}
+
+/// Tetto delle immagini DCT e JPX sulle dimensioni codificate nei dati (gap-closure 1.5).
+///
+/// Motivo. Il tetto `max_image_bytes` di `check_chain` guarda `/Width × /Height ×
+/// componenti` dichiarati, mentre i decoder di PDFium leggono le dimensioni dentro i dati: il
+/// decoder DCT dal marker SOF del JPEG, il decoder JPX dal marker SIZ del codestream. Un PDF
+/// che dichiara 1 × 1 e porta un JPEG da 30000 × 30000 passava il prescan (RISK-16 di
+/// 01.4-02, TEST-14 di 01-13, D-39 di `01-CONTEXT.md`; D-09 per i JPX). Qui si leggono SOF o
+/// SIZ entro `IMAGE_HEADER_SCAN_BYTES`, dopo i soli filtri che precedono il filtro immagine
+/// (D-01, D-02, D-10), e lo stream si respinge con detail `dct_sof <sottomotivo>` o
+/// `jpx_siz <sottomotivo>`: `over_cap` (`DecompressionLimit`) se larghezza × altezza ×
+/// componenti supera il tetto; `larger_than_declared` se un asse supera il dichiarato;
+/// `missing`, `truncated`, `beyond_scan`, `invalid` o `prefilter` per un marker che non si
+/// legge (tutti `Unsupported`). Più piccolo del dichiarato è ammesso.
+///
+/// La lettura del JPEG è per segmenti e non una ricerca di byte `FF Cx`, perché un SOF finto
+/// (la miniatura EXIF in APP1) non deve nascondere quello vero. `check_stream` la chiama dopo
+/// i controlli `per_stream` e di rapporto, così una bomba Flate resta `DecompressionLimit`.
+/// Le immagini inline (`BI … ID … EI`) stanno negli stream di contenuto e restano fuori: sono
+/// debito del prescan di prodotto della fase 3 e di ADR-0004.
+fn check_image_header(
+    chain: &[Vec<u8>],
+    stream: &lopdf::Stream,
+    caps: &Caps,
+    meter: &mut Meter,
+) -> Result<(), Rejection> {
+    let codec = match chain.last().map(Vec::as_slice) {
+        Some(b"DCTDecode") => Codec::Dct,
+        Some(b"JPXDecode") => Codec::Jpx,
+        _ => return Ok(()),
+    };
+    let (data, more) = match image_prefix(chain, &stream.content, meter) {
+        Ok(p) => p,
+        Err(PrefixError::Work(r)) => return Err(r),
+        Err(PrefixError::Prefilter(sub)) => {
+            return Err(fail(Kind::Unsupported, format!("{} {sub}", codec.detail())));
+        }
+    };
+    let read = match codec {
+        Codec::Dct => read_sof(&data, more),
+        Codec::Jpx => read_jpx_siz(&data, more),
+    };
+    let Dims {
+        width: w,
+        height: h,
+        components: n,
+    } = read.map_err(|sub| fail(Kind::Unsupported, format!("{} {sub}", codec.detail())))?;
+    let cap = caps.max_image_bytes;
+    match w.checked_mul(h).and_then(|v| v.checked_mul(n)) {
+        Some(b) if b <= cap => {}
+        bytes => {
+            let b = bytes.map_or_else(|| "overflow".to_owned(), |b| b.to_string());
+            return Err(fail(
+                Kind::DecompressionLimit,
+                format!(
+                    "{} over_cap dims={w}x{h}x{n} bytes={b} cap={cap}",
+                    codec.detail()
+                ),
+            ));
+        }
+    }
+    let (Some(dw), Some(dh)) = (int(&stream.dict, b"Width"), int(&stream.dict, b"Height")) else {
+        return Err(fail(
+            Kind::Unsupported,
+            format!("{} invalid", codec.detail()),
+        ));
+    };
+    if w > dw || h > dh {
+        return Err(fail(
+            Kind::Unsupported,
+            format!(
+                "{} larger_than_declared dims={w}x{h} declared={dw}x{dh}",
+                codec.detail()
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// Massimi per stream registrati dalla calibrazione.
 #[derive(Debug, Default)]
 struct StreamStats {
@@ -786,7 +1172,7 @@ fn check_stream(
     let chain = filters(&stream.dict)?;
     check_chain(&chain, &stream.dict, caps)?;
     let Some(n) = flate_expansion(&chain, &stream.content, caps.per_stream_bytes, meter)? else {
-        return Ok(0);
+        return check_image_header(&chain, stream, caps, meter).map(|()| 0);
     };
     if n > caps.per_stream_bytes {
         return Err(fail(
@@ -806,6 +1192,7 @@ fn check_stream(
     if ratio > stats.max_flate_ratio {
         stats.max_flate_ratio = ratio;
     }
+    check_image_header(&chain, stream, caps, meter)?;
     Ok(n)
 }
 
@@ -2438,7 +2825,8 @@ mod tests {
                             "/Type /XObject /Subtype /Image /Width {w} /Height {h} \
                              /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode"
                         ),
-                        b"\xFF\xD8\xFF\xE0junk",
+                        // Storia (gap-closure 1.5, D-08): prima `b"\xFF\xD8\xFF\xE0junk"`, JPEG senza SOF; con il controllo sul SOF un dato senza SOF è respinto, quindi la fixture benigna porta un SOF uguale alle dimensioni dichiarate.
+                        &jpeg_sof(w, h, 3),
                     ),
                 ),
             ],
@@ -3084,13 +3472,20 @@ mod tests {
     // indiretto verso il nome `/DeviceRGB`. Le fixture qui sotto riproducono quel dizionario
     // tale e quale (riferimento indiretto compreso), con `/Width 8 /Height 8`. Senza
     // FlateDecode lo stream non viene decodificato, quindi i dati non serve che siano ASCII85.
+    // Storia (gap-closure 1.5, D-08): la frase precedente non vale più. Il controllo sul SOF
+    // applica ASCII85 al prefisso dei dati anche senza FlateDecode, quindi `T_DATA` è ora
+    // l'ASCII85 valido di un JPEG con SOF 8 × 8.
 
     /// Chiavi e catena del dizionario osservato, senza dimensioni (`/ColorSpace` indiretto
     /// verso l'oggetto 6, che vale `/DeviceRGB`, come nel file reale).
     const T_OBSERVED: &str =
         "/BitsPerComponent 8 /ColorSpace 6 0 R /Filter [/ASCII85Decode /DCTDecode]";
     /// Dati della fixture: inizio di un JPEG, mai decodificato dal prescan.
-    const T_DATA: &[u8] = b"\xFF\xD8\xFF\xE0junk";
+    // Storia (gap-closure 1.5, D-08): il commento qui sopra non è più esatto. Dalla 1.5 il
+    // prescan rilegge l'intestazione (ASCII85, poi il SOF) senza decodificare l'immagine, e la
+    // fixture è l'ASCII85 di `jpeg_sof(8, 8, 3)` (`fixture_t_data_is_ascii85_of_sof_8x8`).
+    // Storia (gap-closure 1.5, D-08): prima `b"\xFF\xD8\xFF\xE0junk"`, JPEG senza SOF e nemmeno ASCII85 valido; con il controllo sul SOF un dato senza SOF è respinto, quindi la fixture benigna porta un SOF uguale alle dimensioni dichiarate.
+    const T_DATA: &[u8] = br#"s4IA0!"_al8O`[\!<<*#!!*'"s1eUH#QP,1#Qk)>!!3`4!tbP5f`~>"#;
 
     /// Una pagina con `/<referrer> 5 0 R` nel proprio dizionario e lo stream 5 con il
     /// dizionario `dict_extra` (`/Length` lo aggiunge `stream`). L'oggetto 6 è il nome
@@ -3287,5 +3682,1094 @@ mod tests {
             "{failed} su 4 pagine respinte dal prescan:\n{}",
             outcomes.join("\n")
         );
+    }
+
+    // ---- gap-closure 1.5: SOF dei DCT e SIZ dei JPX (piano 01.5-01) ----
+    //
+    // Modifica: Claude (agente test-write 01.5-01) · 2026-10-23 · test di SOF e SIZ con i
+    // bypass del test design, in coda al modulo; fuori da qui cambiano solo le due fixture
+    // D-08 (`image_doc` e `T_DATA`), con il loro commento Storia.
+    //
+    // I test usano solo API che esistono già sulla base (`check_pdf`, il report, gli helper):
+    // il modulo compila prima della correzione. Un rosso sulla base vale solo se osserva `Ok`
+    // (o un delta di lavoro diverso), mai per una costruzione fallita.
+
+    /// Finestra di lettura dell'intestazione: `IMAGE_HEADER_SCAN_BYTES` di `<interfaces>` del
+    /// piano 01.5-01, cioè 2 + 4 × 65.537 + 2 + 8 + 3 × 255 = 262.925 byte (SOI, 4 segmenti APP
+    /// pieni, intestazione di un SOF con 255 componenti). Letterale locale, perché la costante
+    /// non esiste sulla base.
+    const WINDOW: usize = 262_925;
+    /// Segmento marker JPEG di lunghezza massima, marker compreso (2 + 65.535).
+    const FULL_SEGMENT: usize = 2 + 65_535;
+    /// Dimensione enorme dei casi `over_cap`: 30000 × 30000 × 3 byte, oltre i 64 MiB.
+    const HUGE: u32 = 30_000;
+
+    /// `Failed(kind, detail)` con primo token `prefix` e secondo token `sub`.
+    fn assert_coded(
+        r: Result<PrescanReport, Rejection>,
+        kind: Kind,
+        prefix: &str,
+        sub: &str,
+    ) -> String {
+        let (k, d) = failed_of(r);
+        let mut t = d.split_whitespace();
+        assert_eq!(
+            (k, t.next(), t.next()),
+            (kind, Some(prefix), Some(sub)),
+            "detail {d:?}"
+        );
+        d
+    }
+
+    /// SOI, poi i segmenti `(marker, payload)` con la loro lunghezza, poi EOI.
+    fn jpeg_segments(segs: &[(u8, Vec<u8>)]) -> Vec<u8> {
+        let mut out = vec![0xFF, 0xD8];
+        for (m, p) in segs {
+            out.extend_from_slice(&[0xFF, *m]);
+            out.extend_from_slice(
+                &u16::try_from(p.len() + 2)
+                    .expect("segmento troppo lungo")
+                    .to_be_bytes(),
+            );
+            out.extend_from_slice(p);
+        }
+        out.extend_from_slice(&[0xFF, 0xD9]);
+        out
+    }
+
+    /// Payload di un SOF: P = 8, Y, X, Nf e Nf componenti `(id, 0x11, 0)`.
+    fn sof_payload(w: u16, h: u16, nf: u8) -> Vec<u8> {
+        let mut p = vec![8];
+        p.extend_from_slice(&h.to_be_bytes());
+        p.extend_from_slice(&w.to_be_bytes());
+        p.push(nf);
+        for c in 0..nf {
+            p.extend_from_slice(&[c + 1, 0x11, 0]);
+        }
+        p
+    }
+
+    fn sof_segment(marker: u8, w: u16, h: u16, nf: u8) -> (u8, Vec<u8>) {
+        (marker, sof_payload(w, h, nf))
+    }
+
+    /// APP0 JFIF da 16 byte (marker escluso): `JFIF\0`, versione 1.1, densità 1 × 1.
+    fn app0_jfif() -> (u8, Vec<u8>) {
+        (
+            0xE0,
+            b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00".to_vec(),
+        )
+    }
+
+    fn u16_of(v: u32) -> u16 {
+        u16::try_from(v).expect("dimensione JPEG oltre 65.535")
+    }
+
+    /// JPEG minimo: SOI, APP0 JFIF, SOF0 (`w × h × nf`), EOI.
+    fn jpeg_sof(w: u32, h: u32, nf: u8) -> Vec<u8> {
+        jpeg_segments(&[app0_jfif(), sof_segment(0xC0, u16_of(w), u16_of(h), nf)])
+    }
+
+    /// Segmenti di riempimento (APP1 pieni, poi un COM) per `total` byte esatti, marker compresi.
+    fn filler(total: usize) -> Vec<(u8, Vec<u8>)> {
+        let mut segs = Vec::new();
+        let mut left = total;
+        while left >= FULL_SEGMENT + 4 || left == FULL_SEGMENT {
+            segs.push((0xE1, vec![0x41; FULL_SEGMENT - 4]));
+            left -= FULL_SEGMENT;
+        }
+        if left > 0 {
+            assert!(
+                left >= 4,
+                "riempimento di {left} byte: un segmento ne vuole almeno 4"
+            );
+            segs.push((0xFE, vec![0x43; left - 4]));
+        }
+        segs
+    }
+
+    /// Codifica ASCII85 come `base64.a85encode` di Python (`z` per i gruppi nulli), con `~>`.
+    fn a85(data: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        for chunk in data.chunks(4) {
+            let mut word = [0u8; 4];
+            word[..chunk.len()].copy_from_slice(chunk);
+            let mut v = u32::from_be_bytes(word);
+            if chunk.len() == 4 && v == 0 {
+                out.push(b'z');
+                continue;
+            }
+            let mut digits = [0u8; 5];
+            for d in digits.iter_mut().rev() {
+                *d = (v % 85) as u8 + b'!';
+                v /= 85;
+            }
+            out.extend_from_slice(&digits[..chunk.len() + 1]);
+        }
+        out.extend_from_slice(b"~>");
+        out
+    }
+
+    /// Una pagina che disegna `/Im1` = oggetto 5, con il dizionario `dict5` scelto dal test.
+    fn page_with_stream5(dict5: &str, data: &[u8]) -> Vec<u8> {
+        build(
+            &[
+                (1, dict("<< /Type /Catalog /Pages 2 0 R >>")),
+                (2, dict("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")),
+                (
+                    3,
+                    dict(
+                        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+                         /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >>",
+                    ),
+                ),
+                (4, stream("", b"q 100 0 0 100 0 0 cm /Im1 Do Q")),
+                (5, stream(dict5, data)),
+            ],
+            "",
+        )
+    }
+
+    /// Come `image_doc`, ma con dizionario e dati scelti dal test (`/Subtype /Image`).
+    fn dct_image_doc(dict_extra: &str, data: &[u8]) -> Vec<u8> {
+        page_with_stream5(
+            &format!("/Type /XObject /Subtype /Image {dict_extra}"),
+            data,
+        )
+    }
+
+    /// Dizionario d'immagine 8 bit con dimensioni, spazio colore e filtro.
+    fn img(w: u32, h: u32, cs: &str, filter: &str) -> String {
+        format!("/Width {w} /Height {h} /ColorSpace /{cs} /BitsPerComponent 8 /Filter {filter}")
+    }
+
+    /// Esito del prescan su un `/Image` DCT con i dati dati.
+    fn dct_check(w: u32, h: u32, cs: &str, data: &[u8]) -> Result<PrescanReport, Rejection> {
+        check_pdf(&dct_image_doc(&img(w, h, cs, "/DCTDecode"), data), &caps())
+    }
+
+    /// Payload del segmento SIZ (dopo il marker e Lsiz): Rsiz, dimensioni, origini, un solo
+    /// tile, Csiz e componenti a 8 bit senza segno.
+    fn siz_payload(xsiz: u32, ysiz: u32, xo: u32, yo: u32, comps: u16) -> Vec<u8> {
+        let mut p = 0u16.to_be_bytes().to_vec();
+        for v in [xsiz, ysiz, xo, yo, xsiz, ysiz, 0, 0] {
+            p.extend_from_slice(&v.to_be_bytes());
+        }
+        p.extend_from_slice(&comps.to_be_bytes());
+        for _ in 0..comps {
+            p.extend_from_slice(&[7, 1, 1]);
+        }
+        p
+    }
+
+    /// Marker e segmento: `FF mm`, lunghezza (payload + 2), payload.
+    fn marker_segment(m: u8, payload: &[u8]) -> Vec<u8> {
+        let mut out = vec![0xFF, m];
+        out.extend_from_slice(
+            &u16::try_from(payload.len() + 2)
+                .expect("segmento lungo")
+                .to_be_bytes(),
+        );
+        out.extend_from_slice(payload);
+        out
+    }
+
+    /// COD e QCD minimi (5-3 reversibile, nessun livello di decomposizione), poi EOC.
+    fn jpx_tail() -> Vec<u8> {
+        let mut out = marker_segment(0x52, &[0, 0, 0, 1, 0, 0, 4, 4, 0, 1]);
+        out.extend_from_slice(&marker_segment(0x5C, &[0x40, 0x40]));
+        out.extend_from_slice(&[0xFF, 0xD9]);
+        out
+    }
+
+    /// Codestream con SIZ dato (origini comprese): SOC, SIZ, COD, QCD, EOC.
+    fn jpx_codestream_at(xsiz: u32, ysiz: u32, xo: u32, yo: u32, comps: u16) -> Vec<u8> {
+        let mut out = vec![0xFF, 0x4F];
+        out.extend_from_slice(&marker_segment(
+            0x51,
+            &siz_payload(xsiz, ysiz, xo, yo, comps),
+        ));
+        out.extend_from_slice(&jpx_tail());
+        out
+    }
+
+    /// Codestream nudo minimo: SOC, SIZ (`w × h × comps`, origine 0), COD, QCD, EOC.
+    fn jpx_codestream(w: u32, h: u32, comps: u16) -> Vec<u8> {
+        jpx_codestream_at(w, h, 0, 0, comps)
+    }
+
+    /// Box JP2 con LBox = lunghezza totale.
+    fn jp2_box(tbox: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+        let mut out = u32::try_from(payload.len() + 8)
+            .expect("box lungo")
+            .to_be_bytes()
+            .to_vec();
+        out.extend_from_slice(tbox);
+        out.extend_from_slice(payload);
+        out
+    }
+
+    const JP2_SIGNATURE: &[u8] = b"\x00\x00\x00\x0C\x6A\x50\x20\x20\x0D\x0A\x87\x0A";
+
+    /// File JP2: firma, i box `boxes_before` (con LBox esatto), poi `jp2c` con il codestream.
+    fn jp2_file(boxes_before: &[(&[u8; 4], Vec<u8>)], codestream: &[u8]) -> Vec<u8> {
+        let mut out = JP2_SIGNATURE.to_vec();
+        for (t, p) in boxes_before {
+            out.extend_from_slice(&jp2_box(t, p));
+        }
+        out.extend_from_slice(&jp2_box(b"jp2c", codestream));
+        out
+    }
+
+    /// `ftyp` (`jp2 `) e `jp2h` con `ihdr` e `colr` enumerato sRGB.
+    fn jp2_header_boxes(w: u32, h: u32, comps: u16) -> Vec<(&'static [u8; 4], Vec<u8>)> {
+        let mut ihdr = h.to_be_bytes().to_vec();
+        ihdr.extend_from_slice(&w.to_be_bytes());
+        ihdr.extend_from_slice(&comps.to_be_bytes());
+        ihdr.extend_from_slice(&[7, 7, 0, 0]);
+        let mut jp2h = jp2_box(b"ihdr", &ihdr);
+        jp2h.extend_from_slice(&jp2_box(b"colr", &[1, 0, 0, 0, 0, 0, 16]));
+        vec![
+            (b"ftyp", b"jp2 \x00\x00\x00\x00jp2 ".to_vec()),
+            (b"jp2h", jp2h),
+        ]
+    }
+
+    /// Esito del prescan su un `/Image` JPX (senza `/ColorSpace`) con i dati e il filtro dati.
+    fn jpx_check_with(
+        w: u32,
+        h: u32,
+        filter: &str,
+        data: &[u8],
+    ) -> Result<PrescanReport, Rejection> {
+        let d = format!("/Width {w} /Height {h} /BitsPerComponent 8 /Filter {filter}");
+        check_pdf(&dct_image_doc(&d, data), &caps())
+    }
+
+    fn jpx_check(w: u32, h: u32, data: &[u8]) -> Result<PrescanReport, Rejection> {
+        jpx_check_with(w, h, "/JPXDecode", data)
+    }
+
+    /// JPEG benigno lungo `len` byte: SOI, SOF0 `w × h × 3` subito dopo, poi segmenti COM.
+    fn long_benign_jpeg(w: u16, h: u16, len: usize) -> Vec<u8> {
+        let head = 2 + 19;
+        let segs: Vec<(u8, Vec<u8>)> = std::iter::once(sof_segment(0xC0, w, h, 3))
+            .chain(filler(len - head - 2).into_iter().map(|(_, p)| (0xFE, p)))
+            .collect();
+        let j = jpeg_segments(&segs);
+        assert_eq!(j.len(), len, "fixture: JPEG di lunghezza diversa");
+        j
+    }
+
+    // -- DCT: rifiuti di base (rossi sulla base) --
+
+    #[test]
+    fn dct_sof_larger_than_declared_is_rejected() {
+        let r = dct_check(8, 8, "DeviceRGB", &jpeg_sof(1000, 1000, 3));
+        assert_coded(r, Kind::Unsupported, "dct_sof", "larger_than_declared");
+    }
+
+    #[test]
+    fn dct_sof_over_cap_is_rejected() {
+        let r = dct_check(1, 1, "DeviceGray", &jpeg_sof(HUGE, HUGE, 3));
+        assert_coded(r, Kind::DecompressionLimit, "dct_sof", "over_cap");
+    }
+
+    #[test]
+    fn dct_sof_missing_is_rejected() {
+        let data = jpeg_segments(&[
+            app0_jfif(),
+            (0xDB, [vec![0], vec![1; 64]].concat()),
+            (0xDA, vec![1, 1, 0x00, 0, 63, 0]),
+        ]);
+        let r = dct_check(8, 8, "DeviceRGB", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "missing");
+    }
+
+    #[test]
+    fn dct_data_without_soi_is_rejected() {
+        let r = dct_check(8, 8, "DeviceRGB", b"junk");
+        assert_coded(r, Kind::Unsupported, "dct_sof", "missing");
+    }
+
+    #[test]
+    fn dct_sof_truncated_is_rejected() {
+        // SOI più i primi 5 byte di un SOF0: la fine cade dentro il segmento.
+        let r = dct_check(8, 8, "DeviceRGB", b"\xFF\xD8\xFF\xC0\x00\x11\x08");
+        assert_coded(r, Kind::Unsupported, "dct_sof", "truncated");
+    }
+
+    #[test]
+    fn dct_sof_beyond_scan_is_rejected() {
+        // SOI + 5 APP1 da 65.535 = 327.687 byte, oltre la finestra; poi il SOF uguale.
+        let mut segs: Vec<(u8, Vec<u8>)> = (0..5).map(|_| (0xE1, vec![0x41; 65_533])).collect();
+        segs.push(sof_segment(0xC0, 8, 8, 3));
+        let r = dct_check(8, 8, "DeviceRGB", &jpeg_segments(&segs));
+        assert_coded(r, Kind::Unsupported, "dct_sof", "beyond_scan");
+    }
+
+    #[test]
+    fn dct_sof_with_zero_height_is_rejected() {
+        let data = jpeg_segments(&[app0_jfif(), sof_segment(0xC0, 8, 0, 3)]);
+        let r = dct_check(8, 8, "DeviceRGB", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "invalid");
+    }
+
+    #[test]
+    fn dct_sof_inside_app_segment_does_not_hide_real_sof() {
+        // Un SOF 8 × 8 finto dentro APP1 (lo troverebbe una ricerca di byte FF C0), poi il SOF
+        // vero 1000 × 1000: la lettura per segmenti salta APP1.
+        let mut fake = b"Exif\x00\x00".to_vec();
+        fake.extend_from_slice(&marker_segment(0xC0, &sof_payload(8, 8, 3)));
+        let data = jpeg_segments(&[(0xE1, fake), sof_segment(0xC0, 1000, 1000, 3)]);
+        let r = dct_check(8, 8, "DeviceRGB", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "larger_than_declared");
+    }
+
+    #[test]
+    fn dct_sof_other_sof_markers_are_read() {
+        for m in [0xC2u8, 0xC3, 0xC9, 0xCF] {
+            let data = jpeg_segments(&[app0_jfif(), sof_segment(m, 30_000, 30_000, 3)]);
+            let (k, d) = failed_of(dct_check(1, 1, "DeviceGray", &data));
+            let mut t = d.split_whitespace();
+            assert_eq!(
+                (k, t.next(), t.next()),
+                (Kind::DecompressionLimit, Some("dct_sof"), Some("over_cap")),
+                "SOF {m:02X}: detail {d:?}"
+            );
+        }
+    }
+
+    // -- DCT: percorsi (rossi sulla base) --
+
+    #[test]
+    fn dct_sof_after_ascii85_is_checked() {
+        let pdf = subtypeless_doc(
+            "Thumb",
+            &thumb_dict("8", "8"),
+            &a85(&jpeg_sof(1000, 1000, 3)),
+        );
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::Unsupported,
+            "dct_sof",
+            "larger_than_declared",
+        );
+    }
+
+    #[test]
+    fn dct_sof_after_ascii_hex_is_checked() {
+        let d = img(1, 1, "DeviceGray", "[/ASCIIHexDecode /DCTDecode]");
+        let pdf = dct_image_doc(&d, &hex(&jpeg_sof(HUGE, HUGE, 3)));
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "dct_sof",
+            "over_cap",
+        );
+    }
+
+    #[test]
+    fn dct_sof_after_flate_is_checked() {
+        let d = img(1, 1, "DeviceGray", "[/FlateDecode /DCTDecode]");
+        let pdf = dct_image_doc(&d, &zlib(&jpeg_sof(HUGE, HUGE, 3)));
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "dct_sof",
+            "over_cap",
+        );
+    }
+
+    #[test]
+    fn dct_sof_with_bad_ascii85_is_rejected() {
+        let pdf = subtypeless_doc("Thumb", &thumb_dict("8", "8"), b"\xFF\xD8junk");
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::Unsupported,
+            "dct_sof",
+            "prefilter",
+        );
+    }
+
+    #[test]
+    fn dct_sof_on_encrypted_branch_is_checked() {
+        let plain = dct_image_doc(
+            &img(1, 1, "DeviceGray", "/DCTDecode"),
+            &jpeg_sof(HUGE, HUGE, 3),
+        );
+        let pdf = encrypt_empty_user(&plain, "--object-streams=disable");
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "dct_sof",
+            "over_cap",
+        );
+    }
+
+    // -- DCT: bypass di TEST-8 del test design (rossi sulla base) --
+
+    #[test]
+    fn dct_sof_extra_one_axis_larger_is_rejected() {
+        let r = dct_check(100, 100, "DeviceRGB", &jpeg_sof(100, 200, 3));
+        assert_coded(r, Kind::Unsupported, "dct_sof", "larger_than_declared");
+        // Assi scambiati: dichiarato 100 × 50, SOF 50 × 100.
+        let r = dct_check(100, 50, "DeviceRGB", &jpeg_sof(50, 100, 3));
+        assert_coded(r, Kind::Unsupported, "dct_sof", "larger_than_declared");
+    }
+
+    #[test]
+    fn dct_sof_extra_remaining_sof_markers_are_read() {
+        for m in [0xC1u8, 0xC5, 0xC6, 0xC7, 0xCA, 0xCB, 0xCD, 0xCE] {
+            let data = jpeg_segments(&[app0_jfif(), sof_segment(m, 30_000, 30_000, 3)]);
+            let (k, d) = failed_of(dct_check(1, 1, "DeviceGray", &data));
+            let mut t = d.split_whitespace();
+            assert_eq!(
+                (k, t.next(), t.next()),
+                (Kind::DecompressionLimit, Some("dct_sof"), Some("over_cap")),
+                "SOF {m:02X}: detail {d:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn dct_sof_extra_inconsistent_length_is_invalid() {
+        // Nf = 3 ma L = 8 + 3 × 3 + 1.
+        let mut p = sof_payload(8, 8, 3);
+        p.push(0);
+        let data = jpeg_segments(&[app0_jfif(), (0xC0, p)]);
+        let r = dct_check(8, 8, "DeviceRGB", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "invalid");
+    }
+
+    #[test]
+    fn dct_sof_extra_zero_width_or_components_is_invalid() {
+        let data = jpeg_segments(&[app0_jfif(), sof_segment(0xC0, 0, 8, 3)]);
+        assert_coded(
+            dct_check(8, 8, "DeviceRGB", &data),
+            Kind::Unsupported,
+            "dct_sof",
+            "invalid",
+        );
+        let data = jpeg_segments(&[app0_jfif(), sof_segment(0xC0, 8, 8, 0)]);
+        assert_coded(
+            dct_check(8, 8, "DeviceRGB", &data),
+            Kind::Unsupported,
+            "dct_sof",
+            "invalid",
+        );
+    }
+
+    #[test]
+    fn dct_sof_extra_non_ff_byte_and_marker_00_are_invalid() {
+        let sof = marker_segment(0xC0, &sof_payload(8, 8, 3));
+        for junk in [&b"\x12"[..], &b"\xFF\x00"[..]] {
+            let mut data = vec![0xFF, 0xD8];
+            data.extend_from_slice(junk);
+            data.extend_from_slice(&sof);
+            data.extend_from_slice(&[0xFF, 0xD9]);
+            let (k, d) = failed_of(dct_check(8, 8, "DeviceRGB", &data));
+            let mut t = d.split_whitespace();
+            assert_eq!(
+                (k, t.next(), t.next()),
+                (Kind::Unsupported, Some("dct_sof"), Some("invalid")),
+                "dopo SOI {junk:02X?}: detail {d:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn dct_sof_extra_eoi_then_huge_jpeg_is_missing() {
+        let mut data = b"\xFF\xD8\xFF\xD9".to_vec();
+        data.extend_from_slice(&jpeg_sof(HUGE, HUGE, 3));
+        let r = dct_check(1, 1, "DeviceGray", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "missing");
+    }
+
+    #[test]
+    fn dct_sof_extra_double_soi_is_missing() {
+        let mut data = b"\xFF\xD8".to_vec();
+        data.extend_from_slice(&jpeg_sof(HUGE, HUGE, 3));
+        let r = dct_check(1, 1, "DeviceGray", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "missing");
+    }
+
+    #[test]
+    fn dct_sof_extra_junk_then_huge_jpeg_is_missing() {
+        let mut data = b"junk".to_vec();
+        data.extend_from_slice(&jpeg_sof(HUGE, HUGE, 3));
+        let r = dct_check(1, 1, "DeviceGray", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "missing");
+    }
+
+    #[test]
+    fn dct_sof_extra_sof_straddling_window_is_beyond_scan() {
+        // Il SOF0 (19 byte) inizia a WINDOW - 5 e finisce oltre la finestra.
+        let mut segs = filler(WINDOW - 5 - 2);
+        segs.push(sof_segment(0xC0, 8, 8, 3));
+        let data = jpeg_segments(&segs);
+        assert_eq!(
+            data.len(),
+            WINDOW - 5 + 19 + 2,
+            "fixture: posizione del SOF"
+        );
+        let r = dct_check(8, 8, "DeviceRGB", &data);
+        assert_coded(r, Kind::Unsupported, "dct_sof", "beyond_scan");
+    }
+
+    #[test]
+    fn dct_sof_extra_ascii85_with_excess_whitespace_is_beyond_scan() {
+        // Oltre 4 × WINDOW spazi prima dei dati ASCII85: il prefisso grezzo dà 0 byte e i dati
+        // proseguono.
+        let mut data = vec![b' '; 4 * WINDOW + 1];
+        data.extend_from_slice(&a85(&jpeg_sof(8, 8, 3)));
+        let pdf = subtypeless_doc("Thumb", &thumb_dict("8", "8"), &data);
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::Unsupported,
+            "dct_sof",
+            "beyond_scan",
+        );
+    }
+
+    #[test]
+    fn dct_sof_extra_thumb_form_on_encrypted_branch_is_checked() {
+        let plain = subtypeless_doc(
+            "Thumb",
+            &thumb_dict("8", "8"),
+            &a85(&jpeg_sof(1000, 1000, 3)),
+        );
+        let pdf = encrypt_empty_user(&plain, "--object-streams=disable");
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::Unsupported,
+            "dct_sof",
+            "larger_than_declared",
+        );
+    }
+
+    #[test]
+    fn dct_sof_extra_flate_reread_counted_in_work() {
+        // La rilettura Flate del prefisso entra nel lavoro I2 (D-10): delta fra l'/Image
+        // [/FlateDecode /DCTDecode] e il gemello con il solo /FlateDecode e nessuna chiave
+        // d'immagine = min(lunghezza del JPEG, WINDOW + 1).
+        let jpeg_len = 400_000;
+        let packed = zlib(&long_benign_jpeg(100, 100, jpeg_len));
+        let image = dct_image_doc(
+            &img(100, 100, "DeviceRGB", "[/FlateDecode /DCTDecode]"),
+            &packed,
+        );
+        let twin = page_with_stream5("/Filter /FlateDecode", &packed);
+        let wi = assert_ok(check_pdf(&image, &caps())).decompress_work_bytes;
+        let wt = assert_ok(check_pdf(&twin, &caps())).decompress_work_bytes;
+        assert_eq!(
+            wi.checked_sub(wt),
+            Some(jpeg_len.min(WINDOW + 1) as u64),
+            "lavoro I2: immagine {wi}, gemello {wt}"
+        );
+    }
+
+    // -- JPX (D-09): rossi sulla base --
+
+    #[test]
+    fn jpx_siz_larger_than_declared_is_rejected() {
+        let r = jpx_check(8, 8, &jpx_codestream(1000, 1000, 3));
+        assert_coded(r, Kind::Unsupported, "jpx_siz", "larger_than_declared");
+    }
+
+    #[test]
+    fn jpx_siz_over_cap_is_rejected() {
+        let r = jpx_check(1, 1, &jpx_codestream(HUGE, HUGE, 3));
+        assert_coded(r, Kind::DecompressionLimit, "jpx_siz", "over_cap");
+    }
+
+    #[test]
+    fn jpx_siz_in_jp2_box_is_checked() {
+        let jp2 = jp2_file(
+            &jp2_header_boxes(HUGE, HUGE, 3),
+            &jpx_codestream(HUGE, HUGE, 3),
+        );
+        assert_coded(
+            jpx_check(1, 1, &jp2),
+            Kind::DecompressionLimit,
+            "jpx_siz",
+            "over_cap",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_missing_is_rejected() {
+        assert_coded(
+            jpx_check(8, 8, b"junk"),
+            Kind::Unsupported,
+            "jpx_siz",
+            "missing",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_not_first_marker_is_invalid() {
+        // SOC, poi COD, poi il SIZ.
+        let mut data = vec![0xFF, 0x4F];
+        data.extend_from_slice(&marker_segment(0x52, &[0, 0, 0, 1, 0, 0, 4, 4, 0, 1]));
+        data.extend_from_slice(&marker_segment(0x51, &siz_payload(8, 8, 0, 0, 3)));
+        data.extend_from_slice(&[0xFF, 0xD9]);
+        assert_coded(
+            jpx_check(8, 8, &data),
+            Kind::Unsupported,
+            "jpx_siz",
+            "invalid",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_truncated_is_rejected() {
+        let cs = jpx_codestream(8, 8, 3);
+        let siz_len = 2 + 2 + 38 + 3 * 3;
+        let data = &cs[..2 + siz_len / 2];
+        assert_coded(
+            jpx_check(8, 8, data),
+            Kind::Unsupported,
+            "jpx_siz",
+            "truncated",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_origin_beyond_size_is_invalid() {
+        let r = jpx_check(8, 8, &jpx_codestream_at(8, 8, 8, 0, 3));
+        assert_coded(r, Kind::Unsupported, "jpx_siz", "invalid");
+    }
+
+    #[test]
+    fn jpx_siz_zero_components_is_invalid() {
+        // Csiz = 0 con Lsiz = 38.
+        let r = jpx_check(8, 8, &jpx_codestream(8, 8, 0));
+        assert_coded(r, Kind::Unsupported, "jpx_siz", "invalid");
+    }
+
+    #[test]
+    fn jpx_siz_bad_box_length_is_invalid() {
+        // Box `xml ` con LBox = 4 prima di un jp2c con SIZ uguale al dichiarato.
+        let mut jp2 = JP2_SIGNATURE.to_vec();
+        jp2.extend_from_slice(b"\x00\x00\x00\x04xml ");
+        jp2.extend_from_slice(&jp2_box(b"jp2c", &jpx_codestream(8, 8, 3)));
+        assert_coded(
+            jpx_check(8, 8, &jp2),
+            Kind::Unsupported,
+            "jpx_siz",
+            "invalid",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_beyond_scan_in_jp2_is_rejected() {
+        let jp2 = jp2_file(&[(b"xml ", vec![b' '; 300_000])], &jpx_codestream(8, 8, 3));
+        assert_coded(
+            jpx_check(8, 8, &jp2),
+            Kind::Unsupported,
+            "jpx_siz",
+            "beyond_scan",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_after_flate_is_checked() {
+        let data = zlib(&jpx_codestream(HUGE, HUGE, 3));
+        let r = jpx_check_with(1, 1, "[/FlateDecode /JPXDecode]", &data);
+        assert_coded(r, Kind::DecompressionLimit, "jpx_siz", "over_cap");
+    }
+
+    // -- JPX aggiuntivi di TEST-22 del test design (rossi sulla base) --
+
+    #[test]
+    fn jpx_siz_extra_inconsistent_lsiz_is_invalid() {
+        // Csiz = 3 e Lsiz = 38 + 3 × 3 + 3 = 50.
+        let mut p = siz_payload(8, 8, 0, 0, 3);
+        p.extend_from_slice(&[7, 1, 1]);
+        let mut data = vec![0xFF, 0x4F];
+        data.extend_from_slice(&marker_segment(0x51, &p));
+        data.extend_from_slice(&jpx_tail());
+        assert_coded(
+            jpx_check(8, 8, &data),
+            Kind::Unsupported,
+            "jpx_siz",
+            "invalid",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_extra_xlbox_jp2c_is_checked() {
+        // jp2c con LBox = 1 e XLBox esatto (intestazione di 16 byte).
+        let cs = jpx_codestream(HUGE, HUGE, 3);
+        let mut jp2 = JP2_SIGNATURE.to_vec();
+        for (t, p) in jp2_header_boxes(HUGE, HUGE, 3) {
+            jp2.extend_from_slice(&jp2_box(t, &p));
+        }
+        jp2.extend_from_slice(&1u32.to_be_bytes());
+        jp2.extend_from_slice(b"jp2c");
+        jp2.extend_from_slice(&(16 + cs.len() as u64).to_be_bytes());
+        jp2.extend_from_slice(&cs);
+        assert_coded(
+            jpx_check(1, 1, &jp2),
+            Kind::DecompressionLimit,
+            "jpx_siz",
+            "over_cap",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_extra_xlbox_overflow_is_invalid() {
+        // Box `uuid` con LBox = 1 e XLBox = u64::MAX prima di un jp2c uguale al dichiarato.
+        let mut jp2 = JP2_SIGNATURE.to_vec();
+        jp2.extend_from_slice(&1u32.to_be_bytes());
+        jp2.extend_from_slice(b"uuid");
+        jp2.extend_from_slice(&u64::MAX.to_be_bytes());
+        jp2.extend_from_slice(&[0x55; 16]);
+        jp2.extend_from_slice(&jp2_box(b"jp2c", &jpx_codestream(8, 8, 3)));
+        assert_coded(
+            jpx_check(8, 8, &jp2),
+            Kind::Unsupported,
+            "jpx_siz",
+            "invalid",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_extra_lbox_zero_not_jp2c_is_missing() {
+        // Box `xml ` con LBox = 0 (arriverebbe alla fine dei dati), seguito da byte qualsiasi.
+        let mut jp2 = JP2_SIGNATURE.to_vec();
+        jp2.extend_from_slice(b"\x00\x00\x00\x00xml ");
+        jp2.extend_from_slice(b"<a/>");
+        jp2.extend_from_slice(&jp2_box(b"jp2c", &jpx_codestream(8, 8, 3)));
+        assert_coded(
+            jpx_check(8, 8, &jp2),
+            Kind::Unsupported,
+            "jpx_siz",
+            "missing",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_extra_one_axis_larger_is_rejected() {
+        let r = jpx_check(100, 100, &jpx_codestream(100, 200, 3));
+        assert_coded(r, Kind::Unsupported, "jpx_siz", "larger_than_declared");
+    }
+
+    #[test]
+    fn jpx_siz_extra_on_encrypted_branch_is_checked() {
+        let d = "/Width 1 /Height 1 /BitsPerComponent 8 /Filter /JPXDecode";
+        let plain = dct_image_doc(d, &jpx_codestream(HUGE, HUGE, 3));
+        let pdf = encrypt_empty_user(&plain, "--object-streams=disable");
+        assert_coded(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "jpx_siz",
+            "over_cap",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_extra_after_ascii_hex_is_checked() {
+        let data = hex(&jpx_codestream(HUGE, HUGE, 3));
+        let r = jpx_check_with(1, 1, "[/ASCIIHexDecode /JPXDecode]", &data);
+        assert_coded(r, Kind::DecompressionLimit, "jpx_siz", "over_cap");
+    }
+
+    #[test]
+    fn jpx_siz_extra_siz_marker_cut_by_window_is_beyond_scan() {
+        // Il contenuto di jp2c inizia a WINDOW - 3: nella finestra restano SOC e un solo byte
+        // del marker SIZ, mentre i dati proseguono.
+        let xml_payload = WINDOW - 3 - JP2_SIGNATURE.len() - 8 - 8;
+        let jp2 = jp2_file(
+            &[(b"xml ", vec![b' '; xml_payload])],
+            &jpx_codestream(8, 8, 3),
+        );
+        assert_eq!(
+            &jp2[WINDOW - 3..WINDOW],
+            b"\xFF\x4F\xFF",
+            "fixture: posizione del SIZ"
+        );
+        assert_coded(
+            jpx_check(8, 8, &jp2),
+            Kind::Unsupported,
+            "jpx_siz",
+            "beyond_scan",
+        );
+    }
+
+    // -- verdi sulla base e dopo: confini benigni --
+
+    #[test]
+    fn dct_sof_equal_to_declared_passes() {
+        assert_ok(dct_check(64, 48, "DeviceRGB", &jpeg_sof(64, 48, 3)));
+    }
+
+    #[test]
+    fn dct_sof_smaller_than_declared_passes() {
+        assert_ok(dct_check(100, 100, "DeviceRGB", &jpeg_sof(50, 50, 3)));
+    }
+
+    #[test]
+    fn dct_sof_after_large_app_segments_within_scan_passes() {
+        // SOI, 3 APP pieni (JFIF, EXIF, XMP o ICC), poi il SOF uguale: entro la finestra.
+        let mut segs: Vec<(u8, Vec<u8>)> = [0xE0u8, 0xE1, 0xE2]
+            .iter()
+            .map(|m| (*m, vec![0x41; 65_533]))
+            .collect();
+        segs.push(sof_segment(0xC0, 64, 48, 3));
+        assert_ok(dct_check(64, 48, "DeviceRGB", &jpeg_segments(&segs)));
+    }
+
+    #[test]
+    fn dct_sof_after_exif_thumbnail_sof_passes() {
+        // APP1 EXIF con una miniatura JPEG il cui SOF è enorme, poi il SOF vero uguale.
+        let mut exif = b"Exif\x00\x00".to_vec();
+        exif.extend_from_slice(&jpeg_sof(HUGE, HUGE, 3));
+        let data = jpeg_segments(&[(0xE1, exif), sof_segment(0xC0, 64, 48, 3)]);
+        assert_ok(dct_check(64, 48, "DeviceRGB", &data));
+    }
+
+    #[test]
+    fn dct_sof_flate_benign_keeps_work_within_bound() {
+        let c = caps();
+        let plain = dct_image_doc(
+            &img(100, 100, "DeviceRGB", "[/FlateDecode /DCTDecode]"),
+            &zlib(&long_benign_jpeg(100, 100, 400_000)),
+        );
+        assert_work_unencrypted(&assert_ok(check_pdf(&plain, &c)), &c);
+        let enc = encrypt_empty_user(&plain, "--object-streams=disable");
+        assert_work_encrypted(&assert_ok(check_pdf(&enc, &c)), &c);
+    }
+
+    #[test]
+    fn fixture_t_data_is_ascii85_of_sof_8x8() {
+        assert_eq!(T_DATA, a85(&jpeg_sof(8, 8, 3)).as_slice());
+        let decoded = ascii85(T_DATA).unwrap_or_else(|e| panic!("T_DATA non è ASCII85: {e:?}"));
+        assert_eq!(decoded, jpeg_sof(8, 8, 3));
+    }
+
+    #[test]
+    fn fixture_image_doc_carries_sof_equal_to_declared() {
+        let doc = lopdf_doc(&image_doc(100, 100));
+        let data = match doc.get_object((5, 0)) {
+            Ok(Object::Stream(s)) => s.content.clone(),
+            other => panic!("oggetto 5 non è uno stream: {other:?}"),
+        };
+        assert_eq!(data, jpeg_sof(100, 100, 3));
+        assert_eq!(
+            &data[2 + 18..2 + 18 + 9],
+            b"\xFF\xC0\x00\x11\x08\x00\x64\x00\x64"
+        );
+    }
+
+    #[test]
+    fn dct_sof_boundary_dht_dac_jpg_payload_not_sof() {
+        // Payload a forma di SOF enorme in DHT (C4), DAC (CC) e JPG (C8): non sono SOF.
+        let shaped = sof_payload(30_000, 30_000, 3);
+        let data = jpeg_segments(&[
+            (0xC4, shaped.clone()),
+            (0xCC, shaped.clone()),
+            (0xC8, shaped),
+            sof_segment(0xC0, 64, 48, 3),
+        ]);
+        assert_ok(dct_check(64, 48, "DeviceRGB", &data));
+    }
+
+    #[test]
+    fn dct_sof_boundary_first_of_two_sofs_wins() {
+        // Caratterizzazione: decide il primo SOF (libjpeg rifiuta un secondo SOF prima di SOS).
+        let data = jpeg_segments(&[
+            sof_segment(0xC0, 64, 48, 3),
+            sof_segment(0xC0, 30_000, 30_000, 3),
+        ]);
+        assert_ok(dct_check(64, 48, "DeviceRGB", &data));
+    }
+
+    #[test]
+    fn dct_sof_boundary_sof_ending_at_window_passes() {
+        let mut segs = filler(WINDOW - 19 - 2);
+        segs.push(sof_segment(0xC0, 64, 48, 3));
+        let data = jpeg_segments(&segs);
+        assert_eq!(
+            &data[WINDOW - 19..WINDOW - 17],
+            b"\xFF\xC0",
+            "fixture: posizione del SOF"
+        );
+        assert!(
+            data.len() > WINDOW,
+            "fixture: i dati proseguono oltre la finestra"
+        );
+        assert_ok(dct_check(64, 48, "DeviceRGB", &data));
+    }
+
+    #[test]
+    fn dct_sof_boundary_many_empty_segments_pass() {
+        let mut segs: Vec<(u8, Vec<u8>)> = (0..60_000).map(|_| (0xFE, Vec::new())).collect();
+        segs.push(sof_segment(0xC0, 64, 48, 3));
+        assert_ok(dct_check(64, 48, "DeviceRGB", &jpeg_segments(&segs)));
+    }
+
+    #[test]
+    fn dct_sof_boundary_one_axis_smaller_passes() {
+        assert_ok(dct_check(100, 100, "DeviceRGB", &jpeg_sof(100, 50, 3)));
+    }
+
+    #[test]
+    fn dct_sof_boundary_dct_abbreviation_stays_unsupported() {
+        let pdf = dct_image_doc(&img(64, 48, "DeviceRGB", "/DCT"), &jpeg_sof(64, 48, 3));
+        let (k, d) = failed_of(check_pdf(&pdf, &caps()));
+        assert_eq!((k, d.as_str()), (Kind::Unsupported, "filter DCT"));
+    }
+
+    #[test]
+    fn dct_sof_flate_bomb_keeps_decompression_limit() {
+        // TEST-19: una bomba Flate oltre per_stream_bytes davanti a DCTDecode resta per_stream.
+        let pdf = dct_image_doc(
+            &img(1, 1, "DeviceGray", "[/FlateDecode /DCTDecode]"),
+            &zlib_zeros(MIB + 1),
+        );
+        assert_failed(
+            check_pdf(&pdf, &caps()),
+            Kind::DecompressionLimit,
+            "per_stream",
+        );
+    }
+
+    #[test]
+    fn jpx_siz_equal_to_declared_passes() {
+        assert_ok(jpx_check(64, 48, &jpx_codestream(64, 48, 3)));
+    }
+
+    #[test]
+    fn jpx_siz_in_jp2_equal_passes() {
+        let jp2 = jp2_file(&jp2_header_boxes(64, 48, 3), &jpx_codestream(64, 48, 3));
+        assert_ok(jpx_check(64, 48, &jp2));
+    }
+
+    #[test]
+    fn jpx_siz_with_origin_offset_within_declared_passes() {
+        // Xsiz − XOsiz = 64 e Ysiz − YOsiz = 48: si confronta la differenza, non Xsiz.
+        assert_ok(jpx_check(
+            64,
+            48,
+            &jpx_codestream_at(1064, 1048, 1000, 1000, 3),
+        ));
+    }
+
+    #[test]
+    fn jpx_siz_extra_first_of_two_jp2c_wins() {
+        // Caratterizzazione: decide il primo jp2c, come in OpenJPEG.
+        let mut jp2 = jp2_file(&jp2_header_boxes(64, 48, 3), &jpx_codestream(64, 48, 3));
+        jp2.extend_from_slice(&jp2_box(b"jp2c", &jpx_codestream(HUGE, HUGE, 3)));
+        assert_ok(jpx_check(64, 48, &jp2));
+    }
+
+    #[test]
+    fn jpx_siz_extra_first_codestream_wins_over_trailing_data() {
+        // Caratterizzazione: dopo il SIZ la lettura si ferma, il secondo SOC non conta.
+        let mut data = jpx_codestream(64, 48, 3);
+        data.extend_from_slice(&jpx_codestream(HUGE, HUGE, 3));
+        assert_ok(jpx_check(64, 48, &data));
+    }
+
+    // -- D-03: nessun nuovo falso positivo sui corpora reali (#[ignore], nel runner) --
+
+    /// Stream la cui catena finisce con `DCTDecode` e con `JPXDecode` (per i conteggi).
+    fn image_stream_counts(bytes: &[u8]) -> (u32, u32) {
+        let Ok(doc) = Document::load_mem(bytes) else {
+            return (0, 0);
+        };
+        let mut dct = 0;
+        let mut jpx = 0;
+        for o in doc.objects.values() {
+            if let Object::Stream(s) = o
+                && let Ok(chain) = filters(&s.dict)
+            {
+                match chain.last().map(Vec::as_slice) {
+                    Some(b"DCTDecode") => dct += 1,
+                    Some(b"JPXDecode") => jpx += 1,
+                    _ => {}
+                }
+            }
+        }
+        (dct, jpx)
+    }
+
+    /// `check_pdf` con `Caps::default()` su ogni file; stampa la riga `<tag>: …` e fallisce
+    /// se un file è respinto o se i file non sono `attesi`.
+    fn assert_corpus_passes(tag: &str, files: &[(String, PathBuf)], attesi: usize, fetch: &str) {
+        let mut ok = 0;
+        let (mut dct, mut jpx) = (0, 0);
+        let mut rejected = Vec::new();
+        for (id, path) in files {
+            let bytes = std::fs::read(path)
+                .unwrap_or_else(|e| panic!("{id}: file assente ({e}); lanciare {fetch}"));
+            let (d, j) = image_stream_counts(&bytes);
+            dct += d;
+            jpx += j;
+            match check_pdf(&bytes, &Caps::default()) {
+                Ok(_) => ok += 1,
+                Err(e) => rejected.push(format!("{id}: {e:?}")),
+            }
+        }
+        eprintln!(
+            "{tag}: {ok} su {} ok, stream_dct={dct} stream_jpx={jpx}",
+            files.len()
+        );
+        assert_eq!(
+            files.len(),
+            attesi,
+            "{tag}: file trovati diversi dagli attesi"
+        );
+        assert!(
+            rejected.is_empty(),
+            "{tag}: PDF respinti:\n{}",
+            rejected.join("\n")
+        );
+    }
+
+    #[test]
+    #[ignore = "richiede spikes/data/s02/raw (fetch.sh di 01-08)"]
+    fn s02_corpus_pdfs_pass_prescan() {
+        let root = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../data/s02"));
+        let manifest = std::fs::read(root.join("manifest.json")).expect("manifest.json di s02");
+        let entries: serde_json::Value =
+            serde_json::from_slice(&manifest).expect("manifest.json non è JSON");
+        let files: Vec<(String, PathBuf)> = entries
+            .as_array()
+            .expect("manifest.json non è un array")
+            .iter()
+            .filter(|e| e["role"] == "pdf")
+            .map(|e| {
+                (
+                    e["item_id"].as_str().unwrap_or("?").to_owned(),
+                    root.join("raw")
+                        .join(e["file"].as_str().expect("voce senza file")),
+                )
+            })
+            .collect();
+        assert_corpus_passes("s02", &files, 63, "spikes/data/s02/fetch.sh");
+    }
+
+    #[test]
+    #[ignore = "richiede spikes/data/corpus/raw (fetch.sh di 01-03)"]
+    fn corpus_pdfs_pass_prescan() {
+        let raw = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../data/corpus/raw"));
+        let mut files: Vec<(String, PathBuf)> = std::fs::read_dir(&raw)
+            .unwrap_or_else(|e| panic!("{e}; lanciare spikes/data/corpus/fetch.sh"))
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "pdf"))
+            .map(|p| {
+                let id = p
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                (id, p)
+            })
+            .collect();
+        files.sort();
+        assert_corpus_passes("corpus", &files, 10, "spikes/data/corpus/fetch.sh");
     }
 }

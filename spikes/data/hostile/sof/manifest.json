@@ -1,0 +1,159 @@
+[
+  {
+    "case_id": "dct-sof-huge-image",
+    "file": "dct-sof-huge-image.pdf",
+    "generator_args": [
+      "--only",
+      "dct-sof-huge-image"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "expected_detail": "dct_sof over_cap",
+    "declared": {
+      "width": 1,
+      "height": 1
+    },
+    "coded": {
+      "width": 30000,
+      "height": 30000,
+      "components": 3
+    },
+    "sha256": "df16c5cb575c712c0776f79c8d8d2924e9f5b34f30cd17df7d664b4eba082335"
+  },
+  {
+    "case_id": "dct-sof-huge-thumb",
+    "file": "dct-sof-huge-thumb.pdf",
+    "generator_args": [
+      "--only",
+      "dct-sof-huge-thumb"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "expected_detail": "dct_sof over_cap",
+    "declared": {
+      "width": 74,
+      "height": 105
+    },
+    "coded": {
+      "width": 30000,
+      "height": 30000,
+      "components": 3
+    },
+    "sha256": "d4e3f46c3f0468bcee50b47a8ca5c7866363d88e52b7f3a4722207c5c31536d5"
+  },
+  {
+    "case_id": "dct-sof-flate-huge",
+    "file": "dct-sof-flate-huge.pdf",
+    "generator_args": [
+      "--only",
+      "dct-sof-flate-huge"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "expected_detail": "dct_sof over_cap",
+    "declared": {
+      "width": 1,
+      "height": 1
+    },
+    "coded": {
+      "width": 30000,
+      "height": 30000,
+      "components": 3
+    },
+    "sha256": "99655041a46d229842034e0b00033440bc0f9d67720d2244166163a17a177c3c"
+  },
+  {
+    "case_id": "dct-sof-larger-within-cap",
+    "file": "dct-sof-larger-within-cap.pdf",
+    "generator_args": [
+      "--only",
+      "dct-sof-larger-within-cap"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Unsupported"
+    ],
+    "expected_detail": "dct_sof larger_than_declared",
+    "declared": {
+      "width": 16,
+      "height": 16
+    },
+    "coded": {
+      "width": 4000,
+      "height": 4000,
+      "components": 3
+    },
+    "sha256": "d33acf41612510affa5f868a93b593b47fde9cee6620104706131391a1ac35a5"
+  },
+  {
+    "case_id": "dct-sof-missing",
+    "file": "dct-sof-missing.pdf",
+    "generator_args": [
+      "--only",
+      "dct-sof-missing"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "Unsupported"
+    ],
+    "expected_detail": "dct_sof missing",
+    "declared": {
+      "width": 8,
+      "height": 8
+    },
+    "coded": null,
+    "sha256": "c86b82b93d5105c9bb5436c35327248a2bdba3de293efc9a2b983519e15a91b7"
+  },
+  {
+    "case_id": "jpx-siz-huge-image",
+    "file": "jpx-siz-huge-image.pdf",
+    "generator_args": [
+      "--only",
+      "jpx-siz-huge-image"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "expected_detail": "jpx_siz over_cap",
+    "declared": {
+      "width": 1,
+      "height": 1
+    },
+    "coded": {
+      "width": 30000,
+      "height": 30000,
+      "components": 3
+    },
+    "sha256": "acb04a4e28219200c2483a24870b19aba50fcbc7bb5fd7689e41b1a958780573"
+  },
+  {
+    "case_id": "jpx-siz-huge-jp2",
+    "file": "jpx-siz-huge-jp2.pdf",
+    "generator_args": [
+      "--only",
+      "jpx-siz-huge-jp2"
+    ],
+    "expected_status": "failed",
+    "expected_kind_or_reasons": [
+      "DecompressionLimit"
+    ],
+    "expected_detail": "jpx_siz over_cap",
+    "declared": {
+      "width": 1,
+      "height": 1
+    },
+    "coded": {
+      "width": 30000,
+      "height": 30000,
+      "components": 3
+    },
+    "sha256": "9d6d1225ef02f9b3396611b372f54cbbf3f1f0de216b7726230d7f2c5888eccb"
+  }
+]

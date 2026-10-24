@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-23T14:41:00.692Z"
-last_activity: 2026-10-23 — fase 1.4 verificata (passed) e chiusa; fase 1 in onda 7
+last_updated: "2026-10-24T12:32:48.629Z"
+last_activity: 2026-10-24 — fase 1.5 verificata (passed) e chiusa; fase 1 riprende con 01-13
 progress:
-  total_phases: 19
-  completed_phases: 4
-  total_plans: 23
-  completed_plans: 18
-  percent: 21
+  total_phases: 20
+  completed_phases: 5
+  total_plans: 24
+  completed_plans: 19
+  percent: 25
 ---
 
 # Project State
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 Phase: 1 of 15 (Spike tecnici)
 Plan: 13 of 18 in current phase
 Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-23 — fase 1.4 verificata (passed) e chiusa; fase 1 in onda 7
+Last activity: 2026-10-24 — fase 1.5 verificata (passed) e chiusa; fase 1 riprende con 01-13
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -39,7 +39,7 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 | 01.2 | 1 | - | - |
 | 01.3 | 1 | - | - |
 | 01.4 | 2 | - | - |
+| 01.5 | 1 | - | - |
 
 **Recent Trend:**
 
@@ -140,6 +141,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: D-27 chiusa con l'opzione 4 (D-36), riavvio Docling e precisione pagine-tabella aperti per l'ADR di ingestion; falso positivo del prescan alla 1.4 (D-37) → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - [Phase ?]: Modello di embedding bge-m3 su TEI CUDA (D-38, emenda D-14): nDCG@10 0,723 contro Qwen3 0,660 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - [Phase ?]: 1.4: DOCX ostili non deterministici per timestamp zip (D-11); M10 non ripetuta dopo ricalibrazione, 2 job con margine 8% (D-12) → `phases/01.4-gap-closure-driver-di-misura-di-01-07-pulizia-di-budget-sul-/01.4-CONTEXT.md#decisioni`
+- [Phase ?]: 1.5: tetto delle immagini DCT e JPX sulle dimensioni codificate SOF/SIZ (D-39, D-09); inline debito fase 3; ocr_render obbligo di 01-13 → `phases/01.5-gap-closure-prescan-tetto-delle-immagini-dct-sul-sof-del-jpe/01.5-CONTEXT.md#decisioni`
 
 ### Pending Todos
 
