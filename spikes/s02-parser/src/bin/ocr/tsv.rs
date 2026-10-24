@@ -1,9 +1,11 @@
 //! Parser del TSV di Tesseract (piano 01-13, TEST-8).
 //!
-//! STUB del test-write (2026-10-23): corpo `todo!()` scritto dall'esecutore del Task 2.
-//! Colonne attese ([NV] RESEARCH §11.6): `level page_num block_num par_num line_num word_num
-//! left top width height conf text`; si tengono le sole righe di livello 5 (parole), coordinate
-//! in pixel con origine in alto a sinistra.
+//! Colonne attese ([NV] RESEARCH §11.6, verificato sull'header reale di Tesseract 5.5.0 in
+//! RISULTATI-ocr.md §Setup): `level page_num block_num par_num line_num word_num left top width
+//! height conf text`; si tengono le sole righe di livello 5 (parole) con testo non vuoto,
+//! coordinate in pixel con origine in alto a sinistra.
+//!
+//! **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · corpo di `parse_tsv` (Task 2)
 
 /// Parola OCR in pixel.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -22,9 +24,69 @@ pub(crate) struct Word {
 }
 
 /// Parole di livello 5 con testo non vuoto; header diverso da quello atteso → `Err`.
-pub(crate) fn parse_tsv(_text: &str) -> Result<Vec<Word>, String> {
-    todo!("01-13 Task 2: parse_tsv")
+pub(crate) fn parse_tsv(text: &str) -> Result<Vec<Word>, String> {
+    let mut lines = text.lines();
+    let header = lines.next().ok_or("tsv vuoto")?;
+    if header.trim_end_matches('\r') != HEADER_FIELDS.join("\t") {
+        return Err(format!("header tsv inatteso: {header:?}"));
+    }
+    let mut out = Vec::new();
+    for (i, raw) in lines.enumerate() {
+        let line = raw.trim_end_matches('\r');
+        if line.is_empty() {
+            continue;
+        }
+        // Il testo è l'ultima colonna e può contenere spazi, mai tab.
+        let f: Vec<&str> = line.splitn(HEADER_FIELDS.len(), '\t').collect();
+        if f.len() != HEADER_FIELDS.len() {
+            return Err(format!(
+                "riga {}: {} colonne su {}",
+                i + 2,
+                f.len(),
+                HEADER_FIELDS.len()
+            ));
+        }
+        let num = |k: usize| -> Result<u32, String> {
+            f[k].parse::<u32>()
+                .map_err(|e| format!("riga {}: colonna {}: {e}", i + 2, HEADER_FIELDS[k]))
+        };
+        if num(0)? != 5 || f[11].trim().is_empty() {
+            continue;
+        }
+        out.push(Word {
+            page: num(1)?,
+            block: num(2)?,
+            par: num(3)?,
+            line: num(4)?,
+            word: num(5)?,
+            left: num(6)?,
+            top: num(7)?,
+            width: num(8)?,
+            height: num(9)?,
+            conf: f[10]
+                .parse::<f64>()
+                .map_err(|e| format!("riga {}: conf: {e}", i + 2))?,
+            text: f[11].to_owned(),
+        });
+    }
+    Ok(out)
 }
+
+/// Header del TSV di Tesseract.
+pub(crate) const HEADER_FIELDS: [&str; 12] = [
+    "level",
+    "page_num",
+    "block_num",
+    "par_num",
+    "line_num",
+    "word_num",
+    "left",
+    "top",
+    "width",
+    "height",
+    "conf",
+    "text",
+];
 
 #[cfg(test)]
 mod tests {

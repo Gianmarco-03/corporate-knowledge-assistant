@@ -4,7 +4,7 @@
 # del lock (Task 1, checkpoint bloccante): prima della risposta nessuna build.
 #
 # - base per digest, lo stesso scritto in testa a docker/paddle-requirements.lock;
-# - un solo pip install, dal solo lock e con --require-hashes: nessun pacchetto fuori lock;
+# - una sola installazione con pip, dal solo lock e con --require-hashes: nessun pacchetto fuori lock;
 # - cache dei modelli di PaddleX in /opt/paddle-models (variabile PADDLE_PDX_CACHE_HOME,
 #   [NV] nome verificato in build: lo step di selezione fallisce se i modelli non finiscono
 #   sotto /opt/paddle-models);

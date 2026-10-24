@@ -1,7 +1,9 @@
-//! `score`, `hostile-verdict` e regole di giudizio del piano 01-13 (TEST-2..6, 9, 11, 13, 15).
+//! `score`, `hostile-verdict`, `throughput-row`, `paddle-check` e regole di giudizio del piano
+//! 01-13 (TEST-2..6, 9, 11, 13, 15).
 //!
-//! STUB del test-write (2026-10-23): firme e tipi sono il contratto dei test; i corpi `todo!()`
-//! li scrive l'esecutore del Task 2. Le regole sono quelle delle «Soglie» del piano:
+//! Firme e tipi delle regole sono il contratto dei test del test-write (2026-10-23); i corpi
+//! e i sottocomandi li scrive l'esecutore del Task 2. Le regole sono quelle delle «Soglie» di
+//! `RISULTATI-ocr.md`:
 //! - CER solo sugli oracoli `parser-it.json` con i tre assi verdi (`claude` valorizzato,
 //!   `gpt` = `CONFIRMED`, `user` = `ratified`), normalizzazione di 01-08;
 //! - fedeltà bbox: `reference=analytic` sempre giudicata, `reference=pdfium` `non_valutabile`
@@ -10,35 +12,96 @@
 //! - conformità di un batch OCR col metodo di M10 di 01-18, prenotazione di 01-07 v6;
 //! - controlli PaddleOCR: selezione v6 esplicita, famiglia `PP-OCRv6_`, manifest dei pesi,
 //!   confronto sessione/build.
+//!
+//! I sottocomandi girano nel runner su dati derivati (mai come figli isolati) e leggono i
+//! percorsi del worker (`/results/raw/...`) rimappati con `--results-raw`.
+//!
+//! **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · corpi delle regole e sottocomandi (Task 2)
 #![allow(dead_code)]
+// Il test a tabella di `m10_pass` usa `Vec<(&str, Box<dyn Fn(&mut BatchObs)>)>`: il blocco di test
+// è del test-write e non si tocca, quindi la regola si spegne a livello di modulo.
+#![allow(clippy::type_complexity)]
 
+use std::collections::BTreeMap;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, bail};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use unicode_normalization::UnicodeNormalization;
+
+use crate::geom::{self, Transform};
+use crate::tsv::Word;
 
 // ---- CER ---------------------------------------------------------------------------------
 
 /// NFC, spazi bianchi collassati in uno, bordi rimossi (come `normalize_text` di 01-08).
-pub(crate) fn normalize_text(_s: &str) -> String {
-    todo!("01-13 Task 2: normalize_text")
+pub(crate) fn normalize_text(s: &str) -> String {
+    let nfc: String = s.nfc().collect();
+    nfc.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Distanza di Levenshtein sui caratteri (due righe di memoria).
+pub(crate) fn levenshtein(a: &[char], b: &[char]) -> usize {
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut cur = vec![0usize; b.len() + 1];
+    for (i, ca) in a.iter().enumerate() {
+        cur[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let sub = prev[j] + usize::from(ca != cb);
+            cur[j + 1] = sub.min(prev[j + 1] + 1).min(cur[j] + 1);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[b.len()]
 }
 
 /// CER = distanza di edit sui caratteri normalizzati / caratteri attesi.
-pub(crate) fn cer(_expected: &str, _predicted: &str) -> f64 {
-    todo!("01-13 Task 2: cer")
+pub(crate) fn cer(expected: &str, predicted: &str) -> f64 {
+    let e: Vec<char> = normalize_text(expected).chars().collect();
+    let p: Vec<char> = normalize_text(predicted).chars().collect();
+    if e.is_empty() {
+        return if p.is_empty() { 0.0 } else { 1.0 };
+    }
+    levenshtein(&e, &p) as f64 / e.len() as f64
 }
 
 /// Voce dell'oracolo con i tre assi verdi.
-pub(crate) fn three_green(_entry: &Value) -> bool {
-    todo!("01-13 Task 2: three_green")
+pub(crate) fn three_green(entry: &Value) -> bool {
+    let g = &entry["guardrail"];
+    g["claude"].as_str().is_some_and(|c| !c.trim().is_empty())
+        && g["gpt"].as_str() == Some("CONFIRMED")
+        && g["user"].as_str() == Some("ratified")
 }
 
 /// Voci utilizzabili e numero di voci pendenti escluse e contate.
-pub(crate) fn usable_oracles(_entries: &[Value]) -> (Vec<&Value>, usize) {
-    todo!("01-13 Task 2: usable_oracles")
+pub(crate) fn usable_oracles(entries: &[Value]) -> (Vec<&Value>, usize) {
+    let ok: Vec<&Value> = entries.iter().filter(|e| three_green(e)).collect();
+    let excluded = entries.len() - ok.len();
+    (ok, excluded)
 }
 
 /// Testo di una pagina dall'output JSON di PaddleOCR (`rec_texts`, nell'ordine).
-pub(crate) fn paddle_text(_out: &Value) -> Result<String, String> {
-    todo!("01-13 Task 2: paddle_text")
+pub(crate) fn paddle_text(out: &Value) -> Result<String, String> {
+    let texts = out["res"]["rec_texts"]
+        .as_array()
+        .or_else(|| out["rec_texts"].as_array())
+        .ok_or("rec_texts assente dall'output di PaddleOCR")?;
+    let parts: Vec<&str> = texts.iter().filter_map(Value::as_str).collect();
+    if parts.len() != texts.len() {
+        return Err("rec_texts con voci non testuali".into());
+    }
+    Ok(parts.join(" "))
+}
+
+/// Testo di una pagina OCR Tesseract: le parole nell'ordine del TSV, unite da uno spazio.
+pub(crate) fn words_text(words: &[Word]) -> String {
+    words
+        .iter()
+        .map(|w| w.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 // ---- Fedeltà bbox ------------------------------------------------------------------------
@@ -53,6 +116,23 @@ pub(crate) enum Reference {
 pub(crate) enum Quality {
     Good,
     Degraded,
+}
+
+impl Quality {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Quality::Good => "good",
+            Quality::Degraded => "degraded",
+        }
+    }
+
+    pub(crate) fn parse(s: &str) -> anyhow::Result<Quality> {
+        match s {
+            "good" => Ok(Quality::Good),
+            "degraded" => Ok(Quality::Degraded),
+            _ => bail!("qualità sconosciuta: {s}"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -82,19 +162,121 @@ pub(crate) struct BboxMetrics {
     pub corner_err_p95_pt: f64,
 }
 
-pub(crate) fn bbox_metrics(_pairs: &[([f64; 4], [f64; 4])]) -> BboxMetrics {
-    todo!("01-13 Task 2: bbox_metrics")
+pub(crate) fn bbox_metrics(pairs: &[([f64; 4], [f64; 4])]) -> BboxMetrics {
+    if pairs.is_empty() {
+        return BboxMetrics {
+            words_matched: 0,
+            iou_median: 0.0,
+            share_iou_ge_05: 0.0,
+            corner_err_p95_pt: 0.0,
+        };
+    }
+    let mut ious: Vec<f64> = pairs.iter().map(|(a, b)| iou(a, b)).collect();
+    let mut errs: Vec<f64> = pairs.iter().map(|(a, b)| corner_err(a, b)).collect();
+    ious.sort_by(f64::total_cmp);
+    errs.sort_by(f64::total_cmp);
+    let n = pairs.len();
+    let median = if n % 2 == 1 {
+        ious[n / 2]
+    } else {
+        (ious[n / 2 - 1] + ious[n / 2]) / 2.0
+    };
+    BboxMetrics {
+        words_matched: n,
+        iou_median: median,
+        share_iou_ge_05: ious.iter().filter(|&&v| v >= 0.5).count() as f64 / n as f64,
+        corner_err_p95_pt: nearest_rank(&errs, 0.95),
+    }
+}
+
+/// Percentile nearest-rank su valori ordinati (`rank = ⌈p·n⌉`).
+pub(crate) fn nearest_rank(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let rank = ((p * sorted.len() as f64).ceil() as usize).clamp(1, sorted.len());
+    sorted[rank - 1]
+}
+
+/// IoU di due rettangoli `[x0, y0, x1, y1]`.
+pub(crate) fn iou(a: &[f64; 4], b: &[f64; 4]) -> f64 {
+    let ix = (a[2].min(b[2]) - a[0].max(b[0])).max(0.0);
+    let iy = (a[3].min(b[3]) - a[1].max(b[1])).max(0.0);
+    let inter = ix * iy;
+    let area = |r: &[f64; 4]| (r[2] - r[0]).max(0.0) * (r[3] - r[1]).max(0.0);
+    let union = area(a) + area(b) - inter;
+    if union <= 0.0 { 0.0 } else { inter / union }
+}
+
+/// Massima distanza fra i quattro angoli corrispondenti di due rettangoli.
+pub(crate) fn corner_err(a: &[f64; 4], b: &[f64; 4]) -> f64 {
+    [(0, 1), (2, 1), (0, 3), (2, 3)]
+        .iter()
+        .map(|&(x, y)| ((a[x] - b[x]).powi(2) + (a[y] - b[y]).powi(2)).sqrt())
+        .fold(0.0, f64::max)
+}
+
+/// Abbinamento uno a uno per testo normalizzato uguale e IoU decrescente (IoU > 0), come le
+/// parole di 01-08: coppie (atteso, ottenuto).
+pub(crate) fn match_words(
+    expected: &[(String, [f64; 4])],
+    got: &[(String, [f64; 4])],
+) -> Vec<([f64; 4], [f64; 4])> {
+    let mut cands: Vec<(f64, usize, usize)> = Vec::new();
+    for (i, (te, re)) in expected.iter().enumerate() {
+        let te = normalize_text(te);
+        for (j, (tg, rg)) in got.iter().enumerate() {
+            if normalize_text(tg) == te {
+                let v = iou(re, rg);
+                if v > 0.0 {
+                    cands.push((v, i, j));
+                }
+            }
+        }
+    }
+    cands.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+    let (mut used_e, mut used_g) = (vec![false; expected.len()], vec![false; got.len()]);
+    let mut out = Vec::new();
+    for (_, i, j) in cands {
+        if !used_e[i] && !used_g[j] {
+            used_e[i] = true;
+            used_g[j] = true;
+            out.push((expected[i].1, got[j].1));
+        }
+    }
+    out
 }
 
 /// Verdetto di una riga di `bbox_map.csv`. `pdfium_gate` = esito della soglia IoU di 01-08
 /// (`None` se non disponibile).
 pub(crate) fn bbox_verdict(
-    _reference: Reference,
-    _quality: Quality,
-    _m: &BboxMetrics,
-    _pdfium_gate: Option<bool>,
+    reference: Reference,
+    quality: Quality,
+    m: &BboxMetrics,
+    pdfium_gate: Option<bool>,
 ) -> Verdict {
-    todo!("01-13 Task 2: bbox_verdict")
+    match reference {
+        Reference::Analytic => {
+            let tol = match quality {
+                Quality::Good => 1.0,
+                Quality::Degraded => 3.0,
+            };
+            if m.words_matched > 0 && m.corner_err_p95_pt <= tol {
+                Verdict::Pass
+            } else {
+                Verdict::Fail
+            }
+        }
+        Reference::Pdfium => {
+            if pdfium_gate != Some(true) {
+                Verdict::NonValutabile
+            } else if m.words_matched > 0 && m.iou_median >= 0.5 && m.corner_err_p95_pt <= 3.0 {
+                Verdict::Pass
+            } else {
+                Verdict::Fail
+            }
+        }
+    }
 }
 
 // ---- Prova ostile sul render (D-34) --------------------------------------------------------
@@ -112,11 +294,36 @@ pub(crate) struct HostileObs {
 
 /// Esito di una riga di `hostile-render.csv`: `(pass, parent_alive)`.
 pub(crate) fn hostile_row(
-    _expected_status: &str,
-    _expected_kinds: &[String],
-    _obs: &HostileObs,
+    expected_status: &str,
+    expected_kinds: &[String],
+    obs: &HostileObs,
 ) -> (bool, bool) {
-    todo!("01-13 Task 2: hostile_row")
+    let parent_alive = obs.report.is_some() && obs.parent_exit.is_some() && obs.worker_alive;
+    let Some(r) = obs.report.as_ref() else {
+        return (false, parent_alive);
+    };
+    let outcome = &r["outcome"];
+    let status = outcome["status"].as_str().unwrap_or_default();
+    // Regola di `hostile_verdict` di 01-07: status uguale, kind fra le alternative (failed),
+    // motivi attesi inclusi negli ottenuti (quarantined), array vuoto (ok); più oom_adj_set.
+    let verdict = status == expected_status
+        && match status {
+            "failed" => outcome["kind"]
+                .as_str()
+                .is_some_and(|k| expected_kinds.iter().any(|e| e == k)),
+            "quarantined" => {
+                let got: Vec<&str> = outcome["reasons"]
+                    .as_array()
+                    .map(|a| a.iter().filter_map(Value::as_str).collect())
+                    .unwrap_or_default();
+                expected_kinds.iter().all(|e| got.contains(&e.as_str()))
+            }
+            "ok" => expected_kinds.is_empty(),
+            _ => false,
+        };
+    let contained = r["leftover_procs"].as_u64() == Some(0);
+    let adj = r["oom_adj_set"].as_bool() == Some(true);
+    (parent_alive && verdict && adj && contained, parent_alive)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -137,16 +344,28 @@ impl T09 {
 }
 
 /// Residuo T-09 JBIG2 dalle righe di `jbig2-malformed`: `(pass, parent_alive, leftover_procs)`.
-pub(crate) fn t09_status(_rows: &[(bool, bool, u32)]) -> T09 {
-    todo!("01-13 Task 2: t09_status")
+pub(crate) fn t09_status(rows: &[(bool, bool, u32)]) -> T09 {
+    if rows.iter().any(|&(_, alive, left)| !alive || left > 0) {
+        T09::ContenimentoFallito
+    } else if rows.len() == 3 && rows.iter().all(|r| r.0) {
+        T09::Chiuso
+    } else {
+        T09::Aperto
+    }
 }
 
 // ---- Conformità di un batch OCR (metodo di M10 di 01-18) ------------------------------------
 
 /// Prenotazione per job di `ocr_tesseract` (01-07 v6): `memory_reservation_bytes` × (1 + 1
 /// discendente) + `out_quota_bytes`, dal profilo `ocr_tesseract` se c'è, altrimenti `default`.
-pub(crate) fn ocr_tesseract_reservation_bytes(_limits: &Value) -> u64 {
-    todo!("01-13 Task 2: ocr_tesseract_reservation_bytes")
+pub(crate) fn ocr_tesseract_reservation_bytes(limits: &Value) -> u64 {
+    let p = limits
+        .get("ocr_tesseract")
+        .filter(|v| v.is_object())
+        .unwrap_or(&limits["default"]);
+    let mrb = p["memory_reservation_bytes"].as_u64().unwrap_or(u64::MAX);
+    let oq = p["out_quota_bytes"].as_u64().unwrap_or(u64::MAX);
+    mrb.saturating_mul(2).saturating_add(oq)
 }
 
 /// Osservazioni di un job ammesso.
@@ -171,16 +390,41 @@ pub(crate) struct BatchObs {
     pub jobs: Vec<JobObs>,
 }
 
+/// Memoria del worker su cui vale la conformità (D-28).
+pub(crate) const WORKER_MEMORY_MAX: u64 = 2 * 1024 * 1024 * 1024;
+
 /// `m10_pass` di una riga di `ocr_throughput.csv`, con la prenotazione ricalcolata dai limiti
 /// correnti (`limits-ocr_tesseract.json`).
-pub(crate) fn m10_pass(_b: &BatchObs, _limits: &Value) -> bool {
-    todo!("01-13 Task 2: m10_pass")
+pub(crate) fn m10_pass(b: &BatchObs, limits: &Value) -> bool {
+    let want_kb = ocr_tesseract_reservation_bytes(limits) / 1024;
+    b.parent_alive
+        && b.parent_exit == 0
+        && b.batch_summary
+        && b.cgroup_memory_max_bytes == Some(WORKER_MEMORY_MAX)
+        && b.oom_kill_delta == Some(0)
+        && b.job_errors == 0
+        && b.reservation_kb == want_kb
+        && !b.jobs.is_empty()
+        && b.jobs.iter().all(|j| {
+            j.leftover_procs == 0
+                && j.peak_rss_kb
+                    .is_some_and(|p| p > 0 && b.reservation_kb >= p)
+        })
 }
 
 /// Concorrenza OCR pubblicata: il più grande N con batch conforme, limitato dal `max_admitted`
 /// misurato. Righe `(requested_concurrency, max_admitted, m10_pass)`.
-pub(crate) fn published_concurrency(_rows: &[(u32, u32, bool)]) -> Option<u32> {
-    todo!("01-13 Task 2: published_concurrency")
+pub(crate) fn published_concurrency(rows: &[(u32, u32, bool)]) -> Option<u32> {
+    let mut by_n: BTreeMap<u32, (bool, u32)> = BTreeMap::new();
+    for &(n, admitted, pass) in rows {
+        let e = by_n.entry(n).or_insert((true, u32::MAX));
+        e.0 &= pass;
+        e.1 = e.1.min(admitted);
+    }
+    by_n.into_iter()
+        .filter(|(_, (ok, _))| *ok)
+        .map(|(n, (_, admitted))| n.min(admitted))
+        .max()
 }
 
 // ---- PaddleOCR: selezione v6, famiglia, pesi, sessione ------------------------------------
@@ -188,25 +432,867 @@ pub(crate) fn published_concurrency(_rows: &[(u32, u32, bool)]) -> Option<u32> {
 /// Argomenti della CLI dello sfidante da `v6.selection.json`: `--ocr_version <v>`, il flag di
 /// variante/tier se presente (`tier: {"flag","value"}`), `--lang <l>`. `selectable=false`,
 /// valori assenti o non v6 → `Err` con il motivo (nessun ripiego su v5).
-pub(crate) fn v6_cli_args(_selection: &Value) -> Result<Vec<String>, String> {
-    todo!("01-13 Task 2: v6_cli_args")
+pub(crate) fn v6_cli_args(selection: &Value) -> Result<Vec<String>, String> {
+    if selection["selectable"].as_bool() != Some(true) {
+        return Err(format!(
+            "v6 non selezionabile: {}",
+            selection["reason"]
+                .as_str()
+                .unwrap_or("selectable assente o false")
+        ));
+    }
+    let ver = selection["ocr_version"]
+        .as_str()
+        .filter(|v| v.starts_with("PP-OCRv6"))
+        .ok_or("ocr_version assente o non PP-OCRv6: nessun ripiego")?;
+    let lang = selection["lang"]
+        .as_str()
+        .filter(|l| !l.trim().is_empty())
+        .ok_or("lang assente: italiano non coperto da un --lang esplicito")?;
+    let mut out = vec!["--ocr_version".to_owned(), ver.to_owned()];
+    match &selection["tier"] {
+        Value::Null => {}
+        t => match (
+            t["flag"].as_str().filter(|f| f.starts_with("--")),
+            t["value"].as_str().filter(|v| !v.is_empty()),
+        ) {
+            (Some(f), Some(v)) => {
+                out.push(f.to_owned());
+                out.push(v.to_owned());
+            }
+            _ => return Err("tier presente ma senza flag e valore letterali".into()),
+        },
+    }
+    out.push("--lang".to_owned());
+    out.push(lang.to_owned());
+    Ok(out)
 }
 
 /// Famiglia di `v6.resolved.json`: `det.model_name` e `rec.model_name` con prefisso `PP-OCRv6_`.
-pub(crate) fn v6_family_check(_resolved: &Value) -> Result<(), String> {
-    todo!("01-13 Task 2: v6_family_check")
+pub(crate) fn v6_family_check(resolved: &Value) -> Result<(), String> {
+    for part in ["det", "rec"] {
+        match resolved[part]["model_name"].as_str() {
+            Some(n) if n.starts_with("PP-OCRv6_") => {}
+            Some(n) => {
+                return Err(format!(
+                    "{part}: model_name {n} fuori dalla famiglia PP-OCRv6_"
+                ));
+            }
+            None => return Err(format!("{part}: model_name non esposto")),
+        }
+    }
+    Ok(())
+}
+
+/// Righe `<64 hex>  <percorso>` di un manifest SHA-256, per percorso.
+fn parse_manifest(text: &str, what: &str) -> Result<BTreeMap<String, String>, String> {
+    let mut m = BTreeMap::new();
+    for l in text.lines().filter(|l| !l.trim().is_empty()) {
+        let (h, p) = l
+            .split_once("  ")
+            .ok_or(format!("{what}: riga senza separatore"))?;
+        if h.len() != 64 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(format!("{what}: hash non sha256 per {p}"));
+        }
+        if m.insert(p.to_owned(), h.to_ascii_lowercase()).is_some() {
+            return Err(format!("{what}: percorso ripetuto {p}"));
+        }
+    }
+    if m.is_empty() {
+        return Err(format!("{what}: manifest vuoto"));
+    }
+    Ok(m)
 }
 
 /// Manifest dei pesi nell'immagine contro `paddle-weights.sha256` committato: righe
 /// `<64 hex>  <percorso>` ordinate per percorso, insiemi e hash identici.
-pub(crate) fn weights_manifest_check(_image: &str, _committed: &str) -> Result<(), String> {
-    todo!("01-13 Task 2: weights_manifest_check")
+pub(crate) fn weights_manifest_check(image: &str, committed: &str) -> Result<(), String> {
+    let (a, b) = (
+        parse_manifest(image, "immagine")?,
+        parse_manifest(committed, "committato")?,
+    );
+    for (p, h) in &b {
+        match a.get(p) {
+            None => return Err(format!("file mancante nell'immagine: {p}")),
+            Some(x) if x != h => return Err(format!("hash diverso: {p}")),
+            _ => {}
+        }
+    }
+    if let Some(p) = a.keys().find(|p| !b.contains_key(*p)) {
+        return Err(format!("file in più nell'immagine: {p}"));
+    }
+    Ok(())
 }
 
 /// Configurazione risolta della sessione contro quella di build: stessi `model_name`, stesse
 /// directory e stessi file di det e rec, famiglia `PP-OCRv6_`; modelli non esposti → `Err`.
-pub(crate) fn session_matches_build(_build: &Value, _session: &Value) -> Result<(), String> {
-    todo!("01-13 Task 2: session_matches_build")
+pub(crate) fn session_matches_build(build: &Value, session: &Value) -> Result<(), String> {
+    v6_family_check(build).map_err(|e| format!("build: {e}"))?;
+    v6_family_check(session).map_err(|e| format!("sessione: {e}"))?;
+    for part in ["det", "rec"] {
+        for k in ["model_name", "model_dir", "files"] {
+            let (a, b) = (&build[part][k], &session[part][k]);
+            if a.is_null() || a != b {
+                return Err(format!("{part}.{k} diverso fra build e sessione"));
+            }
+        }
+    }
+    Ok(())
+}
+
+// ---- I/O comune dei sottocomandi -------------------------------------------------------------
+
+/// Voce della mappa dei job `ocr_tesseract` scritta da `tess-jobs`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TessItem {
+    pub job_id: String,
+    pub set: String,
+    pub doc: String,
+    pub oracle_id: Option<String>,
+    pub page: u32,
+    pub quality: String,
+    pub rep: u32,
+    /// PNG d'ingresso (percorso del worker).
+    pub png: String,
+    /// Trasformazione registrata (percorso del worker): `.render.json` o `.transform.json`.
+    pub transform: String,
+}
+
+/// Percorso del worker (`/results/raw/...`) rimappato sulla cartella vista dal runner.
+pub(crate) fn host_path(worker: &str, results_raw: &Path) -> PathBuf {
+    match worker.strip_prefix("/results/raw/") {
+        Some(rest) => results_raw.join(rest),
+        None => PathBuf::from(worker),
+    }
+}
+
+pub(crate) fn read_json(p: &Path) -> anyhow::Result<Value> {
+    let t = std::fs::read_to_string(p).with_context(|| format!("{}", p.display()))?;
+    serde_json::from_str(&t).with_context(|| format!("JSON {}", p.display()))
+}
+
+/// `RunReport` dei file JSONL di `parse-parent batch`/`run`, per `job_id` (righe non
+/// `RunReport` ignorate; `job_error` contate a parte dal chiamante).
+pub(crate) fn read_reports(paths: &[PathBuf]) -> anyhow::Result<BTreeMap<String, Value>> {
+    let mut out = BTreeMap::new();
+    for p in paths {
+        let t = std::fs::read_to_string(p).with_context(|| format!("{}", p.display()))?;
+        for l in t.lines().filter(|l| l.trim_start().starts_with('{')) {
+            let v: Value =
+                serde_json::from_str(l).with_context(|| format!("riga di {}", p.display()))?;
+            if v.get("outcome").is_some()
+                && let Some(id) = v["job_id"].as_str()
+            {
+                out.insert(id.to_owned(), v);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Trasformazione di una voce: `.transform.json` (degradata) o `.render.json` (buona, rotazione 0).
+pub(crate) fn load_transform(path: &Path) -> anyhow::Result<Transform> {
+    let v = read_json(path)?;
+    if v.get("rotation_deg").is_some() {
+        return serde_json::from_value(v).context("transform.json");
+    }
+    let (w, h) = (
+        v["width_px"].as_u64().context("width_px")? as u32,
+        v["height_px"].as_u64().context("height_px")? as u32,
+    );
+    Ok(Transform {
+        dpi: v["dpi"].as_f64().context("dpi")?,
+        width_px: w,
+        height_px: h,
+        page_h_pt: v["page_h_pt"].as_f64().context("page_h_pt")?,
+        rotation_deg: 0.0,
+        center_px: (f64::from(w) / 2.0, f64::from(h) / 2.0),
+    })
+}
+
+/// Parole di un `RunReport` `ok` di `ocr_tesseract` (`data.words`).
+pub(crate) fn report_words(r: &Value) -> anyhow::Result<Vec<Word>> {
+    if r["outcome"]["status"].as_str() != Some("ok") {
+        bail!("job {} non ok: {}", r["job_id"], r["outcome"]);
+    }
+    serde_json::from_value(r["outcome"]["data"]["words"].clone()).context("data.words")
+}
+
+/// Bbox in pixel `[left, top, right, bottom]` di una parola.
+pub(crate) fn word_px(w: &Word) -> [f64; 4] {
+    [
+        f64::from(w.left),
+        f64::from(w.top),
+        f64::from(w.left + w.width),
+        f64::from(w.top + w.height),
+    ]
+}
+
+/// Apre un CSV in append; scrive l'header se il file è nuovo o vuoto, rifiuta un header diverso.
+pub(crate) fn csv_append(path: &Path, header: &str) -> anyhow::Result<std::fs::File> {
+    let existing = std::fs::read_to_string(path).unwrap_or_default();
+    if let Some(first) = existing.lines().next()
+        && first != header
+    {
+        bail!("{}: header diverso da {header}", path.display());
+    }
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .with_context(|| format!("{}", path.display()))?;
+    if existing.is_empty() {
+        writeln!(f, "{header}")?;
+    }
+    Ok(f)
+}
+
+/// Campo CSV senza virgole né a capo (gli header fissi del piano non usano virgolette).
+pub(crate) fn csv_field(s: &str) -> String {
+    s.replace([',', '\n', '\r'], ";")
+}
+
+fn f4(v: f64) -> String {
+    format!("{v:.4}")
+}
+
+// ---- `score cer` e `score bbox` -------------------------------------------------------------
+
+pub(crate) const OCR_HEADER: &str =
+    "engine,version,doc_id,page,scan_quality,run,chars_expected,cer,seconds";
+pub(crate) const BBOX_HEADER: &str = "engine,reference,doc_id,page,scan_quality,words_matched,iou_median,share_iou_ge_05,corner_err_p95_pt,verdict";
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr score")]
+struct ScoreCli {
+    #[command(subcommand)]
+    cmd: ScoreCmd,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum ScoreCmd {
+    /// CER delle pagine dell'oracolo (righe di `ocr.csv`).
+    Cer {
+        #[arg(long)]
+        map: PathBuf,
+        #[arg(long, required = true)]
+        runs: Vec<PathBuf>,
+        #[arg(long)]
+        oracle: PathBuf,
+        #[arg(long, default_value = "tesseract")]
+        engine: String,
+        #[arg(long)]
+        version: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Fedeltà delle bbox (righe di `bbox_map.csv`).
+    Bbox {
+        #[arg(long, value_parser = ["analytic", "pdfium"])]
+        reference: String,
+        #[arg(long)]
+        map: PathBuf,
+        #[arg(long, required = true)]
+        runs: Vec<PathBuf>,
+        #[arg(long)]
+        results_raw: PathBuf,
+        /// Ripetizione usata per le bbox (una sola, uguale per ogni pagina).
+        #[arg(long)]
+        rep: u32,
+        /// `geom-cases.json` di `gen_geom.py` (riferimento analitico).
+        #[arg(long)]
+        cases: Option<PathBuf>,
+        /// Indice della run (`ocr-index/<run_id>.json`) con l'`out_dir` di `extract_pdf` per documento.
+        #[arg(long)]
+        index: Option<PathBuf>,
+        /// Esito della soglia IoU di 01-08: `pass`, `fail` o `absent`.
+        #[arg(long, value_parser = ["pass", "fail", "absent"])]
+        pdfium_gate: Option<String>,
+        /// `bbox_iou.csv` di 01-08: plafond riportato accanto.
+        #[arg(long)]
+        plafond: Option<PathBuf>,
+        #[arg(long, default_value = "tesseract")]
+        engine: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
+}
+
+/// `ocr score …`
+pub(crate) fn run_score(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli = ScoreCli::try_parse_from(std::iter::once("ocr-score".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    match cli.cmd {
+        ScoreCmd::Cer {
+            map,
+            runs,
+            oracle,
+            engine,
+            version,
+            out,
+        } => score_cer(&map, &runs, &oracle, &engine, &version, &out),
+        ScoreCmd::Bbox {
+            reference,
+            map,
+            runs,
+            results_raw,
+            rep,
+            cases,
+            index,
+            pdfium_gate,
+            plafond,
+            engine,
+            out,
+        } => {
+            let items = load_map(&map)?;
+            let reports = read_reports(&runs)?;
+            let mut f = csv_append(&out, BBOX_HEADER)?;
+            let rows = if reference == "analytic" {
+                bbox_analytic(
+                    &items,
+                    &reports,
+                    &results_raw,
+                    rep,
+                    &cases.context("--cases richiesto da analytic")?,
+                )?
+            } else {
+                let gate = match pdfium_gate.as_deref() {
+                    Some("pass") => Some(true),
+                    Some("fail") => Some(false),
+                    _ => None,
+                };
+                if let Some(p) = &plafond {
+                    println!("{}", plafond_line(p)?);
+                }
+                bbox_pdfium(
+                    &items,
+                    &reports,
+                    &results_raw,
+                    rep,
+                    &index.context("--index richiesto da pdfium")?,
+                    gate,
+                )?
+            };
+            for (doc, page, q, m, v) in rows {
+                writeln!(
+                    f,
+                    "{engine},{reference},{doc},{page},{},{},{},{},{},{}",
+                    q.as_str(),
+                    m.words_matched,
+                    f4(m.iou_median),
+                    f4(m.share_iou_ge_05),
+                    f4(m.corner_err_p95_pt),
+                    v.as_str()
+                )?;
+                println!(
+                    "bbox {reference} {doc} p{page} {}: parole {} iou_med {:.3} p95 {:.2} pt → {}",
+                    q.as_str(),
+                    m.words_matched,
+                    m.iou_median,
+                    m.corner_err_p95_pt,
+                    v.as_str()
+                );
+            }
+            Ok(())
+        }
+    }
+}
+
+pub(crate) fn load_map(p: &Path) -> anyhow::Result<Vec<TessItem>> {
+    serde_json::from_value(read_json(p)?).context("mappa dei job tesseract")
+}
+
+fn score_cer(
+    map: &Path,
+    runs: &[PathBuf],
+    oracle: &Path,
+    engine: &str,
+    version: &str,
+    out: &Path,
+) -> anyhow::Result<()> {
+    let items = load_map(map)?;
+    let reports = read_reports(runs)?;
+    let entries: Vec<Value> = serde_json::from_value(read_json(oracle)?).context("oracolo")?;
+    let (usable, excluded) = usable_oracles(&entries);
+    let by_id: BTreeMap<&str, &Value> = usable
+        .iter()
+        .filter_map(|e| e["oracle_id"].as_str().map(|id| (id, *e)))
+        .collect();
+    let mut f = csv_append(out, OCR_HEADER)?;
+    let mut n = 0;
+    for it in items.iter().filter(|i| i.set == "oracle") {
+        let Some(oid) = it.oracle_id.as_deref() else {
+            continue;
+        };
+        let Some(entry) = by_id.get(oid) else {
+            continue;
+        };
+        let expected = entry["expected_value"]
+            .as_str()
+            .context("expected_value non testuale")?;
+        let r = reports
+            .get(&it.job_id)
+            .with_context(|| format!("RunReport assente per {}", it.job_id))?;
+        let words = report_words(r)?;
+        let c = cer(expected, &words_text(&words));
+        let secs = r["wall_ms"].as_u64().unwrap_or(0) as f64 / 1000.0;
+        writeln!(
+            f,
+            "{engine},{version},{},{},{},{},{},{},{:.3}",
+            it.doc,
+            it.page,
+            it.quality,
+            it.rep,
+            normalize_text(expected).chars().count(),
+            f4(c),
+            secs
+        )?;
+        n += 1;
+    }
+    println!("righe ocr.csv: {n}; oracoli parser-it pendenti esclusi e contati: {excluded}");
+    Ok(())
+}
+
+/// Casi di `gen_geom.py`: per documento, parole con rettangolo d'inchiostro atteso in pt.
+fn geom_cases(p: &Path) -> anyhow::Result<BTreeMap<String, Vec<(String, [f64; 4])>>> {
+    let v = read_json(p)?;
+    let mut out = BTreeMap::new();
+    for page in v["pages"].as_array().context("pages")? {
+        let doc = page["doc"].as_str().context("doc")?.to_owned();
+        let mut words = Vec::new();
+        for w in page["words"].as_array().context("words")? {
+            let r: [f64; 4] = serde_json::from_value(w["rect"].clone()).context("rect")?;
+            words.push((w["text"].as_str().context("text")?.to_owned(), r));
+        }
+        out.insert(doc, words);
+    }
+    Ok(out)
+}
+
+type BboxRow = (String, u32, Quality, BboxMetrics, Verdict);
+
+fn ocr_words_pt(
+    it: &TessItem,
+    reports: &BTreeMap<String, Value>,
+    results_raw: &Path,
+) -> anyhow::Result<Vec<(String, [f64; 4])>> {
+    let r = reports
+        .get(&it.job_id)
+        .with_context(|| format!("RunReport assente per {}", it.job_id))?;
+    let t = load_transform(&host_path(&it.transform, results_raw))?;
+    Ok(report_words(r)?
+        .iter()
+        .map(|w| (w.text.clone(), geom::map_bbox(&t, word_px(w))))
+        .collect())
+}
+
+fn bbox_analytic(
+    items: &[TessItem],
+    reports: &BTreeMap<String, Value>,
+    results_raw: &Path,
+    rep: u32,
+    cases: &Path,
+) -> anyhow::Result<Vec<BboxRow>> {
+    let cases = geom_cases(cases)?;
+    let mut rows = Vec::new();
+    for it in items.iter().filter(|i| i.set == "geom" && i.rep == rep) {
+        let expected = cases
+            .get(&it.doc)
+            .with_context(|| format!("caso geometrico assente: {}", it.doc))?;
+        let got = ocr_words_pt(it, reports, results_raw)?;
+        let q = Quality::parse(&it.quality)?;
+        let m = bbox_metrics(&match_words(expected, &got));
+        let v = bbox_verdict(Reference::Analytic, q, &m, None);
+        rows.push((it.doc.clone(), it.page, q, m, v));
+    }
+    Ok(rows)
+}
+
+fn bbox_pdfium(
+    items: &[TessItem],
+    reports: &BTreeMap<String, Value>,
+    results_raw: &Path,
+    rep: u32,
+    index: &Path,
+    gate: Option<bool>,
+) -> anyhow::Result<Vec<BboxRow>> {
+    let idx = read_json(index)?;
+    let mut extract_dirs: BTreeMap<String, String> = BTreeMap::new();
+    for e in idx["extract"].as_array().context("indice senza extract")? {
+        extract_dirs.insert(
+            e["doc"].as_str().context("doc")?.to_owned(),
+            e["out_dir"].as_str().context("out_dir")?.to_owned(),
+        );
+    }
+    let mut rows = Vec::new();
+    for it in items
+        .iter()
+        .filter(|i| i.set != "geom" && i.rep == rep && extract_dirs.contains_key(&i.doc))
+    {
+        let dir = host_path(&extract_dirs[&it.doc], results_raw);
+        let page = read_json(&dir.join(format!("page-{:04}.json", it.page)))?;
+        let mut expected = Vec::new();
+        for w in page["words"].as_array().context("words di extract_pdf")? {
+            let r: [f64; 4] = serde_json::from_value(w["bbox"].clone()).context("bbox")?;
+            expected.push((w["text"].as_str().unwrap_or_default().to_owned(), r));
+        }
+        let got = ocr_words_pt(it, reports, results_raw)?;
+        let q = Quality::parse(&it.quality)?;
+        let m = bbox_metrics(&match_words(&expected, &got));
+        let v = bbox_verdict(Reference::Pdfium, q, &m, gate);
+        rows.push((it.doc.clone(), it.page, q, m, v));
+    }
+    Ok(rows)
+}
+
+/// Plafond di 01-08: media di `iou_mean` e di `share_iou_ge_05` su `bbox_iou.csv`.
+fn plafond_line(p: &Path) -> anyhow::Result<String> {
+    let t = std::fs::read_to_string(p).with_context(|| format!("{}", p.display()))?;
+    let mut lines = t.lines();
+    let header: Vec<&str> = lines
+        .next()
+        .context("bbox_iou.csv vuoto")?
+        .split(',')
+        .collect();
+    let col = |k: &str| header.iter().position(|h| *h == k);
+    let (Some(a), Some(b)) = (col("iou_mean"), col("share_iou_ge_05")) else {
+        bail!("bbox_iou.csv senza iou_mean o share_iou_ge_05");
+    };
+    let (mut sa, mut sb, mut n) = (0.0, 0.0, 0u32);
+    for l in lines.filter(|l| !l.is_empty()) {
+        let f: Vec<&str> = l.split(',').collect();
+        if let (Some(x), Some(y)) = (
+            f.get(a).and_then(|v| v.parse::<f64>().ok()),
+            f.get(b).and_then(|v| v.parse::<f64>().ok()),
+        ) {
+            sa += x;
+            sb += y;
+            n += 1;
+        }
+    }
+    Ok(format!(
+        "plafond 01-08 (bbox_iou.csv, {n} pagine): iou_mean medio {:.3}, share_iou_ge_05 medio {:.3}",
+        sa / f64::from(n.max(1)),
+        sb / f64::from(n.max(1))
+    ))
+}
+
+// ---- `hostile-verdict` ----------------------------------------------------------------------
+
+pub(crate) const HOSTILE_HEADER: &str = "case_id,run,expected,outcome,kind,detail,peak_rss_kb,wall_ms,parent_alive,leftover_procs,oom_kill_delta,oom_adj_set,pass";
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr hostile-verdict")]
+struct HostileCli {
+    /// Manifest dei casi (01-18 e 1.5): campi `case_id`, `expected_status`,
+    /// `expected_kind_or_reasons` e, se c'è, `expected_detail`.
+    #[arg(long, required = true)]
+    manifest: Vec<PathBuf>,
+    /// Cartella con `<job_id>.stdout` e `<job_id>.meta` di `run_hostile_render.sh`.
+    #[arg(long)]
+    reports: PathBuf,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+/// Atteso di un caso dai manifest.
+#[derive(Debug, Clone)]
+struct Expect {
+    status: String,
+    kinds: Vec<String>,
+    detail_prefix: Option<String>,
+}
+
+/// `ocr hostile-verdict …`
+pub(crate) fn run_hostile_verdict(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli = HostileCli::try_parse_from(std::iter::once("ocr-hostile-verdict".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let mut expect: BTreeMap<String, Expect> = BTreeMap::new();
+    for m in &cli.manifest {
+        let cases: Vec<Value> = serde_json::from_value(read_json(m)?).context("manifest")?;
+        for c in cases {
+            let id = c["case_id"].as_str().context("case_id")?.to_owned();
+            expect.insert(
+                id,
+                Expect {
+                    status: c["expected_status"]
+                        .as_str()
+                        .context("expected_status")?
+                        .to_owned(),
+                    kinds: serde_json::from_value(c["expected_kind_or_reasons"].clone())
+                        .context("expected_kind_or_reasons")?,
+                    detail_prefix: c["expected_detail"].as_str().map(str::to_owned),
+                },
+            );
+        }
+    }
+    let mut metas: Vec<PathBuf> = std::fs::read_dir(&cli.reports)
+        .with_context(|| format!("{}", cli.reports.display()))?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "meta"))
+        .collect();
+    metas.sort();
+    let mut rows: Vec<(String, u32, Vec<String>, (bool, bool, u32))> = Vec::new();
+    for meta in &metas {
+        // `.meta`: righe `chiave<TAB>valore` (`case_id`, `run`, `parent_exit`, `worker_alive`).
+        let text = std::fs::read_to_string(meta)?;
+        let kv: BTreeMap<&str, &str> = text
+            .lines()
+            .filter_map(|l| l.trim_end_matches('\r').split_once('\t'))
+            .collect();
+        let case = kv.get("case_id").context("meta senza case_id")?.to_string();
+        let run: u32 = kv.get("run").context("meta senza run")?.parse()?;
+        let exit: i32 = kv
+            .get("parent_exit")
+            .context("meta senza parent_exit")?
+            .parse()?;
+        let worker_alive = kv.get("worker_alive") == Some(&"true");
+        let e = expect
+            .get(&case)
+            .with_context(|| format!("caso {case} assente dai manifest"))?;
+        let stdout = std::fs::read_to_string(meta.with_extension("stdout")).unwrap_or_default();
+        let report = stdout
+            .lines()
+            .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+            .find(|v| v.get("outcome").is_some());
+        let obs = HostileObs {
+            report: report.clone(),
+            // Un exit ≥ 128 è un processo terminato da un segnale (convenzione della shell).
+            parent_exit: (0..128).contains(&exit).then_some(exit),
+            worker_alive,
+        };
+        let (mut pass, alive) = hostile_row(&e.status, &e.kinds, &obs);
+        let r = report.unwrap_or(Value::Null);
+        let o = &r["outcome"];
+        let detail = o["detail"].as_str().unwrap_or_default();
+        if let Some(prefix) = &e.detail_prefix {
+            pass &= detail.starts_with(prefix.as_str());
+        }
+        let kind = match o["status"].as_str() {
+            Some("quarantined") => o["reasons"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join("|")
+                })
+                .unwrap_or_default(),
+            _ => o["kind"].as_str().unwrap_or_default().to_owned(),
+        };
+        let leftover = r["leftover_procs"].as_u64().map(|v| v as u32);
+        let opt = |v: &Value| v.as_u64().map(|x| x.to_string()).unwrap_or_default();
+        rows.push((
+            case.clone(),
+            run,
+            vec![
+                case.clone(),
+                run.to_string(),
+                format!("{}/{}", e.status, e.kinds.join("|")),
+                o["status"].as_str().unwrap_or("absent").to_owned(),
+                kind,
+                csv_field(detail),
+                opt(&r["peak_rss_kb"]),
+                opt(&r["wall_ms"]),
+                alive.to_string(),
+                leftover.map(|v| v.to_string()).unwrap_or_default(),
+                opt(&r["oom_kill_delta"]),
+                r["oom_adj_set"].as_bool().unwrap_or(false).to_string(),
+                pass.to_string(),
+            ],
+            (pass, alive, leftover.unwrap_or(u32::MAX)),
+        ));
+    }
+    rows.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+    let mut f =
+        std::fs::File::create(&cli.out).with_context(|| format!("{}", cli.out.display()))?;
+    writeln!(f, "{HOSTILE_HEADER}")?;
+    let mut by_case: BTreeMap<String, Vec<(bool, bool, u32)>> = BTreeMap::new();
+    for (case, _, fields, t) in &rows {
+        writeln!(f, "{}", fields.join(","))?;
+        by_case.entry(case.clone()).or_default().push(*t);
+    }
+    for (case, t) in &by_case {
+        let passed = t.iter().filter(|r| r.0).count();
+        println!("{case}: {passed}/{} pass", t.len());
+    }
+    let jb = by_case.get("jbig2-malformed").cloned().unwrap_or_default();
+    println!("residuo T-09 JBIG2: {}", t09_status(&jb).as_str());
+    Ok(())
+}
+
+// ---- `throughput-row` -----------------------------------------------------------------------
+
+pub(crate) const THROUGHPUT_HEADER: &str = "engine,version,pages,requested_concurrency,max_admitted,run,wall_s,s_per_page,failed_jobs,oom_kill_delta,job_errors,leftover_procs_max,reservation_kb,peak_rss_kb_max,reserve_peak_ratio_min,parent_exit,m10_pass";
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr throughput-row")]
+struct ThroughputCli {
+    /// Stdout di `parse-parent batch` (righe `RunReport`, `job_error`, `batch_summary`).
+    #[arg(long)]
+    runs: PathBuf,
+    /// `limits-ocr_tesseract.json` passato al batch.
+    #[arg(long)]
+    limits: PathBuf,
+    /// Contenuto di `memory.max` del cgroup del worker (`max` = illimitato).
+    #[arg(long)]
+    memory_max: String,
+    /// `oom_kill` di `memory.events` prima e dopo il batch.
+    #[arg(long)]
+    oom_before: u64,
+    #[arg(long)]
+    oom_after: u64,
+    #[arg(long)]
+    parent_exit: i32,
+    #[arg(long)]
+    concurrency: u32,
+    #[arg(long)]
+    run: u32,
+    /// Parete esterna del batch (ms).
+    #[arg(long)]
+    wall_ms: u64,
+    #[arg(long, default_value = "tesseract")]
+    engine: String,
+    #[arg(long)]
+    version: String,
+    #[arg(long)]
+    out: PathBuf,
+}
+
+/// `ocr throughput-row …`: una riga di `ocr_throughput.csv` con `m10_pass`.
+pub(crate) fn run_throughput_row(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli =
+        ThroughputCli::try_parse_from(std::iter::once("ocr-throughput-row".into()).chain(args))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let limits = read_json(&cli.limits)?;
+    let text =
+        std::fs::read_to_string(&cli.runs).with_context(|| format!("{}", cli.runs.display()))?;
+    let (mut jobs, mut job_errors, mut failed, mut summary) = (Vec::new(), 0u32, 0u32, None);
+    for l in text.lines().filter(|l| l.trim_start().starts_with('{')) {
+        let v: Value = serde_json::from_str(l)?;
+        match v["status"].as_str() {
+            Some("batch_summary") => summary = Some(v),
+            Some("job_error") => job_errors += 1,
+            _ if v.get("outcome").is_some() => {
+                if v["outcome"]["status"].as_str() != Some("ok") {
+                    failed += 1;
+                }
+                jobs.push(JobObs {
+                    peak_rss_kb: v["peak_rss_kb"].as_u64(),
+                    leftover_procs: v["leftover_procs"].as_u64().unwrap_or(u64::from(u32::MAX))
+                        as u32,
+                });
+            }
+            _ => {}
+        }
+    }
+    let reservation_kb = ocr_tesseract_reservation_bytes(&limits) / 1024;
+    let mem = cli.memory_max.trim();
+    let b = BatchObs {
+        parent_alive: summary.is_some() && (0..128).contains(&cli.parent_exit),
+        parent_exit: cli.parent_exit,
+        batch_summary: summary.is_some(),
+        cgroup_memory_max_bytes: if mem == "max" { None } else { mem.parse().ok() },
+        oom_kill_delta: cli.oom_after.checked_sub(cli.oom_before),
+        job_errors: job_errors
+            + summary
+                .as_ref()
+                .and_then(|s| s["job_errors"].as_u64())
+                .map_or(0, |v| v as u32)
+                .saturating_sub(job_errors),
+        reservation_kb,
+        jobs: jobs.clone(),
+    };
+    let pass = m10_pass(&b, &limits);
+    let pages = jobs.len() as u64;
+    let peak_max = jobs.iter().filter_map(|j| j.peak_rss_kb).max();
+    let ratio_min = jobs
+        .iter()
+        .filter_map(|j| j.peak_rss_kb)
+        .filter(|&p| p > 0)
+        .map(|p| reservation_kb as f64 / p as f64)
+        .fold(f64::INFINITY, f64::min);
+    let admitted = summary
+        .as_ref()
+        .and_then(|s| s["max_admitted"].as_u64())
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    let wall_s = cli.wall_ms as f64 / 1000.0;
+    let row = [
+        cli.engine.clone(),
+        cli.version.clone(),
+        pages.to_string(),
+        cli.concurrency.to_string(),
+        admitted,
+        cli.run.to_string(),
+        format!("{wall_s:.3}"),
+        format!("{:.3}", wall_s / pages.max(1) as f64),
+        failed.to_string(),
+        b.oom_kill_delta.map(|v| v.to_string()).unwrap_or_default(),
+        b.job_errors.to_string(),
+        jobs.iter()
+            .map(|j| j.leftover_procs)
+            .max()
+            .unwrap_or(0)
+            .to_string(),
+        reservation_kb.to_string(),
+        peak_max.map(|v| v.to_string()).unwrap_or_default(),
+        if ratio_min.is_finite() {
+            format!("{ratio_min:.3}")
+        } else {
+            String::new()
+        },
+        cli.parent_exit.to_string(),
+        pass.to_string(),
+    ]
+    .join(",");
+    let mut f = csv_append(&cli.out, THROUGHPUT_HEADER)?;
+    writeln!(f, "{row}")?;
+    println!("{row}");
+    Ok(())
+}
+
+// ---- `paddle-check` -------------------------------------------------------------------------
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr paddle-check")]
+struct PaddleCli {
+    #[arg(long)]
+    selection: PathBuf,
+    #[arg(long)]
+    resolved: PathBuf,
+    /// Configurazione risolta della sessione (`resolved-session.json`).
+    #[arg(long)]
+    session: Option<PathBuf>,
+    /// Manifest dei pesi letto dall'immagine e quello committato.
+    #[arg(long)]
+    manifest_image: Option<PathBuf>,
+    #[arg(long)]
+    manifest_committed: Option<PathBuf>,
+}
+
+/// `ocr paddle-check …`: stampa gli argomenti v6 della CLI o fallisce con il motivo.
+pub(crate) fn run_paddle_check(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli = PaddleCli::try_parse_from(std::iter::once("ocr-paddle-check".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let sel = read_json(&cli.selection)?;
+    let argv = v6_cli_args(&sel).map_err(anyhow::Error::msg)?;
+    let build = read_json(&cli.resolved)?;
+    v6_family_check(&build).map_err(anyhow::Error::msg)?;
+    if let Some(s) = &cli.session {
+        session_matches_build(&build, &read_json(s)?).map_err(anyhow::Error::msg)?;
+    }
+    if let (Some(a), Some(b)) = (&cli.manifest_image, &cli.manifest_committed) {
+        weights_manifest_check(&std::fs::read_to_string(a)?, &std::fs::read_to_string(b)?)
+            .map_err(anyhow::Error::msg)?;
+    }
+    println!("{}", argv.join(" "));
+    Ok(())
 }
 
 #[cfg(test)]

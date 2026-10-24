@@ -1,19 +1,43 @@
 //! Bin `ocr` (piano 01-13, spike S-02 OCR, TTQ-parse e prova ostile sul render).
 //!
-//! STUB del test-write (agente Claude, 2026-10-23): le firme sotto sono il contratto che i
-//! test `#[cfg(test)]` esercitano; i corpi `todo!()` li scrive l'esecutore del Task 2.
-//!
 //! - `render --input <pdf> --dpi <dpi> --out <dir>` e `tesseract --image <png>`: i soli
-//!   sottocomandi da figlio isolato, con la CLI esatta di `job::resolve` di 01-07;
-//! - `map`, `score`, `hostile-verdict`, `ttq-merge`: bin normali su dati derivati.
+//!   sottocomandi da figlio isolato, con la CLI esatta di `job::resolve` di 01-07; girano solo
+//!   tramite un job `ocr_render` / `ocr_tesseract` di `parse-parent`;
+//! - `map`, `score`, `hostile-verdict`, `throughput-row`, `paddle-check`, `tess-jobs`,
+//!   `ttq-select`, `ttq-merge`: bin normali su dati derivati, nel runner.
+//!
+//! `render`: `prescan::check_pdf` prima di PDFium (un rifiuto si emette com'è), poi
+//! `render_with_config` con `scale_page_by_factor(dpi/72)`, PNG in scala di grigi a 8 bit con
+//! chunk `pHYs` pari al DPI e sidecar `<pagina>.render.json`. Un errore di PDFium al
+//! caricamento o alla render → `failed/Corrupt` con detail `pdfium_load` / `pdfium_render` e il
+//! nome della variante; nessun controllo sul contenuto dei pixel decide l'esito.
+//!
+//! `tesseract`: DPI dal `pHYs` (assente → `failed/Corrupt` `dpi_missing`), `tesseract … tsv`
+//! lanciato per percorso assoluto con `Command::arg` (nessuna shell; `OMP_THREAD_LIMIT` arriva
+//! dal padre), stdout con tetto di 512 KiB, parole in `data`. Il figlio riporta come
+//! `vm_hwm_kb` e `vm_peak_kb` il massimo fra il proprio valore e quello del processo
+//! `tesseract`, campionato su `/proc/<pid>/status`: la calibrazione e il rapporto
+//! prenotazione/picco vedono così la memoria del discendente (Soglie di RISULTATI-ocr.md).
+//!
+//! **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · corpi del bin ocr (Task 2)
 mod geom;
 mod score;
 mod tsv;
 mod ttq;
 
 use std::ffi::OsString;
-use std::path::PathBuf;
-use std::process::ExitCode;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{ExitCode, Stdio};
+use std::time::{Duration, Instant};
+
+use anyhow::Context;
+use pdfium_render::prelude::{PdfRenderConfig, Pdfium, PdfiumError, PdfiumInternalError};
+use s02_parser::prescan::{self, Caps, Rejection};
+use s02_parser::protocol::{ChildOutcome, Kind, emit, vm_hwm_kb, vm_peak_kb};
+use serde::Serialize;
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 /// Sottocomandi del bin. Solo `Render` e `Tesseract` girano come figli isolati.
 #[derive(Debug, Clone, PartialEq)]
@@ -30,29 +54,734 @@ pub(crate) enum Cmd {
     Score(Vec<OsString>),
     HostileVerdict(Vec<OsString>),
     TtqMerge(Vec<OsString>),
+    TtqSelect(Vec<OsString>),
+    TessJobs(Vec<OsString>),
+    ThroughputRow(Vec<OsString>),
+    PaddleCheck(Vec<OsString>),
 }
 
 /// Argomenti senza il nome del programma. Forme diverse da quelle dell'allowlist → `Err`.
-pub(crate) fn parse_cli(_args: Vec<OsString>) -> Result<Cmd, String> {
-    todo!("01-13 Task 2: parse_cli del bin ocr")
+pub(crate) fn parse_cli(args: Vec<OsString>) -> Result<Cmd, String> {
+    let Some((sub, rest)) = args.split_first() else {
+        return Err("sottocomando assente".into());
+    };
+    let rest = rest.to_vec();
+    match sub.to_str() {
+        Some("render") => match rest.as_slice() {
+            [a, input, b, dpi, c, out] if a == "--input" && b == "--dpi" && c == "--out" => {
+                let dpi = dpi
+                    .to_str()
+                    .and_then(|d| d.parse::<u32>().ok())
+                    .ok_or("render: --dpi non è un intero")?;
+                Ok(Cmd::Render {
+                    input: PathBuf::from(input),
+                    dpi,
+                    out: PathBuf::from(out),
+                })
+            }
+            _ => Err("render: attesi esattamente --input <pdf> --dpi <dpi> --out <dir>".into()),
+        },
+        Some("tesseract") => match rest.as_slice() {
+            [a, image] if a == "--image" => Ok(Cmd::Tesseract {
+                image: PathBuf::from(image),
+            }),
+            _ => Err("tesseract: atteso esattamente --image <png>".into()),
+        },
+        Some("map") => Ok(Cmd::Map(rest)),
+        Some("score") => Ok(Cmd::Score(rest)),
+        Some("hostile-verdict") => Ok(Cmd::HostileVerdict(rest)),
+        Some("ttq-merge") => Ok(Cmd::TtqMerge(rest)),
+        Some("ttq-select") => Ok(Cmd::TtqSelect(rest)),
+        Some("tess-jobs") => Ok(Cmd::TessJobs(rest)),
+        Some("throughput-row") => Ok(Cmd::ThroughputRow(rest)),
+        Some("paddle-check") => Ok(Cmd::PaddleCheck(rest)),
+        _ => Err(format!("sottocomando sconosciuto: {sub:?}")),
+    }
 }
+
+/// Tetto dello stdout di Tesseract letto dal figlio.
+const TSV_CAP: u64 = 512 * 1024;
+/// Intervallo di campionamento della memoria del discendente.
+const SAMPLE_EVERY: Duration = Duration::from_millis(5);
 
 /// argv di `tesseract` (senza il nome del programma) per un PNG a `dpi` effettivi:
 /// `<png> stdout --tessdata-dir /opt/tessdata_best -l ita+eng --oem 1 --psm 3 --dpi <dpi>
 /// -c preserve_interword_spaces=1 tsv`. Nessuna shell; `OMP_THREAD_LIMIT` arriva dal padre.
-pub(crate) fn tesseract_args(_png: &std::path::Path, _dpi: u32) -> Vec<OsString> {
-    todo!("01-13 Task 2: tesseract_args")
+pub(crate) fn tesseract_args(png: &Path, dpi: u32) -> Vec<OsString> {
+    let mut v: Vec<OsString> = vec![png.as_os_str().to_owned()];
+    v.extend(
+        [
+            "stdout",
+            "--tessdata-dir",
+            "/opt/tessdata_best",
+            "-l",
+            "ita+eng",
+            "--oem",
+            "1",
+            "--psm",
+            "3",
+            "--dpi",
+        ]
+        .map(OsString::from),
+    );
+    v.push(dpi.to_string().into());
+    v.extend(["-c", "preserve_interword_spaces=1", "tsv"].map(OsString::from));
+    v
 }
 
 fn main() -> ExitCode {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
-    match parse_cli(args) {
-        Ok(_) => todo!("01-13 Task 2: dispatch dei sottocomandi"),
+    let cmd = match parse_cli(args) {
+        Ok(c) => c,
         Err(e) => {
             eprintln!("ocr: {e}");
-            ExitCode::from(2)
+            return ExitCode::from(2);
+        }
+    };
+    let result = match cmd {
+        Cmd::Render { input, dpi, out } => {
+            return child_exit(emit(&render(&input, dpi, &out)));
+        }
+        Cmd::Tesseract { image } => {
+            let (outcome, hwm) = tesseract(&image);
+            return child_exit(emit_with_hwm(&outcome, hwm));
+        }
+        Cmd::Map(a) => run_map(a),
+        Cmd::Score(a) => score::run_score(a),
+        Cmd::HostileVerdict(a) => score::run_hostile_verdict(a),
+        Cmd::ThroughputRow(a) => score::run_throughput_row(a),
+        Cmd::PaddleCheck(a) => score::run_paddle_check(a),
+        Cmd::TtqMerge(a) => run_ttq_merge(a),
+        Cmd::TtqSelect(a) => run_ttq_select(a),
+        Cmd::TessJobs(a) => run_tess_jobs(a),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("ocr: {e:#}");
+            ExitCode::from(1)
         }
     }
+}
+
+fn child_exit(r: anyhow::Result<()>) -> ExitCode {
+    match r {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(_) => ExitCode::from(1),
+    }
+}
+
+/// Riga del figlio nella forma di `protocol::emit`, con `vm_hwm_kb` dato (massimo fra figlio e
+/// discendente).
+#[derive(Serialize)]
+struct Line<'a> {
+    #[serde(flatten)]
+    outcome: &'a ChildOutcome,
+    vm_hwm_kb: Option<u64>,
+}
+
+fn emit_with_hwm(outcome: &ChildOutcome, hwm: Option<u64>) -> anyhow::Result<()> {
+    let line = serde_json::to_string(&Line {
+        outcome,
+        vm_hwm_kb: hwm,
+    })?;
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    out.write_all(line.as_bytes())?;
+    out.write_all(b"\n")?;
+    out.flush()?;
+    Ok(())
+}
+
+fn rejection(r: Rejection) -> ChildOutcome {
+    match r {
+        Rejection::Failed(kind, detail) => ChildOutcome::Failed { kind, detail },
+        Rejection::Quarantined(reasons) => ChildOutcome::Quarantined { reasons },
+    }
+}
+
+/// Nome della variante d'errore di PDFium (senza dati), per il detail.
+fn pdfium_variant(e: &PdfiumError) -> String {
+    let s = format!("{e:?}");
+    s.chars()
+        .take(200)
+        .collect::<String>()
+        .replace(['\n', '\r'], " ")
+}
+
+// ---- render ---------------------------------------------------------------------------------
+
+fn render(input: &Path, dpi: u32, out: &Path) -> ChildOutcome {
+    let t0 = Instant::now();
+    if !(72..=600).contains(&dpi) {
+        return ChildOutcome::failed(Kind::Unsupported, "dpi fuori da 72..=600");
+    }
+    let bytes = match std::fs::read(input) {
+        Ok(b) => b,
+        Err(e) => return ChildOutcome::failed(Kind::Corrupt, format!("read: {e}")),
+    };
+    // Prescan prima di qualunque contatto con PDFium: un rifiuto si emette com'è.
+    let report = match prescan::check_pdf(&bytes, &Caps::default()) {
+        Ok(r) => r,
+        Err(r) => return rejection(r),
+    };
+    let dir = std::env::var_os("PDFIUM_DIR")
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "/opt/pdfium/lib".into());
+    let bindings = match Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&dir))
+    {
+        Ok(b) => b,
+        Err(e) => return ChildOutcome::failed(Kind::Crashed, format!("pdfium_bind: {e}")),
+    };
+    let pdfium = Pdfium::new(bindings);
+    let doc = match pdfium.load_pdf_from_byte_slice(&bytes, None) {
+        Ok(d) => d,
+        Err(PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError)) => {
+            return ChildOutcome::failed(Kind::Encrypted, "pdfium_password");
+        }
+        Err(e) => {
+            return ChildOutcome::failed(
+                Kind::Corrupt,
+                format!("pdfium_load: {}", pdfium_variant(&e)),
+            );
+        }
+    };
+    let sha = hex_lower(&Sha256::digest(&bytes));
+    let config = PdfRenderConfig::new().scale_page_by_factor(dpi as f32 / 72.0);
+    let ppm = geom::dpi_to_ppm(dpi);
+    let (mut pages, mut png_bytes) = (0u64, 0u64);
+    for (i, page) in doc.pages().iter().enumerate() {
+        let n = i as u32 + 1;
+        let (w_pt, h_pt) = (
+            f64::from(page.width().value),
+            f64::from(page.height().value),
+        );
+        let bitmap = match page.render_with_config(&config) {
+            Ok(b) => b,
+            Err(e) => {
+                return ChildOutcome::failed(
+                    Kind::Corrupt,
+                    format!("pdfium_render: pagina {n}: {}", pdfium_variant(&e)),
+                );
+            }
+        };
+        let (w, h) = (bitmap.width() as u32, bitmap.height() as u32);
+        let rgba = bitmap.as_rgba_bytes();
+        drop(bitmap);
+        if rgba.len() != (w as usize) * (h as usize) * 4 {
+            return ChildOutcome::failed(
+                Kind::Corrupt,
+                format!("pdfium_render: pagina {n}: buffer"),
+            );
+        }
+        let gray: Vec<u8> = rgba
+            .chunks_exact(4)
+            .map(|p| {
+                // Luma BT.601 su sfondo bianco (alpha composto sul bianco).
+                let a = f32::from(p[3]) / 255.0;
+                let l = 0.299 * f32::from(p[0]) + 0.587 * f32::from(p[1]) + 0.114 * f32::from(p[2]);
+                (l * a + 255.0 * (1.0 - a)).round().clamp(0.0, 255.0) as u8
+            })
+            .collect();
+        drop(rgba);
+        let png = match encode_png_gray(&gray, w, h, ppm) {
+            Ok(p) => p,
+            Err(e) => return ChildOutcome::failed(Kind::ResourceLimit, format!("png: {e}")),
+        };
+        let stem = format!("page-{n:04}");
+        let sidecar = json!({
+            "source_sha256": sha,
+            "page": n,
+            "page_w_pt": w_pt,
+            "page_h_pt": h_pt,
+            "dpi": dpi,
+            "width_px": w,
+            "height_px": h,
+        });
+        let written = std::fs::write(out.join(format!("{stem}.png")), &png).and_then(|()| {
+            std::fs::write(
+                out.join(format!("{stem}.render.json")),
+                serde_json::to_vec(&sidecar).unwrap_or_default(),
+            )
+        });
+        if let Err(e) = written {
+            return ChildOutcome::failed(Kind::ResourceLimit, format!("write: {e}"));
+        }
+        png_bytes += png.len() as u64;
+        pages += 1;
+    }
+    ChildOutcome::Ok {
+        pages: Some(pages),
+        output: Some(out.to_string_lossy().into_owned()),
+        data: Some(json!({
+            "pages": pages,
+            "dpi": dpi,
+            "png_bytes": png_bytes,
+            "render_ms": t0.elapsed().as_millis() as u64,
+            "max_image_bytes_seen": report.max_stream_bytes,
+            "vm_peak_kb": vm_peak_kb(),
+            "vm_hwm_kb": vm_hwm_kb(),
+        })),
+    }
+}
+
+fn hex_lower(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// PNG in scala di grigi a 8 bit col crate `image`, più il chunk `pHYs` (unità metro) inserito
+/// subito dopo `IHDR`, con CRC32 di `flate2`.
+fn encode_png_gray(gray: &[u8], w: u32, h: u32, ppm: u32) -> anyhow::Result<Vec<u8>> {
+    use image::ImageEncoder as _;
+    let mut buf = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut buf).write_image(
+        gray,
+        w,
+        h,
+        image::ExtendedColorType::L8,
+    )?;
+    // Firma (8) + IHDR (4 lunghezza + 4 tipo + 13 dati + 4 CRC) = 33 byte.
+    anyhow::ensure!(
+        buf.len() > 33 && &buf[12..16] == b"IHDR",
+        "PNG senza IHDR in testa"
+    );
+    let mut data = Vec::with_capacity(9);
+    data.extend_from_slice(&ppm.to_be_bytes());
+    data.extend_from_slice(&ppm.to_be_bytes());
+    data.push(1);
+    let mut chunk = Vec::with_capacity(21);
+    chunk.extend_from_slice(&9u32.to_be_bytes());
+    let mut body = b"pHYs".to_vec();
+    body.extend_from_slice(&data);
+    let mut crc = flate2::Crc::new();
+    crc.update(&body);
+    chunk.extend_from_slice(&body);
+    chunk.extend_from_slice(&crc.sum().to_be_bytes());
+    let mut out = Vec::with_capacity(buf.len() + chunk.len());
+    out.extend_from_slice(&buf[..33]);
+    out.extend_from_slice(&chunk);
+    out.extend_from_slice(&buf[33..]);
+    Ok(out)
+}
+
+// ---- tesseract ------------------------------------------------------------------------------
+
+/// `VmPeak` e `VmHWM` (KiB) di un processo, se leggibili.
+fn proc_mem(pid: u32) -> (Option<u64>, Option<u64>) {
+    let path = format!("/proc/{pid}/status");
+    match std::fs::read_to_string(path) {
+        Ok(t) => (
+            s02_parser::protocol::status_value_kb(&t, "VmPeak:"),
+            s02_parser::protocol::status_value_kb(&t, "VmHWM:"),
+        ),
+        Err(_) => (None, None),
+    }
+}
+
+fn opt_max(a: Option<u64>, b: Option<u64>) -> Option<u64> {
+    match (a, b) {
+        (Some(x), Some(y)) => Some(x.max(y)),
+        (x, None) => x,
+        (None, y) => y,
+    }
+}
+
+/// Esito del figlio e `vm_hwm_kb` da riportare (massimo fra figlio e discendente).
+fn tesseract(image: &Path) -> (ChildOutcome, Option<u64>) {
+    let t0 = Instant::now();
+    let fail = |kind: Kind, d: String| (ChildOutcome::failed(kind, d), vm_hwm_kb());
+    let bytes = match std::fs::read(image) {
+        Ok(b) => b,
+        Err(e) => return fail(Kind::Corrupt, format!("read: {e}")),
+    };
+    let dpi = match geom::read_phys_dpi(&bytes) {
+        Ok(d) => d,
+        Err(geom::DpiError::Missing) => return fail(Kind::Corrupt, "dpi_missing".into()),
+        Err(geom::DpiError::NotPng) => return fail(Kind::Corrupt, "not_png".into()),
+    };
+    drop(bytes);
+    // Percorso assoluto letterale: il padre mette in PATH solo la cartella dei bin ammessi, quindi
+    // il discendente non si cerca nel PATH.
+    let mut child = match std::process::Command::new("/usr/bin/tesseract")
+        .args(tesseract_args(image, dpi))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => return fail(Kind::Crashed, format!("tesseract_spawn: {e}")),
+    };
+    let pid = child.id();
+    let mut stdout = child.stdout.take().expect("stdout piped");
+    let mut stderr = child.stderr.take().expect("stderr piped");
+    let out_t = std::thread::spawn(move || {
+        // Lettura limitata con io::copy sul Take (equivale a leggere fino in fondo il Take): oltre
+        // il tetto si smette di leggere, il processo si ferma sulla pipe piena e lo uccide il
+        // ciclo principale.
+        let mut v = Vec::new();
+        let _ = std::io::copy(&mut (&mut stdout).take(TSV_CAP + 1), &mut v);
+        v
+    });
+    let err_t = std::thread::spawn(move || {
+        let mut v = Vec::new();
+        let _ = std::io::copy(&mut (&mut stderr).take(4096), &mut v);
+        v
+    });
+    let (mut peak, mut hwm) = (None, None);
+    let status = loop {
+        let (p, h) = proc_mem(pid);
+        peak = opt_max(peak, p);
+        hwm = opt_max(hwm, h);
+        match child.try_wait() {
+            Ok(Some(st)) => break st,
+            Ok(None) => {
+                if out_t.is_finished() {
+                    // stdout chiuso o tetto raggiunto: si attende l'uscita con una scadenza.
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    loop {
+                        if let Ok(Some(_)) = child.try_wait() {
+                            break;
+                        } else if Instant::now() > deadline {
+                            let _ = child.kill();
+                            break;
+                        }
+                        let (p, h) = proc_mem(pid);
+                        peak = opt_max(peak, p);
+                        hwm = opt_max(hwm, h);
+                        std::thread::sleep(SAMPLE_EVERY);
+                    }
+                    match child.wait() {
+                        Ok(st) => break st,
+                        Err(e) => return fail(Kind::Crashed, format!("tesseract_wait: {e}")),
+                    }
+                }
+                std::thread::sleep(SAMPLE_EVERY);
+            }
+            Err(e) => return fail(Kind::Crashed, format!("tesseract_wait: {e}")),
+        }
+    };
+    let out = out_t.join().unwrap_or_default();
+    let err = err_t.join().unwrap_or_default();
+    let child_hwm = opt_max(vm_hwm_kb(), hwm);
+    let child_peak = opt_max(vm_peak_kb(), peak);
+    if out.len() as u64 > TSV_CAP {
+        return (
+            ChildOutcome::failed(Kind::OutputLimit, "tesseract_stdout_cap"),
+            child_hwm,
+        );
+    }
+    if !status.success() {
+        let tail: String = String::from_utf8_lossy(&err)
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(200)
+            .collect();
+        return (
+            ChildOutcome::failed(
+                Kind::Corrupt,
+                format!("tesseract_exit code={:?}: {tail}", status.code()),
+            ),
+            child_hwm,
+        );
+    }
+    let text = String::from_utf8_lossy(&out);
+    let words = match tsv::parse_tsv(&text) {
+        Ok(w) => w,
+        Err(e) => {
+            return (
+                ChildOutcome::failed(Kind::Corrupt, format!("tsv: {e}")),
+                child_hwm,
+            );
+        }
+    };
+    let n = words.len();
+    (
+        ChildOutcome::Ok {
+            pages: Some(1),
+            output: None,
+            data: Some(json!({
+                "dpi": dpi,
+                "words": words,
+                "word_count": n,
+                "tesseract_ms": t0.elapsed().as_millis() as u64,
+                "tesseract_vm_hwm_kb": hwm,
+                "tesseract_vm_peak_kb": peak,
+                "vm_peak_kb": child_peak,
+                "vm_hwm_kb": child_hwm,
+            })),
+        },
+        child_hwm,
+    )
+}
+
+// ---- map (stadio 1 e parole) ----------------------------------------------------------------
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr map")]
+struct MapCli {
+    /// Parole Tesseract (array JSON di parole in pixel) da riportare in punti PDF.
+    #[arg(long, conflicts_with = "cases")]
+    words: Option<PathBuf>,
+    /// Trasformazione (`.render.json` o `.transform.json`) delle parole.
+    #[arg(long, requires = "words")]
+    transform: Option<PathBuf>,
+    /// Stadio 1 del controllo analitico: `geom-cases.json` di `gen_geom.py`.
+    #[arg(long)]
+    cases: Option<PathBuf>,
+    /// Mappa dei job tesseract (`tess-jobs`) da cui leggere le trasformazioni registrate.
+    #[arg(long, requires = "cases")]
+    map: Option<PathBuf>,
+    #[arg(long)]
+    results_raw: Option<PathBuf>,
+}
+
+fn run_map(args: Vec<OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli = MapCli::try_parse_from(std::iter::once("ocr-map".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    if let (Some(w), Some(t)) = (&cli.words, &cli.transform) {
+        let words: Vec<tsv::Word> = serde_json::from_value(score::read_json(w)?)?;
+        let t = score::load_transform(t)?;
+        let out: Vec<Value> = words
+            .iter()
+            .map(|w| json!({"text": w.text, "bbox_pt": geom::map_bbox(&t, score::word_px(w))}))
+            .collect();
+        println!("{}", serde_json::to_string(&out)?);
+        return Ok(());
+    }
+    let (Some(cases), Some(map), Some(rr)) = (&cli.cases, &cli.map, &cli.results_raw) else {
+        anyhow::bail!("map: --words/--transform oppure --cases/--map/--results-raw");
+    };
+    // Stadio 1: angoli attesi → px (diretta) → pt (inversa), errore massimo per asse in px.
+    let v = score::read_json(cases)?;
+    let mut by_doc = std::collections::BTreeMap::new();
+    for p in v["pages"].as_array().context("pages")? {
+        by_doc.insert(
+            p["doc"].as_str().context("doc")?.to_owned(),
+            p["words"].clone(),
+        );
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let mut worst_all = 0.0f64;
+    for it in score::load_map(map)?.iter().filter(|i| i.set == "geom") {
+        if !seen.insert((it.doc.clone(), it.quality.clone())) {
+            continue;
+        }
+        let t = score::load_transform(&score::host_path(&it.transform, rr))?;
+        let mut worst = 0.0f64;
+        let words = by_doc.get(&it.doc).context("caso assente")?;
+        for w in words.as_array().context("words")? {
+            let r: [f64; 4] = serde_json::from_value(w["rect"].clone())?;
+            for c in [(r[0], r[1]), (r[2], r[1]), (r[0], r[3]), (r[2], r[3])] {
+                let back = geom::to_pt(&t, geom::to_px(&t, c));
+                let e = (back.0 - c.0).abs().max((back.1 - c.1).abs()) * t.dpi / 72.0;
+                worst = worst.max(e);
+            }
+        }
+        worst_all = worst_all.max(worst);
+        println!(
+            "stadio1 {} {} dpi {} rot {}: errore massimo {:.2e} px → {}",
+            it.doc,
+            it.quality,
+            t.dpi,
+            t.rotation_deg,
+            worst,
+            if worst <= 0.5 { "pass" } else { "fail" }
+        );
+    }
+    println!(
+        "stadio1 complessivo: errore massimo {worst_all:.2e} px → {}",
+        if worst_all <= 0.5 { "pass" } else { "fail" }
+    );
+    Ok(())
+}
+
+// ---- tess-jobs ------------------------------------------------------------------------------
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr tess-jobs")]
+struct TessJobsCli {
+    /// Indice della run scritto da `make_scans.sh` (`ocr-index/<run_id>.json`).
+    #[arg(long)]
+    index: PathBuf,
+    /// Cartella vista dal runner che nel worker è `/results/raw`.
+    #[arg(long)]
+    results_raw: PathBuf,
+    #[arg(long, value_parser = ["good", "degraded"])]
+    quality: String,
+    /// Insiemi dell'indice (`oracle`, `geom`, `doc25`), separati da virgola.
+    #[arg(long)]
+    sets: String,
+    #[arg(long)]
+    rep: u32,
+    #[arg(long)]
+    out_jobs: PathBuf,
+    /// Mappa `job_id` → pagina (si aggiunge alle voci già presenti).
+    #[arg(long)]
+    out_map: PathBuf,
+}
+
+/// Job `ocr_tesseract` delle pagine renderizzate (buone: `out_dir` del render a 300 DPI;
+/// degradate: `ocr-degraded/<run_id>/<job_id del render a 200 DPI>/`).
+fn run_tess_jobs(args: Vec<OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli = TessJobsCli::try_parse_from(std::iter::once("ocr-tess-jobs".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let idx = score::read_json(&cli.index)?;
+    let run_id = idx["run_id"].as_str().context("run_id")?.to_owned();
+    let sets: Vec<&str> = cli.sets.split(',').collect();
+    let (want_dpi, q) = if cli.quality == "good" {
+        (300, "g")
+    } else {
+        (200, "d")
+    };
+    let mut items: Vec<score::TessItem> = if cli.out_map.exists() {
+        score::load_map(&cli.out_map)?
+    } else {
+        Vec::new()
+    };
+    let mut jobs = String::new();
+    for r in idx["renders"].as_array().context("renders")? {
+        let set = r["set"].as_str().unwrap_or_default();
+        if !sets.contains(&set) || r["dpi"].as_u64() != Some(want_dpi) {
+            continue;
+        }
+        let doc = r["doc"].as_str().context("doc")?;
+        let rjob = r["job_id"].as_str().context("job_id")?;
+        let dir_worker = if cli.quality == "good" {
+            r["out_dir"].as_str().context("out_dir")?.to_owned()
+        } else {
+            format!("/results/raw/ocr-degraded/{run_id}/{rjob}")
+        };
+        let dir = score::host_path(&dir_worker, &cli.results_raw);
+        let mut pngs: Vec<String> = std::fs::read_dir(&dir)
+            .with_context(|| format!("{}", dir.display()))?
+            .flatten()
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|n| n.starts_with("page-") && n.ends_with(".png"))
+            .collect();
+        pngs.sort();
+        for name in pngs {
+            let page: u32 = name[5..9].parse().context("numero di pagina")?;
+            let job_id = format!("t-{doc}-p{page}-{q}-r{}-{run_id}", cli.rep);
+            anyhow::ensure!(
+                s02_parser::job::valid_job_id(&job_id),
+                "job_id non valido: {job_id}"
+            );
+            let png = format!("{dir_worker}/{name}");
+            let side = if cli.quality == "good" {
+                "render"
+            } else {
+                "transform"
+            };
+            let transform = format!("{dir_worker}/page-{page:04}.{side}.json");
+            jobs.push_str(&serde_json::to_string(&json!({
+                "job_id": job_id, "op": "ocr_tesseract", "input": png,
+                "out_dir": null, "params": {},
+            }))?);
+            jobs.push('\n');
+            items.push(score::TessItem {
+                job_id,
+                set: set.to_owned(),
+                doc: doc.to_owned(),
+                oracle_id: r["oracle_id"].as_str().map(str::to_owned),
+                page,
+                quality: cli.quality.clone(),
+                rep: cli.rep,
+                png,
+                transform,
+            });
+        }
+    }
+    std::fs::write(&cli.out_jobs, jobs)?;
+    std::fs::write(&cli.out_map, serde_json::to_string_pretty(&items)? + "\n")?;
+    println!("tess-jobs: {} voci nella mappa", items.len());
+    Ok(())
+}
+
+// ---- ttq-select e ttq-merge -----------------------------------------------------------------
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr ttq-select")]
+struct SelectCli {
+    /// `out_dir` di `extract_pdf` della run (`page-NNNN.json`).
+    #[arg(long)]
+    pages_dir: PathBuf,
+    /// `table_heuristic_params.json` di 01-08 (parametri congelati).
+    #[arg(long)]
+    params: PathBuf,
+}
+
+/// Pagine da mandare a Docling (punteggio ≥ `uncertain_from`, le incerte contano come
+/// selezionate) e pagine senza caratteri da mandare all'OCR. Il punteggio è la funzione
+/// `page_score` di `src/bin/extract/tables.rs` (01-08), riportata in `ttq::page_score`.
+fn run_ttq_select(args: Vec<OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli = SelectCli::try_parse_from(std::iter::once("ocr-ttq-select".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let params = score::read_json(&cli.params)?;
+    let f = ttq::Features::from_params(&params)?;
+    let uncertain = params["band"]["uncertain_from"]
+        .as_f64()
+        .context("band.uncertain_from")?;
+    let mut names: Vec<String> = std::fs::read_dir(&cli.pages_dir)?
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.starts_with("page-") && n.ends_with(".json"))
+        .collect();
+    names.sort();
+    let (mut tables, mut ocr) = (Vec::new(), Vec::new());
+    for n in &names {
+        let v = score::read_json(&cli.pages_dir.join(n))?;
+        let page = v["page"].as_u64().context("page")? as u32;
+        let words: Vec<(String, [f64; 4])> = v["words"]
+            .as_array()
+            .context("words")?
+            .iter()
+            .filter_map(|w| {
+                Some((
+                    w["text"].as_str()?.to_owned(),
+                    serde_json::from_value(w["bbox"].clone()).ok()?,
+                ))
+            })
+            .collect();
+        if v["chars"].as_array().map_or(0, Vec::len) == 0 {
+            ocr.push(page);
+        } else if ttq::page_score(&words, &f) >= uncertain {
+            tables.push(page);
+        }
+    }
+    let join = |v: &[u32]| v.iter().map(u32::to_string).collect::<Vec<_>>().join(",");
+    println!(
+        "pages={}\ttable_pages={}\tocr_pages={}",
+        names.len(),
+        join(&tables),
+        join(&ocr)
+    );
+    Ok(())
+}
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "ocr ttq-merge")]
+struct MergeCli {
+    #[arg(long)]
+    run_dir: PathBuf,
+    /// `ttq_parse.csv` in append (header scritto se il file è nuovo).
+    #[arg(long)]
+    csv: PathBuf,
+}
+
+fn run_ttq_merge(args: Vec<OsString>) -> anyhow::Result<()> {
+    use clap::Parser as _;
+    let cli = MergeCli::try_parse_from(std::iter::once("ocr-ttq-merge".into()).chain(args))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let (meta, comps) = ttq::read_run_dir(&cli.run_dir).map_err(anyhow::Error::msg)?;
+    let row = ttq::merge(&meta, &comps).map_err(anyhow::Error::msg)?;
+    let mut f = score::csv_append(&cli.csv, ttq::TTQ_HEADER)?;
+    writeln!(f, "{row}")?;
+    println!("{row}");
+    Ok(())
 }
 
 #[cfg(test)]

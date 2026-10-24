@@ -1,9 +1,14 @@
 //! Geometria px ↔ pt e DPI dal chunk `pHYs` (piano 01-13, TEST-8 e TEST-9).
 //!
-//! STUB del test-write (2026-10-23): corpi `todo!()` scritti dall'esecutore del Task 2.
 //! Trasformazione diretta (render + degradazione): `px = x·dpi/72`, `py = (page_h_pt − y)·dpi/72`
 //! (asse Y invertito: PDF in basso a sinistra, immagine in alto a sinistra), poi rotazione di
 //! `rotation_deg` attorno a `center_px`. L'inversa la disfa nell'ordine opposto.
+//!
+//! Convenzione della rotazione: coordinate immagine con y verso il basso, angolo positivo =
+//! rotazione oraria a vista, la stessa di `magick -distort SRT <angolo>` (verificata con una
+//! prova a punto noto in RISULTATI-ocr.md §Setup).
+//!
+//! **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · corpi di `read_phys_dpi`, `to_px`, `to_pt`, `map_bbox` (Task 2)
 
 /// Trasformazione registrata in `<pagina>.transform.json` (più `page_h_pt` del render).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -26,24 +31,84 @@ pub(crate) enum DpiError {
 }
 
 /// DPI effettivo (arrotondato) dal chunk `pHYs` di un PNG, letto a mano dai chunk.
-pub(crate) fn read_phys_dpi(_png: &[u8]) -> Result<u32, DpiError> {
-    todo!("01-13 Task 2: read_phys_dpi")
+pub(crate) fn read_phys_dpi(png: &[u8]) -> Result<u32, DpiError> {
+    const SIG: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+    if png.len() < SIG.len() || &png[..SIG.len()] != SIG {
+        return Err(DpiError::NotPng);
+    }
+    let mut at = SIG.len();
+    // Chunk: lunghezza (4, big endian), tipo (4), dati, CRC (4). Si legge fino a IDAT: pHYs
+    // deve precederlo (PNG 1.2, §11.3.5.3).
+    while at + 8 <= png.len() {
+        let len = u32::from_be_bytes([png[at], png[at + 1], png[at + 2], png[at + 3]]) as usize;
+        let kind = &png[at + 4..at + 8];
+        let data_at = at + 8;
+        let Some(end) = data_at.checked_add(len) else {
+            return Err(DpiError::Missing);
+        };
+        if kind == b"IDAT" || kind == b"IEND" || end > png.len() {
+            break;
+        }
+        if kind == b"pHYs" {
+            if len != 9 {
+                return Err(DpiError::Missing);
+            }
+            let d = &png[data_at..end];
+            let x = u32::from_be_bytes([d[0], d[1], d[2], d[3]]);
+            // Unità 1 = metro; 0 = solo rapporto d'aspetto, nessun DPI.
+            if d[8] != 1 || x == 0 {
+                return Err(DpiError::Missing);
+            }
+            return Ok((f64::from(x) * 0.0254).round() as u32);
+        }
+        at = end + 4;
+    }
+    Err(DpiError::Missing)
+}
+
+/// Pixel per metro di un DPI (valore del chunk `pHYs`).
+pub(crate) fn dpi_to_ppm(dpi: u32) -> u32 {
+    (f64::from(dpi) / 0.0254).round() as u32
+}
+
+fn rotate(t: &Transform, p: (f64, f64), sign: f64) -> (f64, f64) {
+    let (s, c) = (sign * t.rotation_deg).to_radians().sin_cos();
+    let (dx, dy) = (p.0 - t.center_px.0, p.1 - t.center_px.1);
+    (
+        t.center_px.0 + dx * c - dy * s,
+        t.center_px.1 + dx * s + dy * c,
+    )
 }
 
 /// Punto PDF (pt, origine in basso a sinistra) → pixel dell'immagine trasformata.
-pub(crate) fn to_px(_t: &Transform, _pt: (f64, f64)) -> (f64, f64) {
-    todo!("01-13 Task 2: to_px")
+pub(crate) fn to_px(t: &Transform, pt: (f64, f64)) -> (f64, f64) {
+    let k = t.dpi / 72.0;
+    rotate(t, (pt.0 * k, (t.page_h_pt - pt.1) * k), 1.0)
 }
 
 /// Pixel dell'immagine trasformata → punto PDF (inversa di [`to_px`]).
-pub(crate) fn to_pt(_t: &Transform, _px: (f64, f64)) -> (f64, f64) {
-    todo!("01-13 Task 2: to_pt")
+pub(crate) fn to_pt(t: &Transform, px: (f64, f64)) -> (f64, f64) {
+    let (x, y) = rotate(t, px, -1.0);
+    let k = 72.0 / t.dpi;
+    (x * k, t.page_h_pt - y * k)
 }
 
 /// Bbox in pixel `[left, top, right, bottom]` → rettangolo PDF `[x0, y0, x1, y1]` (involucro
 /// dei quattro vertici riportati con [`to_pt`]).
-pub(crate) fn map_bbox(_t: &Transform, _px: [f64; 4]) -> [f64; 4] {
-    todo!("01-13 Task 2: map_bbox")
+pub(crate) fn map_bbox(t: &Transform, px: [f64; 4]) -> [f64; 4] {
+    let [l, tp, r, b] = px;
+    let v = [(l, tp), (r, tp), (l, b), (r, b)].map(|p| to_pt(t, p));
+    let fold = |f: fn(f64, f64) -> f64, i: usize, init: f64| {
+        v.iter()
+            .map(|p| if i == 0 { p.0 } else { p.1 })
+            .fold(init, f)
+    };
+    [
+        fold(f64::min, 0, f64::INFINITY),
+        fold(f64::min, 1, f64::INFINITY),
+        fold(f64::max, 0, f64::NEG_INFINITY),
+        fold(f64::max, 1, f64::NEG_INFINITY),
+    ]
 }
 
 #[cfg(test)]
