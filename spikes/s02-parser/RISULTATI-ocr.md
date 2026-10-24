@@ -162,7 +162,7 @@ Sessione `01-13-20261024t143200z-384b` (`ocr-run/run_ttq.sh`): worker, Docling G
 
 ## Domande per l'utente
 
-- **Approvazione dei pacchetti pip di PaddleOCR** (checkpoint bloccante del Task 1): `spikes/docker/paddle-requirements.lock` fissa `paddlepaddle==3.3.1`, `paddleocr==3.7.0` e 68 dipendenze transitive, ognuna con `==` e `--hash=sha256:`, base `python:3.12-slim` per digest. Senza approvazione lo sfidante PP-OCRv6 non si misura e la riga OCR dell'ADR-0004 resta provvisoria. Il cgroup del worker resta a 2 GiB (D-28).
+- **Approvazione dei pacchetti pip di PaddleOCR** (checkpoint bloccante del Task 1): `spikes/docker/paddle-requirements.lock` fissa `paddlepaddle==3.3.1`, `paddleocr==3.7.0` e 68 dipendenze transitive, ognuna con `==` e `--hash=sha256:`, base `python:3.12-slim` per digest. Il lock è stato rigenerato il 2026-10-24 con un cooldown di supply chain (decisione utente): nessuna release pubblicata su PyPI dopo il 2026-10-10. Il primo lock conteneva versioni uscite da 0-3 giorni (`modelscope-hub` 0.5.0, `huggingface-hub` 2.3.0, `httpx2` 2.16.0); nel nuovo 20 pacchetti scendono di versione, `tzdata` esce, nessun nome nuovo, e 70 pacchetti su 70 risultano anteriori al cutoff su PyPI. Senza approvazione lo sfidante PP-OCRv6 non si misura e la riga OCR dell'ADR-0004 resta provvisoria. Il cgroup del worker resta a 2 GiB (D-28).
 
 ## Esito parziale
 
