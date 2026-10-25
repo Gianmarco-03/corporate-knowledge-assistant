@@ -95,6 +95,131 @@ pub(crate) fn paddle_text(out: &Value) -> Result<String, String> {
     Ok(parts.join(" "))
 }
 
+/// Righe di testo di PaddleOCR con il loro rettangolo in pixel (`rec_texts` accoppiati a
+/// `rec_boxes` `[x_min, y_min, x_max, y_max]`, nell'ordine). Lunghezze diverse, box non a
+/// quattro numeri o testi non testuali → `Err`: nessun accoppiamento indovinato.
+pub(crate) fn paddle_boxes(out: &Value) -> Result<Vec<(String, [f64; 4])>, String> {
+    let res = if out["res"].is_object() {
+        &out["res"]
+    } else {
+        out
+    };
+    let texts = res["rec_texts"]
+        .as_array()
+        .ok_or("rec_texts assente dall'output di PaddleOCR")?;
+    let boxes = res["rec_boxes"]
+        .as_array()
+        .ok_or("rec_boxes assente dall'output di PaddleOCR")?;
+    if texts.len() != boxes.len() {
+        return Err(format!(
+            "rec_texts ({}) e rec_boxes ({}) di lunghezza diversa",
+            texts.len(),
+            boxes.len()
+        ));
+    }
+    let mut out = Vec::with_capacity(texts.len());
+    for (t, b) in texts.iter().zip(boxes) {
+        let t = t.as_str().ok_or("rec_texts con voci non testuali")?;
+        let b: Vec<f64> = b
+            .as_array()
+            .map(|a| a.iter().filter_map(Value::as_f64).collect())
+            .unwrap_or_default();
+        let [x0, y0, x1, y1] = b[..] else {
+            return Err("rec_boxes con voci non a quattro numeri".into());
+        };
+        out.push((t.to_owned(), [x0, y0, x1, y1]));
+    }
+    Ok(out)
+}
+
+/// Una pagina PaddleOCR salvata dal comando dello sfidante: l'unico `*_res.json` di
+/// `<dir>/<job_id>/` (`--save_path` dell'invocazione) e il tempo di parete dell'invocazione
+/// singola in `<dir>/<job_id>.wall_ms` (millisecondi interi, preso dentro il container).
+#[derive(Debug, Clone)]
+pub(crate) struct PaddlePage {
+    pub text: String,
+    pub boxes_px: Vec<(String, [f64; 4])>,
+    pub wall_ms: u64,
+}
+
+pub(crate) fn load_paddle_page(dir: &Path, job_id: &str) -> anyhow::Result<PaddlePage> {
+    let out_dir = dir.join(job_id);
+    let mut res: Vec<PathBuf> = std::fs::read_dir(&out_dir)
+        .with_context(|| format!("uscita PaddleOCR assente: {}", out_dir.display()))?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("_res.json"))
+        })
+        .collect();
+    if res.len() != 1 {
+        bail!(
+            "{}: attesi 1 file *_res.json, trovati {}",
+            out_dir.display(),
+            res.len()
+        );
+    }
+    let v = read_json(&res.remove(0))?;
+    let text = paddle_text(&v).map_err(anyhow::Error::msg)?;
+    let boxes_px = paddle_boxes(&v).map_err(anyhow::Error::msg)?;
+    let wp = dir.join(format!("{job_id}.wall_ms"));
+    let wall_ms = std::fs::read_to_string(&wp)
+        .with_context(|| format!("{}", wp.display()))?
+        .trim()
+        .parse::<u64>()
+        .with_context(|| format!("{}: millisecondi non interi", wp.display()))?;
+    Ok(PaddlePage {
+        text,
+        boxes_px,
+        wall_ms,
+    })
+}
+
+/// Origine delle parole OCR di una voce della mappa: `RunReport` di `ocr_tesseract` oppure
+/// uscite salvate di PaddleOCR (righe di testo, non parole: una riga si abbina a una parola
+/// attesa solo se il testo normalizzato è uguale).
+pub(crate) enum Source<'a> {
+    Tesseract(&'a BTreeMap<String, Value>),
+    Paddle(&'a Path),
+}
+
+impl Source<'_> {
+    /// Testo della pagina e secondi dell'invocazione.
+    fn text_secs(&self, it: &TessItem) -> anyhow::Result<(String, f64)> {
+        match self {
+            Source::Tesseract(reports) => {
+                let r = reports
+                    .get(&it.job_id)
+                    .with_context(|| format!("RunReport assente per {}", it.job_id))?;
+                let secs = r["wall_ms"].as_u64().unwrap_or(0) as f64 / 1000.0;
+                Ok((words_text(&report_words(r)?), secs))
+            }
+            Source::Paddle(dir) => {
+                let p = load_paddle_page(dir, &it.job_id)?;
+                Ok((p.text, p.wall_ms as f64 / 1000.0))
+            }
+        }
+    }
+
+    /// Testi e rettangoli in pixel dell'immagine d'ingresso.
+    fn boxes_px(&self, it: &TessItem) -> anyhow::Result<Vec<(String, [f64; 4])>> {
+        match self {
+            Source::Tesseract(reports) => {
+                let r = reports
+                    .get(&it.job_id)
+                    .with_context(|| format!("RunReport assente per {}", it.job_id))?;
+                Ok(report_words(r)?
+                    .iter()
+                    .map(|w| (w.text.clone(), word_px(w)))
+                    .collect())
+            }
+            Source::Paddle(dir) => Ok(load_paddle_page(dir, &it.job_id)?.boxes_px),
+        }
+    }
+}
+
 /// Testo di una pagina OCR Tesseract: le parole nell'ordine del TSV, unite da uno spazio.
 pub(crate) fn words_text(words: &[Word]) -> String {
     words
@@ -675,8 +800,17 @@ enum ScoreCmd {
     Cer {
         #[arg(long)]
         map: PathBuf,
-        #[arg(long, required = true)]
+        /// JSONL dei `RunReport` di `ocr_tesseract` (motore Tesseract).
+        #[arg(
+            long,
+            required_unless_present = "paddle_dir",
+            conflicts_with = "paddle_dir"
+        )]
         runs: Vec<PathBuf>,
+        /// Cartella delle uscite di PaddleOCR per `job_id` della mappa (`<job_id>/*_res.json`
+        /// e `<job_id>.wall_ms`), vista dal runner: sostituisce `--runs`.
+        #[arg(long)]
+        paddle_dir: Option<PathBuf>,
         #[arg(long)]
         oracle: PathBuf,
         #[arg(long, default_value = "tesseract")]
@@ -692,8 +826,15 @@ enum ScoreCmd {
         reference: String,
         #[arg(long)]
         map: PathBuf,
-        #[arg(long, required = true)]
+        #[arg(
+            long,
+            required_unless_present = "paddle_dir",
+            conflicts_with = "paddle_dir"
+        )]
         runs: Vec<PathBuf>,
+        /// Uscite di PaddleOCR come in `cer`: sostituisce `--runs`.
+        #[arg(long)]
+        paddle_dir: Option<PathBuf>,
         #[arg(long)]
         results_raw: PathBuf,
         /// Ripetizione usata per le bbox (una sola, uguale per ogni pagina).
@@ -727,15 +868,24 @@ pub(crate) fn run_score(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
         ScoreCmd::Cer {
             map,
             runs,
+            paddle_dir,
             oracle,
             engine,
             version,
             out,
-        } => score_cer(&map, &runs, &oracle, &engine, &version, &out),
+        } => {
+            let reports = read_reports(&runs)?;
+            let src = match &paddle_dir {
+                Some(d) => Source::Paddle(d),
+                None => Source::Tesseract(&reports),
+            };
+            score_cer(&map, &src, &oracle, &engine, &version, &out)
+        }
         ScoreCmd::Bbox {
             reference,
             map,
             runs,
+            paddle_dir,
             results_raw,
             rep,
             cases,
@@ -747,11 +897,15 @@ pub(crate) fn run_score(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
         } => {
             let items = load_map(&map)?;
             let reports = read_reports(&runs)?;
+            let src = match &paddle_dir {
+                Some(d) => Source::Paddle(d),
+                None => Source::Tesseract(&reports),
+            };
             let mut f = csv_append(&out, BBOX_HEADER)?;
             let rows = if reference == "analytic" {
                 bbox_analytic(
                     &items,
-                    &reports,
+                    &src,
                     &results_raw,
                     rep,
                     &cases.context("--cases richiesto da analytic")?,
@@ -767,7 +921,7 @@ pub(crate) fn run_score(args: Vec<std::ffi::OsString>) -> anyhow::Result<()> {
                 }
                 bbox_pdfium(
                     &items,
-                    &reports,
+                    &src,
                     &results_raw,
                     rep,
                     &index.context("--index richiesto da pdfium")?,
@@ -805,14 +959,13 @@ pub(crate) fn load_map(p: &Path) -> anyhow::Result<Vec<TessItem>> {
 
 fn score_cer(
     map: &Path,
-    runs: &[PathBuf],
+    src: &Source<'_>,
     oracle: &Path,
     engine: &str,
     version: &str,
     out: &Path,
 ) -> anyhow::Result<()> {
     let items = load_map(map)?;
-    let reports = read_reports(runs)?;
     let entries: Vec<Value> = serde_json::from_value(read_json(oracle)?).context("oracolo")?;
     let (usable, excluded) = usable_oracles(&entries);
     let by_id: BTreeMap<&str, &Value> = usable
@@ -831,12 +984,8 @@ fn score_cer(
         let expected = entry["expected_value"]
             .as_str()
             .context("expected_value non testuale")?;
-        let r = reports
-            .get(&it.job_id)
-            .with_context(|| format!("RunReport assente per {}", it.job_id))?;
-        let words = report_words(r)?;
-        let c = cer(expected, &words_text(&words));
-        let secs = r["wall_ms"].as_u64().unwrap_or(0) as f64 / 1000.0;
+        let (text, secs) = src.text_secs(it)?;
+        let c = cer(expected, &text);
         writeln!(
             f,
             "{engine},{version},{},{},{},{},{},{},{:.3}",
@@ -874,22 +1023,20 @@ type BboxRow = (String, u32, Quality, BboxMetrics, Verdict);
 
 fn ocr_words_pt(
     it: &TessItem,
-    reports: &BTreeMap<String, Value>,
+    src: &Source<'_>,
     results_raw: &Path,
 ) -> anyhow::Result<Vec<(String, [f64; 4])>> {
-    let r = reports
-        .get(&it.job_id)
-        .with_context(|| format!("RunReport assente per {}", it.job_id))?;
     let t = load_transform(&host_path(&it.transform, results_raw))?;
-    Ok(report_words(r)?
-        .iter()
-        .map(|w| (w.text.clone(), geom::map_bbox(&t, word_px(w))))
+    Ok(src
+        .boxes_px(it)?
+        .into_iter()
+        .map(|(text, px)| (text, geom::map_bbox(&t, px)))
         .collect())
 }
 
 fn bbox_analytic(
     items: &[TessItem],
-    reports: &BTreeMap<String, Value>,
+    reports: &Source<'_>,
     results_raw: &Path,
     rep: u32,
     cases: &Path,
@@ -911,7 +1058,7 @@ fn bbox_analytic(
 
 fn bbox_pdfium(
     items: &[TessItem],
-    reports: &BTreeMap<String, Value>,
+    reports: &Source<'_>,
     results_raw: &Path,
     rep: u32,
     index: &Path,
@@ -1452,6 +1599,92 @@ mod tests {
             json!({"res":{"rec_texts":["Totale","attivo"],"rec_boxes":[[0,0,1,1],[2,0,3,1]]}});
         assert_eq!(paddle_text(&out).unwrap(), "Totale attivo");
         assert!(paddle_text(&json!({"res":{}})).is_err());
+    }
+
+    // Percorso PP-OCRv6 di `score` (continuazione paddle, 2026-10-25): righe e rettangoli
+    // dall'output salvato, tempo dell'invocazione singola dal file `.wall_ms`.
+    #[test]
+    fn test9_paddle_boxes_pair_texts_and_boxes_or_fail() {
+        let top = json!({"rec_texts":["ATTIVO","2026"],"rec_boxes":[[10,20,110,44],[5,6,7,8]]});
+        assert_eq!(
+            paddle_boxes(&top).unwrap(),
+            vec![
+                ("ATTIVO".to_owned(), [10.0, 20.0, 110.0, 44.0]),
+                ("2026".to_owned(), [5.0, 6.0, 7.0, 8.0])
+            ]
+        );
+        let nested = json!({"res":{"rec_texts":["A"],"rec_boxes":[[0,0,1,1]]}});
+        assert_eq!(paddle_boxes(&nested).unwrap().len(), 1);
+        assert!(paddle_boxes(&json!({"rec_texts":["A","B"],"rec_boxes":[[0,0,1,1]]})).is_err());
+        assert!(paddle_boxes(&json!({"rec_texts":["A"],"rec_boxes":[[0,0,1]]})).is_err());
+        assert!(paddle_boxes(&json!({"rec_texts":["A"]})).is_err());
+    }
+
+    fn paddle_fixture(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "cka-ocr-paddle-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("job-1")).unwrap();
+        d
+    }
+
+    #[test]
+    fn test9_paddle_page_reads_single_res_json_and_wall_ms() {
+        let d = paddle_fixture("ok");
+        std::fs::write(
+            d.join("job-1/page-0001_res.json"),
+            r#"{"rec_texts":["Totale","attivo"],"rec_boxes":[[0,0,1,1],[2,0,3,1]]}"#,
+        )
+        .unwrap();
+        std::fs::write(d.join("job-1.wall_ms"), "4321\n").unwrap();
+        let p = load_paddle_page(&d, "job-1").unwrap();
+        assert_eq!(p.text, "Totale attivo");
+        assert_eq!(p.wall_ms, 4321);
+        assert_eq!(p.boxes_px.len(), 2);
+        let it = TessItem {
+            job_id: "job-1".into(),
+            set: "oracle".into(),
+            doc: "p-001".into(),
+            oracle_id: Some("P-001".into()),
+            page: 1,
+            quality: "good".into(),
+            rep: 2,
+            png: String::new(),
+            transform: String::new(),
+        };
+        let (text, secs) = Source::Paddle(&d).text_secs(&it).unwrap();
+        assert_eq!(text, "Totale attivo");
+        assert!((secs - 4.321).abs() < 1e-9);
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn test9_paddle_page_rejects_missing_time_or_ambiguous_output() {
+        let d = paddle_fixture("bad");
+        // Nessun *_res.json: invocazione fallita, mai una pagina vuota.
+        assert!(load_paddle_page(&d, "job-1").is_err());
+        std::fs::write(
+            d.join("job-1/a_res.json"),
+            r#"{"rec_texts":[],"rec_boxes":[]}"#,
+        )
+        .unwrap();
+        // Tempo assente: la riga non si scrive.
+        assert!(load_paddle_page(&d, "job-1").is_err());
+        std::fs::write(d.join("job-1.wall_ms"), "abc").unwrap();
+        assert!(load_paddle_page(&d, "job-1").is_err());
+        std::fs::write(d.join("job-1.wall_ms"), "10").unwrap();
+        assert!(load_paddle_page(&d, "job-1").is_ok());
+        // Due uscite nella stessa cartella: ambiguità, errore.
+        std::fs::write(
+            d.join("job-1/b_res.json"),
+            r#"{"rec_texts":[],"rec_boxes":[]}"#,
+        )
+        .unwrap();
+        assert!(load_paddle_page(&d, "job-1").is_err());
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
