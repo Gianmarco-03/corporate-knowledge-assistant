@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.5 / — / — / verify completato (passed, chiusa) · aggiornato: 2026-10-24
+fase 01 / onda 7 / slice 01-13 / execute completato (bridge) · aggiornato: 2026-10-25
 
 ## Prossima azione
 
-riallineare worktree 01-13 a main (merge, senza ri-registrare) ed eseguire 01-13 (onda 7): brief con obblighi 01.5-CONTRATTO (ocr_render su dct-sof-huge-image, jpx-siz-huge-image, jpx-siz-huge-jp2; ADR-0004 debito inline), D-40 (M10 parse dichiarata), margine 8,1% (D-12), RISK-001 di risk_audit_26.
+onda 8: preflight 01-14 (critico: READ-GATE plan-gate su PLAN-010-14, riallineo worktree a main con merge), poi test-write fresco e esecutore Opus; prima chiedere utente pulizia disco Docker a macchina ferma.
 
 ## Findings
 
@@ -88,6 +88,8 @@ riallineare worktree 01-13 a main (merge, senza ri-registrare) ed eseguire 01-13
 - verify 1.4: passed 16/16, contratto onorato (aggiornato in verify con 01.4-02, mancava), WIRING-MAP invariata; phase complete spostava STATE a fase 2 → riportato a fase 1 (13/18); REQUIREMENTS: solo riga vuota, ripristinato → 01.4-VERIFICATION.md
 
 - verify 1.5: passed 11/11, contratto onorato (2 formulazioni corrette in verify), WIRING-MAP invariata; io::copy giudicato equivalente dalla security review, commento 5239f0e; STATE riportato a fase 1 dopo phase complete → 01.5-VERIFICATION.md
+- onda 7 chiusa: 01-13 (merge d13e23a, bridge); gate main fmt/clippy ok, runner s02-parser 380 pass 0 fail 8 ign al rilancio (1° giro 3 rossi temporizzazione isolation.rs, flaky sotto carico, file non toccati); decisioni utente lock Paddle cooldown dbb615b, apt fissati 24654ca, PP-OCRv6 1 tentativo detection ridotta non vince → Tesseract in ADR-0004 (Proposed, ratifica 01-17); deviazioni a: test1 uv 307de01, manifest pesi sha 64; difetto file chiuso parse-parent.rs calibrate BudgetExceeded → gap-closure riapre [1]; T-09 jbig2 aperto → 01-13-SUMMARY.md
+- D-41 scanner upload-in-memory opzione B corretta su deepsearch_7 (take dopo decoder, ambigui «da verificare») + D-19 fase 3 lettore limitato → 01-CONTEXT.md, 01-DEEPSEARCH-7.md
 
 ## Limiti trovati
 
@@ -99,6 +101,8 @@ riallineare worktree 01-13 a main (merge, senza ri-registrare) ed eseguire 01-13
 - 2026-10-22 · rate limit sessione (429) a metà di 01-09 e 01-10 · ripresi via SendMessage, nessun lavoro perso · rif. rapporto-01-09/01-10
 - 2026-10-23 · sessione chiusa con integratore onda 6 e 01.4-02 T1 a metà; Docker Desktop spento · ripresi, Docker riavviato dall'agente T1
 - 2026-10-23 · volume cargo-target condiviso fra worktree: binario parse-parent vecchio (base senza fix) più recente dei sorgenti di main → 3 rossi falsi su drivers.rs; touch + rebuild → verde · impatto: ogni gate dopo merge va verificato con «Compiling s02-parser»
+- 2026-10-24/25 · Docker Desktop spento dall'utente 2 volte durante TTQ 01-13 e una volta fra due giri paddle · serie TTQ invalidate in results/raw/invalid-ttq-docker-restart*, rilancio da capo; esecutore fermo, Docker riavviato dall'orchestratore su richiesta · rif. rapporto-01-13 (c)
+- 2026-10-25 · gsd-tools roadmap update-plan-progress 01 13 scrive «Plans» nella sezione 01.5 (fase 1 ha «**Plans**: TBD») · hunk annullato con git apply -R, solo tabella aggiornata · rif. commit bridge 01-13
 
 ## Gate & verdetti
 

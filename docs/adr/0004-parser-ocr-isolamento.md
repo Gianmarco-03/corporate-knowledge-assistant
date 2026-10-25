@@ -7,7 +7,7 @@
 
 **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · ADR proposto con le misure dei quattro RISULTATI di S-02 (piano 01-13)
 **Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · riga OCR: PP-OCRv6 identificato ma non valutabile a 2 GiB (oneDNN/PIR, OOM); Tesseract provvisorio, stato invariato
-**Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · riga OCR: PP-OCRv6 misurato con detection ridotta (decisione utente, opzione a, un solo tentativo), non vince nettamente; Tesseract confermato, «(provvisorio)» tolto dal titolo; stato Proposed invariato, ratifica in /verify 1
+**Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · riga OCR: PP-OCRv6 misurato con detection ridotta (decisione utente, opzione a, un solo tentativo), non vince nettamente; Tesseract confermato, «(provvisorio)» tolto dal titolo; stato Proposed invariato, ratifica nel consolidamento (piano 01-17, Task 2)
 
 ## Contesto
 
