@@ -19,6 +19,7 @@
 # Nessun segreto, CPU soltanto, nessuna rete a runtime (la rete serve solo alla build).
 #
 # **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · immagine dello sfidante PP-OCRv6 con pesi precaricati e selezione verificata in build
+# **Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · exit dell'aiuto registrato: un import fallito non si legge più come «--ocr_version assente»
 
 FROM python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
 
@@ -31,8 +32,10 @@ COPY docker/paddle-requirements.lock /tmp/requirements.lock
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements.lock \
  && rm -f /tmp/requirements.lock
 
+# L'exit dell'aiuto si registra: un aiuto che non parte (import fallito) non è «flag assente».
 RUN mkdir -p /opt/paddle-models /opt/paddle-home \
- && paddleocr ocr --help > /opt/paddle-models/cli-help.txt 2>&1 || true
+ && { paddleocr ocr --help > /opt/paddle-models/cli-help.txt 2>&1; \
+      echo $? > /opt/paddle-models/cli-help.exit; }
 
 # Selezione di v6 dalla CLI installata ([NV-v6-flag], [NV-v6-lang]) e precaricamento.
 RUN python3 - <<'PY'
@@ -41,6 +44,7 @@ import json, os, re, sys
 ROOT = "/opt/paddle-models"
 help_text = open(os.path.join(ROOT, "cli-help.txt"), encoding="utf-8", errors="replace").read()
 lines = help_text.splitlines()
+help_exit = open(os.path.join(ROOT, "cli-help.exit"), encoding="utf-8").read().strip()
 
 def write(name, obj):
     with open(os.path.join(ROOT, name), "w", encoding="utf-8") as f:
@@ -67,6 +71,9 @@ def help_block(flag):
             break
     return " ".join(out)
 
+if help_exit != "0":
+    stop("`paddleocr ocr --help` uscito con codice %s: %s"
+         % (help_exit, lines[-1].strip() if lines else "nessun output"))
 ver_help = help_block("--ocr_version")
 if not ver_help:
     stop("--ocr_version assente da `paddleocr ocr --help`")
