@@ -28,6 +28,9 @@
 #
 # Exit: 0 ok; 1 errore (servizio non pronto, container di altri, carico fallito); 2 uso.
 #
+# Il sottocomando throughput di s03 rifiuta un CSV senza hw.json accanto: il carico copia
+# in /work/tmp quello versionato di s03 (lettura soltanto) e scrive solo in /work/tmp.
+#
 # **Modifica:** Claude (gsd-executor 01-15) · 2026-10-25 · misura di convivenza VRAM
 
 set -euo pipefail
@@ -47,13 +50,23 @@ if [[ ! -f $CKA_SPIKES_ENV ]]; then
   printf 'vram.sh: file dei segreti assente (CKA_SPIKES_ENV)\n' >&2
   exit 2
 fi
-set -a
-# shellcheck disable=SC1090
-. "$CKA_SPIKES_ENV"
-set +a
-
-B_EMBED=${TEI_MAX_BATCH_TOKENS:-16384}
-B_RERANK=${TEI_RERANK_MAX_BATCH_TOKENS:-8192}
+# Solo i due valori di batch, letti in una subshell: i segreti non entrano nell'ambiente
+# dello script né dei comandi che lancia.
+read_env() {
+  (
+    set -a
+    # shellcheck disable=SC1090
+    . "$CKA_SPIKES_ENV"
+    set +a
+    printf '%s' "${!1:-$2}"
+  )
+}
+B_EMBED=$(read_env TEI_MAX_BATCH_TOKENS 16384)
+B_RERANK=$(read_env TEI_RERANK_MAX_BATCH_TOKENS 8192)
+if [[ ! $B_EMBED =~ ^[0-9]+$ || ! $B_RERANK =~ ^[0-9]+$ ]]; then
+  printf 'vram.sh: max-batch-tokens non interi nel file di CKA_SPIKES_ENV\n' >&2
+  exit 2
+fi
 DURATION_S=${VRAM_DURATION_S:-180}
 WARM_S=${VRAM_WARM_S:-30}
 SCENARIO=${VRAM_SCENARIO:-b${B_EMBED}-${B_RERANK}}
@@ -118,7 +131,7 @@ load_cmd() {
   local svc=$1 secs=$2
   case $svc in
     tei-embed)
-      printf '%s' "mkdir -p /work/tmp/s04-vram/emb && end=\$((SECONDS+$secs)) && while (( SECONDS < end )); do /target/release/s03-pgvector --out /work/tmp/s04-vram/emb --raw /work/tmp/s04-vram/emb-raw throughput --model $EMBED_ARG --batch 32 --max-batch-tokens $B_EMBED --run 1 --queries 200 || exit 1; done" ;;
+      printf '%s' "mkdir -p /work/tmp/s04-vram/emb && cp /src/s03-pgvector/results/embedding/hw.json /work/tmp/s04-vram/emb/hw.json && end=\$((SECONDS+$secs)) && while (( SECONDS < end )); do /target/release/s03-pgvector --out /work/tmp/s04-vram/emb --raw /work/tmp/s04-vram/emb-raw throughput --model $EMBED_ARG --batch 32 --max-batch-tokens $B_EMBED --run 1 --queries 200 || exit 1; done" ;;
     tei-rerank)
       printf '%s' "mkdir -p /work/tmp/s04-vram && /target/release/rerank --methods tei --duration-s $secs --out /work/tmp/s04-vram/rerank-load.csv ${ACCEPT[*]}" ;;
     docling)
