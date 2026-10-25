@@ -657,7 +657,8 @@ async fn build_index(
     let stmt = hnsw_statement(scale, dense)?;
     let mut conn = PgConnection::connect(url).await?;
     for s in [
-        "SET maintenance_work_mem = '2GB'",
+        // La build parallela tiene il grafo in memoria condivisa: `shm_size` del container è 1 GB.
+        "SET maintenance_work_mem = '768MB'",
         "SET max_parallel_maintenance_workers = 4",
     ] {
         sqlx::raw_sql(s).execute(&mut conn).await?;
