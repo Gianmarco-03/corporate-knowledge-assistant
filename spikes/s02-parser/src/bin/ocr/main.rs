@@ -947,10 +947,11 @@ mod tests {
             .lines()
             .find(|l| l.starts_with("# base:"))
             .expect("commento # base: nel lock");
-        assert!(
-            head.contains("pip-tools==7.4.1") && head.contains("pip==24.3.1"),
-            "{head}"
-        );
+        // Storia (2026-10-25, coordinatore): il lock approvato è rigenerato con uv per il
+        // cooldown di supply chain (decisione utente 2026-10-24), perché pip-compile non
+        // filtra per data. Il controllo resta lo stesso: un risolutore fissato per versione.
+        // Prima: `pip-tools==7.4.1` e `pip==24.3.1`.
+        assert!(head.contains("uv==0.13.5"), "{head}");
         let digest = head
             .split("python:3.12-slim@sha256:")
             .nth(1)
