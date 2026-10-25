@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 7 / slice 01-13 / execute completato (bridge) · aggiornato: 2026-10-25
+fase 01 / onda 8 / slice 01-14 / execute completato (bridge) · aggiornato: 2026-10-25
 
 ## Prossima azione
 
-onda 8: preflight 01-14 (critico: READ-GATE plan-gate su PLAN-010-14, riallineo worktree a main con merge), poi test-write fresco e esecutore Opus; prima chiedere utente pulizia disco Docker a macchina ferma.
+onda 9: preflight 01-15 (reranker GPU; verificare criticità e test design, worktree da main), test-write fresco, esecutore; poi 01-16 (critico, READ-GATE PLAN-010-16) e 01-17.
 
 ## Findings
 
@@ -90,6 +90,8 @@ onda 8: preflight 01-14 (critico: READ-GATE plan-gate su PLAN-010-14, riallineo 
 - verify 1.5: passed 11/11, contratto onorato (2 formulazioni corrette in verify), WIRING-MAP invariata; io::copy giudicato equivalente dalla security review, commento 5239f0e; STATE riportato a fase 1 dopo phase complete → 01.5-VERIFICATION.md
 - onda 7 chiusa: 01-13 (merge d13e23a, bridge); gate main fmt/clippy ok, runner s02-parser 380 pass 0 fail 8 ign al rilancio (1° giro 3 rossi temporizzazione isolation.rs, flaky sotto carico, file non toccati); decisioni utente lock Paddle cooldown dbb615b, apt fissati 24654ca, PP-OCRv6 1 tentativo detection ridotta non vince → Tesseract in ADR-0004 (Proposed, ratifica 01-17); deviazioni a: test1 uv 307de01, manifest pesi sha 64; difetto file chiuso parse-parent.rs calibrate BudgetExceeded → gap-closure riapre [1]; T-09 jbig2 aperto → 01-13-SUMMARY.md
 - D-41 scanner upload-in-memory opzione B corretta su deepsearch_7 (take dopo decoder, ambigui «da verificare») + D-19 fase 3 lettore limitato → 01-CONTEXT.md, 01-DEEPSEARCH-7.md
+- onda 8 chiusa: 01-14 (merge 050eb8f, bridge); gate main fmt/clippy ok, s03-pgvector host 28 pass, scanner 0/118; integrazione Postgres solo nel runner dell'esecutore (40 verdi) → human_judgment; leak 0/2.067, soglia esatto→HNSW 50k, I-2 recall ≥0,95 solo 10k, ibrida non adottata, ADR-0006 Proposed; deviazioni a: maintenance_work_mem 768MB (misure HNSW con modifica non committata, git_rev 22d6d5f), query HNSW EXISTS OFFSET 0; testi RISULTATI/ADR corretti al bridge; aperto 23,7 vs 27,7 ms → 01-14-SUMMARY.md
+- pulizia disco 2026-10-25 (utente ok): build cache 23,1 GB, 419 dir s02-* residue test 9,6 GB, 8 modelli VLM docling ~27 GB; vhdx da compattare a mano (admin); TODO verify: test s02 senza pulizia tmp, compose.yaml:175 docling --all, results/docling-models.txt elenca modelli rimossi
 
 ## Limiti trovati
 

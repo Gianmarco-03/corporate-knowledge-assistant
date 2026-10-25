@@ -43,6 +43,7 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-24 · Scanner upload-in-memory: niente HIGH su read_to_end con .take(, nuova regola su io::copy verso Vec senza take; prescan torna a read_to_end; in /verify 1 → `phases/01-spike-tecnici/01-CONTEXT.md#decisioni`
 - 2026-10-24 · D-41 corretta su deepsearch_7: eccezione solo con take dopo il decoder, casi ambigui «da verificare», test dello scanner; helper limitato alla fase 3 → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - 2026-10-25 · 01-13: lock PaddleOCR con cooldown al 2026-10-10 (uv), librerie apt fissate, PP-OCRv6 misurato una volta a detection ridotta: non vince, Tesseract in ADR-0004 → `phases/01-spike-tecnici/01-13-SUMMARY.md`
+- 2026-10-25 · 01-14: ricerca esatta con ACL nella stessa query nell'MVP, coseno, ibrida RRF non adottata, HNSW da rivalutare oltre 50k (recall filtrata ≥0,95 solo a 10k) → `phases/01-spike-tecnici/01-14-SUMMARY.md`
 
 ## Fase 1.1 — Gap-closure di session.sh
 

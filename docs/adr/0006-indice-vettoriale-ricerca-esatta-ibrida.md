@@ -39,7 +39,7 @@ Decisioni dell'utente che vincolano la scelta:
   - inserimento concorrente senza errori: 20 chunk/s per 5 minuti su 100k chunk, p95 delle query in carico 1,29 volte quello a riposo;
   - nessun indice da costruire o mantenere nell'MVP (a 300k un indice HNSW `vector` costa 2,3 GiB e 97 s di build).
 - Negative:
-  - la latenza cresce in modo lineare con i chunk visibili: oltre 50.000 chunk il profilo meno selettivo supera 50 ms, a 300k sta a 522 ms;
+  - la latenza cresce con i chunk visibili, non in modo lineare (23,7 / 100,9 / 111,2 / 522,2 ms a 10k / 50k / 100k / 300k, perché il numero di worker paralleli lanciati cambia con la scala): oltre 50.000 chunk il profilo meno selettivo supera 50 ms, a 300k sta a 522 ms;
   - la soglia vale per questo hardware (`hw.json` dello spike) e per `shared_buffers = 2GB`;
   - la recall filtrata di HNSW oltre 10k è misurata su un corpus sintetico (copie perturbate dei vettori reali), probabilmente pessimistico: il dato reale manca.
 - Follow-up:
@@ -63,3 +63,4 @@ Decisioni dell'utente che vincolano la scelta:
 | End-to-end a 10k | 46,0 ms | < 200 ms |
 | Metrica | top-10 coseno = prodotto interno in 74/74 query | ranking invariato |
 | `restricted-only` sul corpus reale | 0,48% dei chunk | ≤ 5% |
+**Modifica:** Claude (Anthropic, orchestratore) · 2026-10-25 · «lineare» corretto con i valori misurati (bridge di 01-14)
