@@ -593,6 +593,45 @@ pub(crate) fn v6_cli_args(selection: &Value) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+/// Argomenti fissi del comando dello sfidante scritti nel piano 01-13 (Task 3), dopo quelli
+/// di `v6_cli_args`: niente orientamento né unwarping, CPU.
+pub(crate) const V6_PLAN_FIXED_ARGS: [&str; 8] = [
+    "--use_doc_orientation_classify",
+    "False",
+    "--use_doc_unwarping",
+    "False",
+    "--use_textline_orientation",
+    "False",
+    "--device",
+    "cpu",
+];
+
+/// Detection ridotta dello sfidante (decisione utente 2026-10-25, opzione a, un solo
+/// tentativo): oneDNN spento per il difetto PIR di paddlepaddle 3.3.1 e lato lungo
+/// dell'ingresso della detection portato a 960 px (`max`), per stare nei 2 GiB del servizio
+/// `paddle`. Svantaggio dichiarato per lo sfidante sul testo piccolo; fissato prima della misura.
+pub(crate) const V6_REDUCED_DET_ARGS: [&str; 6] = [
+    "--enable_mkldnn",
+    "False",
+    "--text_det_limit_type",
+    "max",
+    "--text_det_limit_side_len",
+    "960",
+];
+
+/// Argomenti completi della misura v6 (senza `-i` e `--save_path`, che dipendono dalla pagina):
+/// selezione letterale, poi gli argomenti fissi del piano, poi la detection ridotta.
+pub(crate) fn v6_measure_args(selection: &Value) -> Result<Vec<String>, String> {
+    let mut out = v6_cli_args(selection)?;
+    out.extend(
+        V6_PLAN_FIXED_ARGS
+            .iter()
+            .chain(V6_REDUCED_DET_ARGS.iter())
+            .map(|s| (*s).to_owned()),
+    );
+    Ok(out)
+}
+
 /// Famiglia di `v6.resolved.json`: `det.model_name` e `rec.model_name` con prefisso `PP-OCRv6_`.
 pub(crate) fn v6_family_check(resolved: &Value) -> Result<(), String> {
     for part in ["det", "rec"] {
@@ -1533,6 +1572,9 @@ struct PaddleCli {
     manifest_image: Option<PathBuf>,
     #[arg(long)]
     manifest_committed: Option<PathBuf>,
+    /// Stampa gli argomenti completi della misura (`v6_measure_args`) invece della sola selezione.
+    #[arg(long)]
+    measure: bool,
 }
 
 /// `ocr paddle-check …`: stampa gli argomenti v6 della CLI o fallisce con il motivo.
@@ -1541,7 +1583,12 @@ pub(crate) fn run_paddle_check(args: Vec<std::ffi::OsString>) -> anyhow::Result<
     let cli = PaddleCli::try_parse_from(std::iter::once("ocr-paddle-check".into()).chain(args))
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     let sel = read_json(&cli.selection)?;
-    let argv = v6_cli_args(&sel).map_err(anyhow::Error::msg)?;
+    let argv = if cli.measure {
+        v6_measure_args(&sel)
+    } else {
+        v6_cli_args(&sel)
+    }
+    .map_err(anyhow::Error::msg)?;
     let build = read_json(&cli.resolved)?;
     v6_family_check(&build).map_err(anyhow::Error::msg)?;
     if let Some(s) = &cli.session {
@@ -1999,6 +2046,40 @@ mod tests {
                 "--lang",
                 "it"
             ]
+        );
+    }
+
+    // Detection ridotta (decisione utente 2026-10-25, opzione a): argomenti fissati prima
+    // della misura, in coda alla selezione letterale e agli argomenti fissi del piano.
+    #[test]
+    fn test2_v6_measure_args_add_plan_flags_and_reduced_detection() {
+        let sel = json!({"selectable":true,"ocr_version":"PP-OCRv6","tier":null,"lang":"it"});
+        assert_eq!(
+            v6_measure_args(&sel).unwrap(),
+            [
+                "--ocr_version",
+                "PP-OCRv6",
+                "--lang",
+                "it",
+                "--use_doc_orientation_classify",
+                "False",
+                "--use_doc_unwarping",
+                "False",
+                "--use_textline_orientation",
+                "False",
+                "--device",
+                "cpu",
+                "--enable_mkldnn",
+                "False",
+                "--text_det_limit_type",
+                "max",
+                "--text_det_limit_side_len",
+                "960"
+            ]
+        );
+        assert!(
+            v6_measure_args(&json!({"selectable":false,"reason":"x"})).is_err(),
+            "la detection ridotta non apre la porta a uno sfidante non selezionabile"
         );
     }
 
