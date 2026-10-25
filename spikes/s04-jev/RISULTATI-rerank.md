@@ -55,3 +55,31 @@ Definizioni che valgono per le soglie:
   - su `query-bench` di S-03 rieseguito con uscita in `/work/tmp`, i flag di rilevanza per query danno lo stesso recall@5, recall@10 e primo rango;
   - testi delle query, excerpt e corpi dei chunk sono già in NFC (0 eccezioni su 1.479 chunk e su tutti gli excerpt), quindi il passo NFC mancante nel bin non cambia nulla.
 - **VRAM del desktop:** 1.909-2.131 MiB occupati prima di avviare i servizi (lettura di `nvidia-smi` all'apertura delle sessioni del 2026-10-25). Sulla RTX 3050 il margine per i servizi è quindi di circa 4 GiB. `nvidia-smi --query-compute-apps` dentro e fuori i container non elenca i processi dei container (WSL2): «No running processes found».
+- **Hardware e sessioni:** [`results/rerank/hw.json`](results/rerank/hw.json) (sha256 `7794554e4c9a688690d6402c2f8e7cbebcc2a66542efbef21ff4ad8f56f18d0a`, sessione `01-15-20261025t182756z-d090`, `git_rev` `d530189`, `tools.reranker` = `BAAI/bge-reranker-v2-m3`, `tools.jev_model` = `jev-1.13.0`). La macchina è l'i7-13700K con RTX 3050 6 GB (driver 610.88), Docker Desktop 29.8.2 su WSL 2, piano energetico «Bilanciato». Il manifest è normalizzato allo schema di `common::manifest` con la stessa trasformazione dei piani precedenti; l'originale sta in `results/raw/rerank/hw-raw.json`, ignorato da git (vedi «Anomalie e deviazioni»).
+- **Immagini:** TEI `86-1.9.4` (`sha256:bee0bdb8…`), TEI `cpu-1.9` (`sha256:2538ea1c…`), `docling-serve-cu128:v1.37.0` (`sha256:2aa6fc68…`), runner `cka-spikes-runner:latest` (`sha256:86a924ad…`); i digest completi sono in `hw.json`. Binari `--release --locked --offline` compilati nel runner all'inizio della sessione dal commit `d530189` («Compiling s04-jev» visto nel log).
+- **Comandi della misura di rerank** (da `spikes/`, nel runner via `session.sh oneshot`, sessione `01-15-20261025t182756z-d090`, servizi `tei-rerank` e `runner`, `ps --assert-only` verde, nessun container di altri piani):
+  - `/target/release/rerank --info` (pin dei pesi, vedi sopra);
+  - `/target/release/rerank --methods none,tei,jev --runs 3 --device gpu --out s04-jev/results/rerank/rerank.csv`;
+  - ripiego CPU: `tei-rerank` fermato con `session.sh stop`; avviato un container `text-embeddings-inference:cpu-1.9` con etichetta `cka.run_id` della sessione, sulla rete `cka-spikes_default` con alias `tei-rerank` (così `TEI_RERANK_URL` del runner non cambia), stessi pesi e stessa revisione dal volume `hf-cache`; poi `/target/release/rerank --methods tei --runs 3 --device cpu --out s04-jev/results/rerank/rerank.csv` (accodato) e `session.sh stop` del container.
+- **Chiamate a JEV:** 1.479 richieste di forma A per passata × 3 passate = 4.437 richieste (stima prima di partire: circa 3,3 milioni di token di input, 0,14 USD). Spesa reale da `usage`: 0,130760 USD, contro un tetto `S04_MAX_COST_USD` di 5 USD. Nessuna altra chiamata a JEV in questo piano: i carichi di `vram.sh` usano solo il metodo `tei`.
+
+## Risultati
+
+### Rerank (`results/rerank/rerank.csv`, ripetizioni 2 e 3, 74 query)
+
+| Metodo | device | righe | nDCG@5 | recall@8 | latenza p50 / p95 / p99 (ms) | Esito vs soglia |
+|---|---|---|---|---|---|---|
+| no-rerank (ordine denso di S-03) | na | 148 | 0,5777 | 0,7432 | 0 / 0 / 0 | riferimento di R-1 |
+| bge-reranker-v2-m3, TEI GPU | gpu | 148 | 0,7338 | 0,7838 | 287 / **360** / 432 | R-1: nDCG@5 +0,1561 (≥ +0,02, sì); p95 360 ms (≤ 300 ms, **no**) |
+| bge-reranker-v2-m3, TEI CPU (ripiego, facoltativo) | cpu | 147 | 0,7319 | 0,7823 | 20.295 / 32.033 / 51.795 | fuori da ogni budget di latenza |
+| JEV forma A, concorrenza 16, deadline 2 s | api | 148 | 0,7649 | 0,7973 | 368 / 483 / 603 | R-2: riportato come differenza |
+
+- **Regola R-1 applicata:** il reranker su GPU guadagna 0,1561 di nDCG@5 sul no-rerank, oltre il margine richiesto di 0,02. Ma il p95 del rerank di 20 candidati è 360 ms contro un tetto di 300 ms (massimo 435 ms). Le due condizioni vanno soddisfatte insieme, quindi **la baseline è no-rerank**.
+- **Sulle 59 query con almeno un rilevante fra i candidati** (dato informativo, le medie della soglia restano quelle della tabella): nDCG@5 / recall@8 = 0,7246 / 0,9322 per no-rerank, 0,9203 / 0,9831 per TEI GPU, 0,9594 / 1,0000 per JEV. Le altre 15 query valgono 0 per tutti i metodi: 12 sono `no_answer`, 3 (Q-029, Q-047, Q-078) hanno rilevanti attesi che il retrieval denso non porta fra i primi 20.
+- **Per query (ripetizione 2):** TEI GPU migliora nDCG@5 rispetto a no-rerank su 26 query, lo peggiora su 3 e lo lascia uguale su 45. JEV migliora TEI su 8 query, lo peggiora su 1 e lo pareggia su 65; è sotto no-rerank su 1 query.
+- **Per gruppo di lingua** (59 query con rilevanti; it 24, en 24, cross 11): no-rerank 0,6837 / 0,6992 / 0,8692; TEI GPU 0,8739 / 0,9455 / 0,9664; JEV 0,9018 / 0,9983 / 1,0000. Il guadagno maggiore del reranker sta sulle query in inglese.
+- **Stabilità:** no-rerank e TEI danno lo stesso nDCG@5 nelle ripetizioni 2 e 3 su tutte le query (TEI è deterministico). JEV cambia su 3 query su 74: Q-027 (1,0000 / 0,5000), Q-031 (0,8772 / 0,6509) e Q-049 (1,0000 / 0,9197). È la varianza dei Noul già misurata in RISULTATI-jev (vincolo di calibrazione di ±0,1).
+- **JEV:** `model_resolved` = `jev-1.13.0` su tutte le 222 righe, nessun errore, nessun timeout entro i 2 s di deadline (latenza massima 630 ms).
+- **Prima ripetizione (scartata):** la prima query paga il riscaldamento (TEI GPU 621 ms, JEV 425 ms); il resto della ripetizione 1 sta negli stessi intervalli delle ripetizioni 2 e 3.
+- **Candidati per query:** 20 su 73 query; Q-075 ne ha 19, cioè tutti i candidati visibili al suo ruolo (nessun riempimento con candidati non visibili). Il numero è lo stesso in tutti i metodi e in tutte le ripetizioni.
+- **Hard gate R-4:** `unauthorized_sent` = 0 su tutte le 887 righe, per tutti i metodi (`awk -F, 'NR>1 && $9!=0' results/rerank/rerank.csv` non stampa nulla). Il client JEV conta 0 passaggi non visibili inviati in tutta la sessione.

@@ -1,0 +1,66 @@
+{
+  "timestamp_utc": "2026-10-25T18:28:21Z",
+  "git_rev": "d530189cf80ec0e157d35d1e6b6cfbc832784cea",
+  "cpu": "13th Gen Intel(R) Core(TM) i7-13700K (16 core, 24 thread)",
+  "ram_total": "34112217088",
+  "gpu": "NVIDIA GeForce RTX 3050, 610.88, 6144 MiB",
+  "cuda_driver": "13.3",
+  "wsl_version": "Versione WSL: 2.6.3.0\nVersione kernel: 6.6.87.2-1\nVersione WSLg: 1.0.71\nVersione MSRDC: 1.2.6353\nVersione Direct3D: 1.611.1-81528511\nVersione DXCore: 10.0.26100.1-240331-1435.ge-release\nVersione di Windows: 10.0.26300.9711",
+  "docker_version": "29.8.2",
+  "docker_desktop_resources": "{\"ncpu\":16,\"mem_total_bytes\":20971700224}",
+  "images": {
+    "ghcr.io/huggingface/text-embeddings-inference:86-1.9.4": "ghcr.io/huggingface/text-embeddings-inference@sha256:bee0bdb887096229add91b6fdfcf95258c12eb9180e90dc86f3b4b25b86fc613",
+    "quay.io/docling-project/docling-serve-cu128:v1.37.0": "quay.io/docling-project/docling-serve-cu128@sha256:2aa6fc687c9211911b51ad2a60c33028358973fd053be9dd1cc4646017dfc76d",
+    "ghcr.io/huggingface/text-embeddings-inference:cpu-1.9": "ghcr.io/huggingface/text-embeddings-inference@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d",
+    "cka-spikes-runner:latest": "cka-spikes-runner@sha256:86a924ad5599d1f010ca454e8c910704c662df46b1557b5343950e14ab91d298"
+  },
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "tools": {
+    "reranker": "BAAI/bge-reranker-v2-m3",
+    "reranker_revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+    "embedder": "BAAI/bge-m3",
+    "embedder_revision": "5617a9f61b028005a4858fdac845db406aefb181",
+    "tei": "1.9.4",
+    "jev_model": "jev-1.13.0"
+  },
+  "power_plan": "GUID combinazione risparmio energia: 381b4222-f694-41f0-9685-ff5bb260df2e  (Bilanciato)",
+  "run_id": "01-15-20261025t182756z-d090",
+  "compose_project": "cka-spikes",
+  "containers": [
+    {
+      "name": "cka-spikes-tei-rerank-1",
+      "service": "tei-rerank",
+      "image": "ghcr.io/huggingface/text-embeddings-inference:86-1.9.4",
+      "image_id": "sha256:bee0bdb887096229add91b6fdfcf95258c12eb9180e90dc86f3b4b25b86fc613"
+    }
+  ],
+  "cpu_detail": {
+    "model": "13th Gen Intel(R) Core(TM) i7-13700K",
+    "cores": 16,
+    "threads": 24
+  },
+  "ram_total_bytes": 34112217088,
+  "docker_desktop_resources_detail": {
+    "ncpu": 16,
+    "mem_total_bytes": 20971700224
+  },
+  "images_detail": [
+    {
+      "ref": "ghcr.io/huggingface/text-embeddings-inference:86-1.9.4",
+      "digest": "ghcr.io/huggingface/text-embeddings-inference@sha256:bee0bdb887096229add91b6fdfcf95258c12eb9180e90dc86f3b4b25b86fc613"
+    },
+    {
+      "ref": "quay.io/docling-project/docling-serve-cu128:v1.37.0",
+      "digest": "quay.io/docling-project/docling-serve-cu128@sha256:2aa6fc687c9211911b51ad2a60c33028358973fd053be9dd1cc4646017dfc76d"
+    },
+    {
+      "ref": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.9",
+      "digest": "ghcr.io/huggingface/text-embeddings-inference@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d"
+    },
+    {
+      "ref": "cka-spikes-runner:latest",
+      "digest": "cka-spikes-runner@sha256:86a924ad5599d1f010ca454e8c910704c662df46b1557b5343950e14ab91d298"
+    }
+  ],
+  "normalized_by": "driver di 01-15 (scratch, non versionato), stessa normalizzazione di 01-04, 01-07, 01-08, 01-10, 01-11 e 01-14 (schema di common::manifest; originale in spikes/s04-jev/results/raw/rerank/hw-raw.json, ignorato da git)"
+}
