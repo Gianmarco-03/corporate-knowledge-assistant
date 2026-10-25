@@ -1,17 +1,27 @@
 //! Client del reranker TEI (bge-reranker-v2-m3) per lo spike A-06 (piano 01-15).
 //!
-//! Contratto (RESEARCH §11.10, [NV] da verificare su una risposta reale):
+//! Contratto (RESEARCH §11.10, verificato sulla risposta reale di TEI 1.9.4):
 //! `POST {TEI_RERANK_URL}/rerank` con `{"query", "texts", "raw_scores": false}`,
 //! risposta `[{index, score}]` ordinata per punteggio. `index` è la posizione del
 //! testo nella richiesta: va ricollegato al candidato originale, mai indovinato.
+//! Una risposta incompleta, con un indice ripetuto o fuori intervallo è un errore
+//! (fail-closed): nessun ordine si completa a caso.
 //!
-//! STUB test-write 01-15: firme minime perché i test rossi del design compilino;
-//! i corpi li scrive l'esecutore del piano (Task 1).
+//! L'endpoint viene solo dall'ambiente (`TEI_RERANK_URL`); TEI è un servizio locale
+//! della rete del compose, quindi lo schema può essere `http`.
 //!
 //! **Modifica:** Claude (test-write 01-15) · 2026-10-25 · scheletro e test rossi del design
+//! **Modifica:** Claude (gsd-executor 01-15) · 2026-10-25 · client TEI `/rerank` e `/info`, mapping fail-closed
 
+use anyhow::{Context, bail};
 use s04_jev::candidates::Passage;
 use serde::Deserialize;
+use std::time::Duration;
+
+/// Timeout di connessione verso TEI.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+/// Timeout per richiesta: 20 candidati su GPU stanno ben sotto; su CPU servono secondi.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Una voce della risposta di `/rerank`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -23,19 +33,56 @@ pub struct RerankHit {
 /// Client HTTP verso il servizio `tei-rerank`; l'URL base viene dall'ambiente.
 pub struct TeiReranker {
     http: reqwest::Client,
+    base: String,
     endpoint: String,
 }
 
 impl TeiReranker {
     /// Client con URL base esplicito (senza `/` finale; `/rerank` lo aggiunge il client).
     pub fn new(base_url: &str) -> anyhow::Result<TeiReranker> {
-        let _ = base_url;
-        todo!("TeiReranker::new")
+        let base = base_url.trim().trim_end_matches('/').to_owned();
+        let url = reqwest::Url::parse(&base).context("URL base di TEI non valido")?;
+        if !matches!(url.scheme(), "http" | "https") {
+            bail!("URL base di TEI con schema non ammesso: {}", url.scheme());
+        }
+        if url.host_str().is_none() {
+            bail!("URL base di TEI senza host");
+        }
+        if !url.username().is_empty() || url.password().is_some() || url.query().is_some() {
+            bail!("URL base di TEI con credenziali o query: non ammesso");
+        }
+        let http = reqwest::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .context("costruzione del client HTTP verso TEI")?;
+        let endpoint = format!("{base}/rerank");
+        Ok(TeiReranker {
+            http,
+            base,
+            endpoint,
+        })
     }
 
     /// Client da `TEI_RERANK_URL`; errore che nomina la variabile se manca.
     pub fn from_env() -> anyhow::Result<TeiReranker> {
-        todo!("TeiReranker::from_env")
+        let base = common::env::required("TEI_RERANK_URL")?;
+        TeiReranker::new(&base).context("TEI_RERANK_URL")
+    }
+
+    /// `GET /info` di TEI (modello, `model_sha`, versione): serve al pin dei pesi.
+    pub async fn info(&self) -> anyhow::Result<serde_json::Value> {
+        let resp = self
+            .http
+            .get(format!("{}/info", self.base))
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("TEI /info: {}", e.without_url()))?;
+        let status = resp.status();
+        if !status.is_success() {
+            bail!("TEI /info: status {status}");
+        }
+        resp.json().await.context("TEI /info: risposta non JSON")
     }
 
     /// Riordina `passages` per la query: id del passaggio e punteggio, dal più
@@ -45,23 +92,74 @@ impl TeiReranker {
         query: &str,
         passages: &[Passage],
     ) -> anyhow::Result<Vec<(String, f64)>> {
-        let _ = (&self.http, &self.endpoint, query, passages);
-        todo!("TeiReranker::rerank")
+        if passages.is_empty() {
+            bail!("rerank senza candidati");
+        }
+        let body = request_body(query, passages);
+        let resp = self
+            .http
+            .post(&self.endpoint)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("TEI /rerank: {}", e.without_url()))?;
+        let status = resp.status();
+        if !status.is_success() {
+            // Il corpo d'errore di TEI non contiene testo dei passaggi: si riporta corto.
+            let detail = resp.text().await.unwrap_or_default();
+            let detail: String = detail.chars().take(200).collect();
+            bail!("TEI /rerank: status {status}: {detail}");
+        }
+        let hits: Vec<RerankHit> = resp
+            .json()
+            .await
+            .context("TEI /rerank: risposta non nella forma [{index, score}]")?;
+        ranked_ids(passages, &hits)
     }
 }
 
 /// Corpo della richiesta: `query`, `texts` nell'ordine dei candidati, `raw_scores: false`.
 pub fn request_body(query: &str, passages: &[Passage]) -> serde_json::Value {
-    let _ = (query, passages);
-    todo!("request_body")
+    let texts: Vec<&str> = passages.iter().map(|p| p.text.as_str()).collect();
+    serde_json::json!({
+        "query": query,
+        "texts": texts,
+        "raw_scores": false,
+    })
 }
 
 /// Ricollega la risposta ai candidati: id e punteggio in ordine di punteggio
 /// decrescente. Errore (mai panico, mai candidato inventato) se un `index` è fuori
 /// intervallo, ripetuto, o se la risposta non copre tutti i candidati inviati.
+/// A parità di punteggio vince la posizione d'ingresso (l'ordine denso).
 pub fn ranked_ids(passages: &[Passage], hits: &[RerankHit]) -> anyhow::Result<Vec<(String, f64)>> {
-    let _ = (passages, hits);
-    todo!("ranked_ids")
+    let n = passages.len();
+    if hits.len() != n {
+        bail!(
+            "risposta di TEI incompleta: {} voci per {n} candidati",
+            hits.len()
+        );
+    }
+    let mut seen = vec![false; n];
+    let mut scored: Vec<(usize, f64)> = Vec::with_capacity(n);
+    for h in hits {
+        if h.index >= n {
+            bail!("indice {} fuori intervallo su {n} candidati", h.index);
+        }
+        if seen[h.index] {
+            bail!("indice {} ripetuto nella risposta di TEI", h.index);
+        }
+        if !h.score.is_finite() {
+            bail!("punteggio non finito per l'indice {}", h.index);
+        }
+        seen[h.index] = true;
+        scored.push((h.index, h.score));
+    }
+    scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+    Ok(scored
+        .into_iter()
+        .map(|(i, s)| (passages[i].id.clone(), s))
+        .collect())
 }
 
 /// Server HTTP/1.1 finto su loopback per i test del bin: conta le richieste,

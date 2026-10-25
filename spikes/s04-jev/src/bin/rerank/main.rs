@@ -7,33 +7,62 @@
 //! sha256 di `candidates_manifest.json`; una divergenza passa solo con
 //! `--accept-sha <hex>` uguale allo sha calcolato.
 //!
-//! STUB test-write 01-15: firme minime perché i test rossi del design compilino;
-//! corpo, CLI e CSV li scrive l'esecutore del piano (Task 1). Togliere anche
-//! `allow(dead_code)` quando la CLI usa tutte le funzioni.
+//! Uso (da `spikes/`, nel runner via `session.sh oneshot`; il pacchetto ha due bin, quindi
+//! `cargo run -p s04-jev --release --bin rerank -- …` oppure `/target/release/rerank …`):
+//! - `rerank --info`: `/info` di TEI (modello e `model_sha`), nessun candidato inviato;
+//! - `rerank --methods none,tei,jev --runs 3`: misura, una riga di `rerank.csv` per
+//!   query, metodo e ripetizione, e tabella riassuntiva sulle ripetizioni ≥ 2;
+//! - `rerank --methods tei --duration-s 180 --out <file>`: carico per `vram.sh`.
 //!
 //! **Modifica:** Claude (test-write 01-15) · 2026-10-25 · scheletro e test rossi del design
-#![allow(dead_code)]
+//! **Modifica:** Claude (gsd-executor 01-15) · 2026-10-25 · rank_query, verifica sha, CLI e CSV
 
 mod tei_rerank;
 
-use s04_jev::candidates::{Acl, Passage, Query};
+use anyhow::{Context, bail};
+use clap::{Parser, ValueEnum};
+use s04_jev::candidates::{Acl, Passage, Query, assert_visible, is_green};
 use s04_jev::jev::Client;
-use std::path::Path;
+use s04_jev::metrics::{ndcg_at_k, recall_at_k};
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tei_rerank::TeiReranker;
+use tokio::time::Instant;
 
 /// Concorrenza di JEV scelta nel piano 01-11 (RISULTATI-jev §Esito).
 pub const JEV_CONCURRENCY: usize = 16;
 /// Deadline globale del rank JEV di una query.
 pub const JEV_DEADLINE: Duration = Duration::from_secs(2);
+/// Candidati per query (top-k di S-03).
+const K: usize = 20;
+
+/// Header fisso di `rerank.csv` (piano 01-15, Task 2).
+const RERANK_HEADER: &str = "method,device,query_id,run,candidates,ndcg_at_5,recall_at_8,latency_ms,unauthorized_sent,model_resolved";
 
 /// Metodo di riordino; nel CSV vale `none`, `tei` o `jev`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Method {
     /// Ordine denso di S-03, nessun invio.
+    #[value(name = "none")]
     NoRerank,
+    #[value(name = "tei")]
     Tei,
+    #[value(name = "jev")]
     Jev,
+}
+
+impl Method {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Method::NoRerank => "none",
+            Method::Tei => "tei",
+            Method::Jev => "jev",
+        }
+    }
 }
 
 /// Backend disponibili nella sessione: un metodo senza il suo backend è un errore.
@@ -56,6 +85,8 @@ pub struct Ranked {
     pub latency_ms: u64,
     /// Versione risolta di JEV (`response.model`); `None` per `none` e `tei`.
     pub model_resolved: Option<String>,
+    /// Passaggi non visibili al ruolo contati sul punto di invio (hard gate: 0).
+    pub unauthorized_sent: u64,
 }
 
 /// Riordina i candidati di una query con `method`. Guardia di visibilità
@@ -68,8 +99,74 @@ pub async fn rank_query(
     acl: &Acl,
     backends: &Backends,
 ) -> anyhow::Result<Ranked> {
-    let _ = (method, query, passages, acl, backends);
-    todo!("rank_query")
+    let started = Instant::now();
+    assert_visible(passages, &query.role_profile, acl)
+        .with_context(|| format!("guardia di visibilità, query {}", query.id))?;
+    let (order, model_resolved, unauthorized_sent) = match method {
+        Method::NoRerank => (passages.iter().map(|p| p.id.clone()).collect(), None, 0),
+        Method::Tei => {
+            let tei = backends
+                .tei
+                .as_ref()
+                .context("metodo tei senza client TEI (TEI_RERANK_URL)")?;
+            // Riconteggio indipendente sul punto di invio, come il client JEV di 01-11.
+            let sent = passages
+                .iter()
+                .filter(|p| !acl.is_visible(&p.doc_key, &query.role_profile))
+                .count() as u64;
+            if sent > 0 {
+                bail!("{sent} passaggi non visibili sul punto di invio a TEI: invio annullato");
+            }
+            let ranked = tei.rerank(&query.text, passages).await?;
+            (ranked.into_iter().map(|(id, _)| id).collect(), None, sent)
+        }
+        Method::Jev => {
+            let jev = backends
+                .jev
+                .as_ref()
+                .context("metodo jev senza client JEV")?;
+            let before = jev.unauthorized_sent();
+            let out = jev
+                .rank_form_a(query, passages, JEV_CONCURRENCY, JEV_DEADLINE)
+                .await
+                .map_err(|e| anyhow::anyhow!("JEV ({}): {e}", e.label()))?;
+            let unauthorized = jev.unauthorized_sent() - before;
+            // Ordine stabile: a parità di `relevant` resta l'ordine denso d'ingresso.
+            let mut scored: Vec<(usize, String, f64)> = out
+                .relevance
+                .into_iter()
+                .enumerate()
+                .map(|(i, (id, s))| (i, id, s))
+                .collect();
+            if scored.len() != passages.len() {
+                bail!(
+                    "JEV: {} segnali per {} candidati",
+                    scored.len(),
+                    passages.len()
+                );
+            }
+            scored.sort_by(|a, b| b.2.total_cmp(&a.2).then(a.0.cmp(&b.0)));
+            let mut models: Vec<String> = out
+                .calls
+                .iter()
+                .filter_map(|c| c.model_resolved.clone())
+                .collect();
+            models.sort();
+            models.dedup();
+            let model = (!models.is_empty()).then(|| models.join("|"));
+            (
+                scored.into_iter().map(|(_, id, _)| id).collect(),
+                model,
+                unauthorized,
+            )
+        }
+    };
+    Ok(Ranked {
+        order,
+        latency_ms: started.elapsed().as_millis() as u64,
+        model_resolved,
+        unauthorized_sent,
+    })
 }
 
 /// Esito della verifica dello sha256 del file dei candidati.
@@ -87,8 +184,17 @@ impl ShaCheck {
     /// Riga per RISULTATI-rerank §Anomalie con i due sha, solo se la divergenza
     /// è stata accettata; `None` se il file coincide con il manifest.
     pub fn anomaly(&self) -> Option<String> {
-        todo!("ShaCheck::anomaly")
+        self.accepted_override.then(|| {
+            format!(
+                "candidates_top20.jsonl diverso dal manifest di 01-10: sha256 atteso {}, calcolato {}, accettato con --accept-sha",
+                self.expected, self.actual
+            )
+        })
     }
+}
+
+fn is_sha256_hex(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// Verifica `candidates` contro il campo `sha256` di `manifest` (sola lettura).
@@ -99,12 +205,542 @@ pub fn verify_candidates_sha(
     manifest: &Path,
     accept_sha: Option<&str>,
 ) -> anyhow::Result<ShaCheck> {
-    let _ = (candidates, manifest, accept_sha);
-    todo!("verify_candidates_sha")
+    let text = std::fs::read_to_string(manifest)
+        .with_context(|| format!("lettura di {}", manifest.display()))?;
+    let v: serde_json::Value = serde_json::from_str(&text)
+        .with_context(|| format!("{} non è JSON", manifest.display()))?;
+    let expected = v["sha256"]
+        .as_str()
+        .filter(|s| is_sha256_hex(s))
+        .with_context(|| format!("{}: campo sha256 assente o non valido", manifest.display()))?
+        .to_ascii_lowercase();
+    let bytes = std::fs::read(candidates)
+        .with_context(|| format!("lettura di {}", candidates.display()))?;
+    let actual = hex::encode(Sha256::digest(&bytes));
+    let accepted = match accept_sha {
+        None => None,
+        Some(a) => {
+            let a = a.trim().to_ascii_lowercase();
+            if !is_sha256_hex(&a) {
+                bail!("--accept-sha vuole uno sha256 esadecimale di 64 caratteri, nessun jolly");
+            }
+            if a != actual {
+                bail!(
+                    "--accept-sha {a} diverso dallo sha calcolato {actual} (manifest {expected})"
+                );
+            }
+            Some(a)
+        }
+    };
+    if actual == expected {
+        return Ok(ShaCheck {
+            expected,
+            actual,
+            accepted_override: false,
+        });
+    }
+    if accepted.is_none() {
+        bail!(
+            "sha256 dei candidati diverso dal manifest: atteso {expected}, calcolato {actual}; \
+             per usare il file rigenerato serve --accept-sha {actual} e la riga in §Anomalie"
+        );
+    }
+    Ok(ShaCheck {
+        expected,
+        actual,
+        accepted_override: true,
+    })
 }
 
-fn main() -> anyhow::Result<()> {
-    todo!("rerank: CLI del piano 01-15 (Task 1)")
+// ---------------------------------------------------------------- candidati e rilevanza
+
+/// Riga di `candidates_top20.jsonl` (piano 01-10, `db::export_candidates`).
+#[derive(Deserialize)]
+struct CandidateLine {
+    oracle_id: String,
+    roles: Vec<String>,
+    candidates: Vec<CandidateRow>,
+}
+
+#[derive(Deserialize)]
+struct CandidateRow {
+    rank: usize,
+    chunk_id: String,
+    doc_key: String,
+    page: Option<u32>,
+    section_path: Option<String>,
+    body: String,
+}
+
+/// `expected_passages` di un oracolo.
+#[derive(Deserialize)]
+struct ExpectedPassage {
+    document_id: String,
+    #[serde(default)]
+    page: Option<u32>,
+    #[serde(default)]
+    section_path: Option<String>,
+    excerpt: String,
+}
+
+/// Una query con i suoi candidati autorizzati e gli id dei rilevanti fra questi.
+struct QuerySet {
+    query: Query,
+    passages: Vec<Passage>,
+    relevant: Vec<String>,
+}
+
+/// Normalizzazione di confronto di S-03 (`s03_pgvector::metrics::normalize`, ORACOLI.md):
+/// legature U+FB00…U+FB06 in lettere separate, U+2212 → `-`, trattino morbido rimosso,
+/// sillabazione a fine riga unita, spazi bianchi collassati in uno. Il passo NFC di S-03
+/// manca (nessuna dipendenza Unicode nel crate, `Cargo.toml` chiuso): testi e excerpt sono
+/// già in NFC, verificato prima della misura (RISULTATI-rerank §Setup).
+fn normalize(s: &str) -> String {
+    let mut chars: Vec<char> = Vec::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\u{FB00}' => chars.extend(['f', 'f']),
+            '\u{FB01}' => chars.extend(['f', 'i']),
+            '\u{FB02}' => chars.extend(['f', 'l']),
+            '\u{FB03}' => chars.extend(['f', 'f', 'i']),
+            '\u{FB04}' => chars.extend(['f', 'f', 'l']),
+            '\u{FB05}' | '\u{FB06}' => chars.extend(['s', 't']),
+            '\u{2212}' => chars.push('-'),
+            '\u{AD}' => {}
+            other => chars.push(other),
+        }
+    }
+    let mut out = String::with_capacity(chars.len());
+    let mut i = 0;
+    let mut pending_space = false;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '-' && i > 0 && chars[i - 1].is_alphabetic() {
+            let mut j = i + 1;
+            while j < chars.len() && (chars[j] == ' ' || chars[j] == '\t' || chars[j] == '\r') {
+                j += 1;
+            }
+            if j < chars.len() && chars[j] == '\n' {
+                let mut k = j + 1;
+                while k < chars.len() && chars[k].is_whitespace() {
+                    k += 1;
+                }
+                if k < chars.len() && chars[k].is_lowercase() {
+                    i = k;
+                    continue;
+                }
+            }
+        }
+        if c.is_whitespace() {
+            pending_space = true;
+        } else {
+            if pending_space {
+                out.push(' ');
+            }
+            pending_space = false;
+            out.push(c);
+        }
+        i += 1;
+    }
+    if pending_space {
+        out.push(' ');
+    }
+    out
+}
+
+/// Lunghezza, in caratteri, della più lunga sottostringa contigua comune.
+fn longest_common_substring(a: &[char], b: &[char]) -> usize {
+    if a.is_empty() || b.is_empty() {
+        return 0;
+    }
+    let mut prev = vec![0usize; b.len() + 1];
+    let mut cur = vec![0usize; b.len() + 1];
+    let mut best = 0;
+    for &ca in a {
+        for (j, &cb) in b.iter().enumerate() {
+            cur[j + 1] = if ca == cb { prev[j] + 1 } else { 0 };
+            best = best.max(cur[j + 1]);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    best
+}
+
+/// Regola di rilevanza di S-03: stesso documento (anche `<doc>-docx`) e stessa pagina o
+/// sezione; il chunk contiene l'excerpt normalizzato o almeno il 50% dei suoi caratteri
+/// come sottostringa contigua.
+fn relevant_to(c: &CandidateRow, p: &ExpectedPassage) -> bool {
+    let doc_ok = c.doc_key == p.document_id
+        || c.doc_key
+            .strip_suffix("-docx")
+            .is_some_and(|k| k == p.document_id);
+    if !doc_ok {
+        return false;
+    }
+    let place_ok = match (&p.page, &p.section_path) {
+        (Some(page), _) => c.page == Some(*page),
+        (None, Some(sec)) => c.section_path.as_deref() == Some(sec.as_str()),
+        (None, None) => true,
+    };
+    if !place_ok {
+        return false;
+    }
+    let ex: Vec<char> = normalize(&p.excerpt).chars().collect();
+    if ex.is_empty() {
+        return false;
+    }
+    let body = normalize(&c.body);
+    let ex_s: String = ex.iter().collect();
+    if body.contains(&ex_s) {
+        return true;
+    }
+    let body: Vec<char> = body.chars().collect();
+    2 * longest_common_substring(&ex, &body) >= ex.len()
+}
+
+/// Carica i candidati e li lega agli oracoli ratificati: testo e ruolo della query
+/// vengono da `queries.json`, il ruolo deve coincidere con quello dell'export, ogni
+/// insieme passa da `assert_visible` già al caricamento.
+fn load_sets(candidates: &Path, corpus: &Path, acl: &Acl) -> anyhow::Result<Vec<QuerySet>> {
+    let text = std::fs::read_to_string(corpus.join("oracles/queries.json"))
+        .context("lettura di oracles/queries.json")?;
+    let all: Vec<serde_json::Value> =
+        serde_json::from_str(&text).context("queries.json non valido")?;
+    let mut oracles: HashMap<String, serde_json::Value> = HashMap::new();
+    for q in all.into_iter().filter(is_green) {
+        let id = q["oracle_id"]
+            .as_str()
+            .context("oracolo senza oracle_id")?
+            .to_owned();
+        oracles.insert(id, q);
+    }
+
+    let raw = std::fs::read_to_string(candidates)
+        .with_context(|| format!("lettura di {}", candidates.display()))?;
+    let mut sets = Vec::new();
+    let mut seen_q: HashSet<String> = HashSet::new();
+    for (n, line) in raw.lines().filter(|l| !l.trim().is_empty()).enumerate() {
+        let cl: CandidateLine = serde_json::from_str(line)
+            .with_context(|| format!("candidati, riga {}: JSON non valido", n + 1))?;
+        if !seen_q.insert(cl.oracle_id.clone()) {
+            bail!("candidati: query {} ripetuta", cl.oracle_id);
+        }
+        let o = oracles
+            .get(&cl.oracle_id)
+            .with_context(|| format!("{}: non è un oracolo ratificato", cl.oracle_id))?;
+        let role = o["role_profile"]
+            .as_str()
+            .with_context(|| format!("{}: oracolo senza role_profile", cl.oracle_id))?;
+        if cl.roles.len() != 1 || cl.roles[0] != role {
+            bail!(
+                "{}: ruoli dell'export {:?} diversi dal role_profile {role}",
+                cl.oracle_id,
+                cl.roles
+            );
+        }
+        if cl.candidates.len() > K {
+            bail!("{}: più di {K} candidati", cl.oracle_id);
+        }
+        let expected: Vec<ExpectedPassage> = serde_json::from_value(o["expected_passages"].clone())
+            .with_context(|| format!("{}: expected_passages", cl.oracle_id))?;
+        let mut ids: HashSet<&str> = HashSet::new();
+        let mut passages = Vec::with_capacity(cl.candidates.len());
+        let mut relevant = Vec::new();
+        for (i, c) in cl.candidates.iter().enumerate() {
+            if c.rank != i + 1 {
+                bail!("{}: rank {} fuori ordine", cl.oracle_id, c.rank);
+            }
+            if !ids.insert(c.chunk_id.as_str()) {
+                bail!("{}: chunk {} ripetuto", cl.oracle_id, c.chunk_id);
+            }
+            if expected.iter().any(|p| relevant_to(c, p)) {
+                relevant.push(c.chunk_id.clone());
+            }
+            passages.push(Passage {
+                id: c.chunk_id.clone(),
+                doc_key: c.doc_key.clone(),
+                classification: acl.classification(&c.doc_key).unwrap_or("").to_owned(),
+                text: c.body.clone(),
+            });
+        }
+        let query = Query {
+            id: cl.oracle_id.clone(),
+            text: o["text"]
+                .as_str()
+                .with_context(|| format!("{}: oracolo senza text", cl.oracle_id))?
+                .to_owned(),
+            role_profile: role.to_owned(),
+        };
+        assert_visible(&passages, role, acl)
+            .with_context(|| format!("insieme di {}: rifiutato al caricamento", query.id))?;
+        sets.push(QuerySet {
+            query,
+            passages,
+            relevant,
+        });
+    }
+    Ok(sets)
+}
+
+// ---------------------------------------------------------------- CLI
+
+#[derive(Parser)]
+#[command(
+    name = "rerank",
+    about = "Spike A-06: no-rerank, bge-reranker-v2-m3 su TEI e JEV rank sui top-20 autorizzati"
+)]
+struct Cli {
+    /// Corpus comune (acl.json, manifest.json, oracles/queries.json).
+    #[arg(long, default_value = "data/corpus")]
+    corpus: PathBuf,
+    /// Candidati top-20 di `export-candidates` (ignorati da git).
+    #[arg(
+        long,
+        default_value = "s03-pgvector/results/raw/candidates_top20.jsonl"
+    )]
+    candidates: PathBuf,
+    /// Manifest versionato del piano 01-10 (sola lettura).
+    #[arg(
+        long,
+        default_value = "s03-pgvector/results/embedding/candidates_manifest.json"
+    )]
+    manifest: PathBuf,
+    /// sha256 del file rigenerato, se diverge dal manifest (va riportato in §Anomalie).
+    #[arg(long)]
+    accept_sha: Option<String>,
+    /// Metodi, separati da virgola.
+    #[arg(long, value_delimiter = ',', default_value = "none,tei,jev")]
+    methods: Vec<Method>,
+    /// Ripetizioni per query e metodo (la prima si scarta in analisi).
+    #[arg(long, default_value_t = 3)]
+    runs: u32,
+    /// Dispositivo di TEI registrato nella colonna `device` (`gpu` o `cpu`).
+    #[arg(long, default_value = "gpu")]
+    device: String,
+    /// CSV di uscita: si crea con l'header o si accoda se l'header coincide.
+    #[arg(long, default_value = "s04-jev/results/rerank/rerank.csv")]
+    out: PathBuf,
+    /// Modalità carico: ripete le query a ciclo per questi secondi (per `vram.sh`).
+    #[arg(long)]
+    duration_s: Option<u64>,
+    /// Solo le prime N query (prove brevi).
+    #[arg(long)]
+    queries: Option<usize>,
+    /// Stampa `/info` di TEI ed esce.
+    #[arg(long)]
+    info: bool,
+}
+
+/// Una riga di misura tenuta in memoria per la tabella riassuntiva.
+struct Row {
+    method: Method,
+    device: String,
+    run: u32,
+    ndcg5: f64,
+    recall8: f64,
+    latency_ms: u64,
+}
+
+fn device_of(method: Method, tei_device: &str) -> String {
+    match method {
+        Method::NoRerank => "na".to_owned(),
+        Method::Tei => tei_device.to_owned(),
+        Method::Jev => "api".to_owned(),
+    }
+}
+
+/// Apre il CSV: header nuovo o accodamento solo con lo stesso header.
+fn open_csv(path: &Path) -> anyhow::Result<std::fs::File> {
+    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).with_context(|| format!("cartella {}", dir.display()))?;
+    }
+    let existing = std::fs::read_to_string(path).unwrap_or_default();
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .with_context(|| format!("apertura di {}", path.display()))?;
+    match existing.lines().next() {
+        None => writeln!(f, "{RERANK_HEADER}")?,
+        Some(h) if h.trim_end() == RERANK_HEADER => {}
+        Some(_) => bail!("{}: header inatteso", path.display()),
+    }
+    Ok(f)
+}
+
+/// Percentile a rango più vicino.
+fn percentile(sorted: &[u64], p: f64) -> u64 {
+    if sorted.is_empty() {
+        return 0;
+    }
+    let idx = ((p * sorted.len() as f64).ceil() as usize).max(1) - 1;
+    sorted[idx.min(sorted.len() - 1)]
+}
+
+/// Numero con 4 decimali e la virgola, come nelle tabelle di RISULTATI.
+fn it4(v: f64) -> String {
+    format!("{v:.4}").replace('.', ",")
+}
+
+fn print_summary(rows: &[Row]) {
+    let mut by: BTreeMap<(Method, String), Vec<&Row>> = BTreeMap::new();
+    for r in rows.iter().filter(|r| r.run >= 2) {
+        by.entry((r.method, r.device.clone())).or_default().push(r);
+    }
+    println!("| metodo | device | righe | nDCG@5 | recall@8 | p50 ms | p95 ms | p99 ms |");
+    println!("|---|---|---|---|---|---|---|---|");
+    for ((m, d), rs) in &by {
+        let n = rs.len() as f64;
+        let nd = rs.iter().map(|r| r.ndcg5).sum::<f64>() / n;
+        let rc = rs.iter().map(|r| r.recall8).sum::<f64>() / n;
+        let mut lat: Vec<u64> = rs.iter().map(|r| r.latency_ms).collect();
+        lat.sort_unstable();
+        println!(
+            "| {} | {d} | {} | {} | {} | {} | {} | {} |",
+            m.as_str(),
+            rs.len(),
+            it4(nd),
+            it4(rc),
+            percentile(&lat, 0.50),
+            percentile(&lat, 0.95),
+            percentile(&lat, 0.99)
+        );
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    if cli.info {
+        let tei = TeiReranker::from_env()?;
+        let info = tei.info().await?;
+        println!(
+            "tei-rerank info: model_id={} model_sha={} version={} max_batch_tokens={}",
+            info["model_id"].as_str().unwrap_or("?"),
+            info["model_sha"].as_str().unwrap_or("?"),
+            info["version"].as_str().unwrap_or("?"),
+            info["max_batch_tokens"]
+        );
+        return Ok(());
+    }
+
+    let sha = verify_candidates_sha(&cli.candidates, &cli.manifest, cli.accept_sha.as_deref())?;
+    println!(
+        "candidati: sha256 manifest {} calcolato {}",
+        sha.expected, sha.actual
+    );
+    if let Some(a) = sha.anomaly() {
+        println!("ANOMALIA: {a}");
+    }
+
+    let acl = Acl::load(&cli.corpus)?;
+    let mut sets = load_sets(&cli.candidates, &cli.corpus, &acl)?;
+    if let Some(n) = cli.queries {
+        sets.truncate(n);
+    }
+    let short = sets.iter().filter(|s| s.passages.len() < K).count();
+    let empty = sets.iter().filter(|s| s.passages.is_empty()).count();
+    let no_rel = sets.iter().filter(|s| s.relevant.is_empty()).count();
+    println!(
+        "query: {} (con meno di {K} candidati: {short}; senza candidati, escluse: {empty}; senza rilevanti fra i candidati: {no_rel})",
+        sets.len()
+    );
+    sets.retain(|s| !s.passages.is_empty());
+
+    let mut methods = cli.methods.clone();
+    methods.dedup();
+    let tei = if methods.contains(&Method::Tei) {
+        Some(TeiReranker::from_env()?)
+    } else {
+        None
+    };
+    let jev = if methods.contains(&Method::Jev) {
+        Some(Client::new_from_env(acl.clone())?)
+    } else {
+        None
+    };
+    let backends = Backends::new(tei, jev);
+
+    let mut csv = open_csv(&cli.out)?;
+    let mut rows: Vec<Row> = Vec::new();
+    let mut errors = 0usize;
+    let mut unauthorized_total = 0u64;
+    let started = std::time::Instant::now();
+    let deadline = cli.duration_s.map(|s| started + Duration::from_secs(s));
+    let mut run = 0u32;
+    'outer: loop {
+        run += 1;
+        if deadline.is_none() && run > cli.runs {
+            break;
+        }
+        for set in &sets {
+            if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
+                break 'outer;
+            }
+            let rel: Vec<&str> = set.relevant.iter().map(String::as_str).collect();
+            for &m in &methods {
+                match rank_query(m, &set.query, &set.passages, &acl, &backends).await {
+                    Ok(r) => {
+                        let ranked: Vec<&str> = r.order.iter().map(String::as_str).collect();
+                        let ndcg5 = ndcg_at_k(&ranked, &rel, 5);
+                        let recall8 = recall_at_k(&ranked, &rel, 8);
+                        unauthorized_total += r.unauthorized_sent;
+                        let device = device_of(m, &cli.device);
+                        writeln!(
+                            csv,
+                            "{},{device},{},{run},{},{ndcg5:.6},{recall8:.6},{},{},{}",
+                            m.as_str(),
+                            set.query.id,
+                            set.passages.len(),
+                            r.latency_ms,
+                            r.unauthorized_sent,
+                            r.model_resolved.as_deref().unwrap_or("")
+                        )?;
+                        rows.push(Row {
+                            method: m,
+                            device,
+                            run,
+                            ndcg5,
+                            recall8,
+                            latency_ms: r.latency_ms,
+                        });
+                    }
+                    Err(e) => {
+                        errors += 1;
+                        eprintln!(
+                            "errore: query {} metodo {} run {run}: {e:#}",
+                            set.query.id,
+                            m.as_str()
+                        );
+                    }
+                }
+            }
+        }
+        csv.flush()?;
+    }
+    csv.flush()?;
+
+    print_summary(&rows);
+    if let Some(j) = backends.jev.as_ref() {
+        println!(
+            "jev: spesa {:.6} USD, unauthorized_sent {}",
+            j.spent_usd(),
+            j.unauthorized_sent()
+        );
+    }
+    println!(
+        "righe {}, errori {errors}, unauthorized_sent totale {unauthorized_total}, {:.1} s",
+        rows.len(),
+        started.elapsed().as_secs_f64()
+    );
+    if unauthorized_total > 0 {
+        bail!("hard gate violato: {unauthorized_total} passaggi non visibili inviati");
+    }
+    if errors > 0 {
+        bail!("{errors} riordini non riusciti (vedi stderr)");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
