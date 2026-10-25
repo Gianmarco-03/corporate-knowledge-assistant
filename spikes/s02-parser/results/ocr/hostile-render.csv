@@ -1,0 +1,16 @@
+case_id,run,expected,outcome,kind,detail,peak_rss_kb,wall_ms,parent_alive,leftover_procs,oom_kill_delta,oom_adj_set,pass
+dct-sof-huge-image,1,failed/DecompressionLimit,failed,DecompressionLimit,dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4480,7,true,0,0,true,true
+dct-sof-huge-image,2,failed/DecompressionLimit,failed,DecompressionLimit,dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4480,5,true,0,0,true,true
+dct-sof-huge-image,3,failed/DecompressionLimit,failed,DecompressionLimit,dct_sof over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4096,5,true,0,0,true,true
+deep-nesting,1,failed/Corrupt|Crashed,ok,,,74368,69,true,0,0,true,false
+deep-nesting,2,failed/Corrupt|Crashed,ok,,,74624,59,true,0,0,true,false
+deep-nesting,3,failed/Corrupt|Crashed,ok,,,74240,57,true,0,0,true,false
+jbig2-malformed,1,failed/Corrupt|Crashed,ok,,,73984,61,true,0,0,true,false
+jbig2-malformed,2,failed/Corrupt|Crashed,ok,,,73728,58,true,0,0,true,false
+jbig2-malformed,3,failed/Corrupt|Crashed,ok,,,73600,72,true,0,0,true,false
+jpx-siz-huge-image,1,failed/DecompressionLimit,failed,DecompressionLimit,jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4224,3,true,0,0,true,true
+jpx-siz-huge-image,2,failed/DecompressionLimit,failed,DecompressionLimit,jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4096,4,true,0,0,true,true
+jpx-siz-huge-image,3,failed/DecompressionLimit,failed,DecompressionLimit,jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4096,3,true,0,0,true,true
+jpx-siz-huge-jp2,1,failed/DecompressionLimit,failed,DecompressionLimit,jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4096,4,true,0,0,true,true
+jpx-siz-huge-jp2,2,failed/DecompressionLimit,failed,DecompressionLimit,jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4224,3,true,0,0,true,true
+jpx-siz-huge-jp2,3,failed/DecompressionLimit,failed,DecompressionLimit,jpx_siz over_cap dims=30000x30000x3 bytes=2700000000 cap=67108864,4352,6,true,0,0,true,true
