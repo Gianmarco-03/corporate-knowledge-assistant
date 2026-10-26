@@ -20,6 +20,7 @@
 #![cfg(target_os = "linux")]
 
 // Modifica: Claude (test-write 01.4-01) · 2026-10-22 · creazione: test rossi dei driver budget e overhead (gap-closure 1.4)
+// Modifica: Claude (gsd-executor 01.6-07) · 2026-10-26 · test deterministici sotto carico e pulizia delle cartelle temporanee (gap-closure 1.6, D-11)
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -56,6 +57,88 @@ printf 'ok' > "$4/result.txt"
 printf '{"status":"ok","pages":null,"output":null,"data":null}\n'
 "#;
 
+// ---- pulizia della radice di processo e delle cartelle di caso (piano 01.6-07, D-11) --------
+
+/// Prefisso della radice di processo di questo binario: `<root>/s02-drivers-<pid>`.
+const ROOT_PREFIX: &str = "s02-drivers-";
+
+/// Radice di processo da rimuovere all'uscita, letta dalla callback di `atexit`.
+static PROCESS_ROOT: OnceLock<PathBuf> = OnceLock::new();
+
+unsafe extern "C" {
+    fn atexit(cb: extern "C" fn()) -> std::ffi::c_int;
+}
+
+/// Callback di `atexit`: rimuove la radice di processo. Non panica (nessun `unwrap`, errore
+/// ignorato) e legge solo uno stato `'static`.
+extern "C" fn remove_process_root() {
+    if let Some(p) = PROCESS_ROOT.get() {
+        let _ = fs::remove_dir_all(p);
+    }
+}
+
+/// `name` è la radice orfana di un'altra esecuzione di questo binario: esattamente
+/// `<prefix><pid>` con `<pid>` decimale canonico (niente zeri iniziali, niente suffissi),
+/// diverso da `own_pid` e non vivo secondo `alive`. Funzione pura (TEST-8 del test design).
+fn is_orphan_root(name: &str, prefix: &str, own_pid: u32, alive: impl Fn(u32) -> bool) -> bool {
+    let Some(rest) = name.strip_prefix(prefix) else {
+        return false;
+    };
+    let Ok(pid) = rest.parse::<u32>() else {
+        return false;
+    };
+    if pid.to_string() != rest {
+        return false;
+    }
+    pid != own_pid && !alive(pid)
+}
+
+fn pid_alive(pid: u32) -> bool {
+    Path::new("/proc").join(pid.to_string()).exists()
+}
+
+/// Pota sotto `root` le radici orfane di questo binario lasciate da run interrotte. Tocca solo
+/// i nomi `s02-drivers-<pid>` con pid diverso dal corrente e assente da `/proc`. `/proc` è
+/// quello del container: la potatura è sicura perché i binari di test di una sessione girano
+/// in sequenza dentro un solo `oneshot`, e la prenotazione di `session.sh` esclude sessioni
+/// concorrenti sul volume `work-tmp` (hard rule 6 del piano).
+fn prune_orphan_roots(root: &Path) {
+    let own = std::process::id();
+    let Ok(rd) = fs::read_dir(root) else {
+        return;
+    };
+    for e in rd.flatten() {
+        let is_dir = e.file_type().is_ok_and(|t| t.is_dir());
+        if is_dir
+            && e.file_name()
+                .to_str()
+                .is_some_and(|n| is_orphan_root(n, ROOT_PREFIX, own, pid_alive))
+        {
+            let _ = fs::remove_dir_all(e.path());
+        }
+    }
+}
+
+/// Guardia di una cartella di caso: la rimuove al `drop`, anche quando il test va in panico
+/// (sul modello di `SelftestInput` di `parse-parent.rs`). Chi la usa la lega a un nome
+/// (`let d = case_dir(..)`) e la tiene viva fino alla fine del test.
+#[must_use = "la guardia rimuove la cartella al drop: va legata a un nome, non a `_`"]
+struct CaseDir(PathBuf);
+
+impl Drop for CaseDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+impl std::ops::Deref for CaseDir {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
 // ---- ambiente dei test --------------------------------------------------------------------
 
 /// Radice dei test: `bin/` (`fake-child`, `parse-child` finto), `raw/fixtures/not-a-pdf.pdf`,
@@ -65,12 +148,21 @@ fn base() -> &'static PathBuf {
     BASE.get_or_init(|| {
         let root = std::env::var_os("S02_TEST_BASE")
             .map_or_else(|| PathBuf::from("/work/tmp"), PathBuf::from);
-        let base = root.join(format!("s02-drivers-{}", std::process::id()));
+        prune_orphan_roots(&root);
+        let base = root.join(format!("{ROOT_PREFIX}{}", std::process::id()));
         let _ = fs::remove_dir_all(&base);
         for d in ["bin", "raw/fixtures"] {
             fs::create_dir_all(base.join(d)).unwrap();
         }
         let base = base.canonicalize().unwrap();
+        if PROCESS_ROOT.set(base.clone()).is_ok() {
+            // SAFETY: `atexit` della libc, già collegata da std; registrata una sola volta (dentro
+            // `OnceLock`). La callback non panica e legge solo `PROCESS_ROOT`, uno stato
+            // `'static` mai rilasciato.
+            unsafe {
+                atexit(remove_process_root);
+            }
+        }
 
         let bin = base.join("bin");
         fs::copy(env!("CARGO_BIN_EXE_fake-child"), bin.join("fake-child")).unwrap();
@@ -100,13 +192,14 @@ fn base() -> &'static PathBuf {
     })
 }
 
-/// Cartella di un caso: `<base>/<name>/jobs` (radice dei job, vuota) e `<base>/<name>/out`.
-fn case_dir(name: &str) -> PathBuf {
+/// Cartella di un caso: `<base>/<name>/jobs` (radice dei job, vuota) e `<base>/<name>/out`,
+/// dentro una guardia che la rimuove al `drop`.
+fn case_dir(name: &str) -> CaseDir {
     let d = base().join(name);
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(d.join("jobs")).unwrap();
     fs::create_dir_all(d.join("out")).unwrap();
-    d
+    CaseDir(d)
 }
 
 /// Nomi delle voci di una cartella.
@@ -358,4 +451,67 @@ fn overhead_in_process_errors_keep_all_rows() {
         );
     }
     assert_work_root_empty(&jobs, &o);
+}
+
+// ---- D-11 (piano 01.6-07): guardia delle cartelle di caso ------------------------------------
+
+// Modifica: Claude (test-write 01.6-07) · 2026-10-26 · test rosso della guardia `CaseDir` col panico (gap-closure 1.6, D-11)
+
+/// La guardia di una cartella di caso la rimuove anche quando il test va in panico: la
+/// cartella esiste dentro la chiusura prima del `panic!` (il test non passa a vuoto), e dopo
+/// l'unwind non esiste più. Il percorso esce dalla chiusura copiato in una variabile esterna.
+#[test]
+fn case_dir_guard_cleans_on_panic() {
+    let mut seen: Option<PathBuf> = None;
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let guard: CaseDir = case_dir("panic-guard");
+        assert!(
+            guard.0.is_dir(),
+            "cartella di caso non creata: {}",
+            guard.0.display()
+        );
+        seen = Some(guard.0.clone());
+        panic!("panico voluto del test della guardia");
+    }));
+    assert!(res.is_err(), "la chiusura doveva andare in panico");
+    let path = seen.expect("percorso della cartella di caso non registrato prima del panico");
+    assert!(
+        !path.exists(),
+        "cartella di caso rimasta dopo il panico: {}",
+        path.display()
+    );
+}
+
+/// Predicato della potatura (TEST-8): solo `s02-drivers-<pid>` canonico, con pid diverso dal
+/// corrente e morto. Nomi con suffissi, vuoti, non numerici, con zeri iniziali o di un altro
+/// binario non si potano mai.
+#[test]
+fn orphan_root_predicate_accepts_only_dead_foreign_canonical_pids() {
+    let own = 4242;
+    let dead = |_: u32| false;
+    let alive = |_: u32| true;
+    assert!(is_orphan_root("s02-drivers-999999", ROOT_PREFIX, own, dead));
+    assert!(
+        !is_orphan_root("s02-drivers-4242", ROOT_PREFIX, own, dead),
+        "pid corrente"
+    );
+    assert!(
+        !is_orphan_root("s02-drivers-999999", ROOT_PREFIX, own, alive),
+        "pid vivo"
+    );
+    for name in [
+        "s02-drivers-123-keep",
+        "s02-drivers-",
+        "s02-drivers-abc",
+        "s02-drivers-0012",
+        "s02-drivers-+12",
+        "s02-drivers-99999999999",
+        "s02-isolation-999999",
+        "x-s02-drivers-999999",
+    ] {
+        assert!(
+            !is_orphan_root(name, ROOT_PREFIX, own, dead),
+            "potato a torto: {name}"
+        );
+    }
 }

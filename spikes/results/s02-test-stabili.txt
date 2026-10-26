@@ -1,0 +1,74 @@
+**Modifica:** Claude (test-write 01.6-07) · 2026-10-26 · evidenza dei test stabili e della pulizia di s02 (D-11): base della Task 1 e RED del test-write
+
+# s02 — test d'isolamento deterministici sotto carico e pulizia delle cartelle temporanee (piano 01.6-07)
+
+git_rev base: 9ab8e9d1dfbc2d6e89ffa91508384e5f49f05cd3
+nproc del runner: 16
+run_id della base: 01-6-07-20261026t193121z-6cff
+
+## Base (Task 1, test di BASE non modificati)
+
+precondizione admit prima della cartella: si (isolate.rs:218 budget.admit, isolate.rs:588 create_dir della cartella del job in prepare, chiamato da imp::run a isolate.rs:698 dopo admit)
+residui iniziali: 2
+base suite: exit=0 falliti=0
+base residui dopo la suite: 2
+base sotto carico: giri=5 falliti=0 test=nessuno
+
+Note della base:
+- i 2 residui dopo la suite sono `s02-isolation-<pid>` e `s02-drivers-<pid>`; `oom` e `oom-raw` non compaiono perché in questo runner il test di `oom.rs` esce prima di `create_dir_all` (esito non esercitato).
+- confronto `ls -1 /work/tmp` prima e dopo la suite (TEST-10): oltre ai due residui dei quattro pattern compaiono voci di altri test fuori dal perimetro del piano (`s02-docling-<pid>-*`, `s02-extract-<pid>-*`, `s02-locator-tw-<pid>-*`, `s02-prescan-tw-<pid>`, `s02-score-<pid>-*`, `s02-tables-<pid>-*`): non sono dei tre file di test di questo piano, si registrano e basta.
+- giro sotto carico: 16 generatori vivi prima e dopo i 5 giri, 0 dopo il kill; ogni giro `running 3 tests` e `3 passed`; load average a 1 minuto 2.38, 3.47, 4.47, 4.47, 5.48 (sale lentamente perché è una media). Il verde della base sotto carico è un'informazione, non la prova (instabilità statistica).
+- residui dopo i 5 giri: 7 (una radice `s02-isolation-<pid>` in più per ogni giro).
+
+## RED del test-write
+
+Il RED della pulizia è il conteggio dei residui della base (2, atteso almeno 2). L'unico test nuovo rosso è `case_dir_guard_cleans_on_panic` in `tests/drivers.rs`: non compila perché `CaseDir` non esiste ancora (RED_EXPECTED, motivo «simbolo assente»).
+
+## Task 2 — tre test deterministici (esecutore)
+
+**Modifica:** Claude (gsd-executor 01.6-07) · 2026-10-26 · righe della Task 2: giudizi sulle asserzioni, suite, gate Rust, giro sotto carico
+
+run_id dei giri: 01-6-07-20261026t194226z-dfbb (una sola prenotazione per Task 2 e Task 3)
+
+## Asserzioni
+
+asserzione budget_admits_at_most_two_jobs_together: prima=4 esiti ok; 1900 ms <= wall < 3600 ms dopo=4 esiti ok; budget.max_admitted() == 2; osservati_max == 2 (una sola read_dir per campione, ogni 10 ms); wall >= 1900 ms giudizio=più forte motivo=max_admitted == 2 prova il tetto in modo diretto ed esclude 3 job insieme, che wall < 3600 non escludeva; osservati_max == 2 prova che due job girano davvero insieme, che era il senso del limite superiore; il limite inferiore di 1900 ms resta identico
+asserzione dropped_future_kills_group_and_cleans_within_one_second: prima=timeout(800 ms) scaduto; gruppi osservati in 700 ms non vuoti; entro 1 s gruppi morti e cartella assente; job successivo sleep 0 finito entro 3 s dopo=futuro droppato nel select! (per valore) all'evento figlio e nipote vivi, procs_with_cwd(&dir).len() >= 2 sotto guardia di blocco di 30 s; ramo run_child vincente = panic; almeno 2 pid e gruppi non vuoti; entro 1 s gruppi morti e cartella assente (identico); cartella di tw-drop-next comparsa entro 1 s, esito ok, sotto guardia di 30 s giudizio=più forte motivo=il drop avviene con il nipote vivo (prima poteva cadere prima della sua nascita), il vincolo di 1 s del drop è identico, e il permesso restituito si prova entro 1 s invece di 3 s: la cartella del job nasce solo dopo admit (isolate.rs:218, poi prepare a :588) e il budget di 256 MiB ammette un solo job da 200 MiB; le guardie di 30 s non provano la proprietà, allo scadere il test fallisce
+asserzione quota_counts_job_dir_plus_out_dir: prima=esito ResourceLimit/out_quota; t0 preso prima del join!, t0.elapsed() < 5 s; cartella del job assente dopo=esito ResourceLimit/out_quota (identico); Instant restituito dal ramo dello scrittore dopo la seconda scrittura, scritto.elapsed() < 5 s; cartella del job assente giudizio=stessa forza motivo=soglia di 5 s identica, misurata dal termine delle scritture invece che dall'avvio del job: misura solo la latenza di rilevamento della quota, che è la proprietà; l'attesa dello scrittore sulla creazione delle cartelle resta eventually(5 s) invariato (RISK-12, guardia di 30 s non aggiunta)
+
+## Suite, gate e carico
+
+dopo suite: exit=0 falliti=0
+passed della suite: 383 = 380 della base + 3 test nuovi (case_dir_guard_cleans_on_panic e orphan_root_predicate_accepts_only_dead_foreign_canonical_pids in drivers, orphan_root_predicate_accepts_only_dead_foreign_canonical_pids in isolation); per binario drivers 4 -> 6, isolation 37 -> 38, gli altri invariati; nessun test sparito
+warning di compilazione dei test nel runner: 0
+esito gate rust: fmt=0 clippy=0
+provenienza del gate rust: eseguito sull'host da spikes/ (rustc 1.95.0, x86_64-pc-windows-msvc), perché il runner non ha rustfmt né clippy ("'cargo-fmt' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'"); cargo fmt --all -- --check exit 0, cargo clippy --workspace --all-targets --locked --offline -- -D warnings exit 0. Limite dichiarato: tests/isolation.rs, tests/drivers.rs e tests/oom.rs sono #![cfg(target_os = "linux")], quindi clippy sull'host non li analizza; la loro compilazione nel runner (cargo test) ha dato 0 warning di rustc
+dopo sotto carico: giri=5 falliti=0
+Note del carico: 16 generatori vivi prima e dopo i 5 giri, 0 dopo il kill; attesa di 20 s prima dei giri (load average a 1 minuto 0.15 -> 4.65); load average ai giri 5.56, 5.56, 6.40, 6.40, 7.17; ogni giro `running 3 tests` e `test result: ok. 3 passed`.
+Nota d'ordine: la suite di questa sezione è stata eseguita sull'albero con CaseDir, atexit e potatura della Task 3, perché il rosso di compilazione di drivers (CaseDir assente) impediva una suite verde sul solo albero della Task 2; il codice dei tre test è quello del commit del test-write (b59a294), invariato.
+
+## Task 3 — pulizia delle cartelle temporanee (esecutore)
+
+**Modifica:** Claude (gsd-executor 01.6-07) · 2026-10-26 · righe della Task 3: residui dopo due suite, potatura, gate finale, pulizia
+
+Codice: `CaseDir(PathBuf)` con `#[must_use]`, `Drop` (`let _ = fs::remove_dir_all`) e `Deref<Target = Path>` in tests/drivers.rs, restituita da `case_dir` e legata a un nome fino alla fine di ogni test; radice di processo rimossa all'uscita con `atexit` (dichiarato `unsafe extern "C"`, registrato una volta dentro `OnceLock`/`Once`, callback senza panico su stato `'static`) in tests/isolation.rs, tests/drivers.rs e tests/oom.rs; potatura all'avvio delle radici `s02-isolation-<pid>` e `s02-drivers-<pid>` orfane con il predicato puro `is_orphan_root` (pid canonico, diverso dal corrente, assente da /proc); in tests/oom.rs `remove_dir_all` di `/work/tmp/oom` e `/work/tmp/oom-raw` all'inizio del test, prima di ogni ritorno `non_esercitato` e di `create_dir_all`. Nessun crate nuovo, Cargo.toml e Cargo.lock invariati.
+
+residui iniziali della Task 3: 15 (radici `s02-isolation-<pid>` e `s02-drivers-<pid>` lasciate dai giri della base e del test-write), rimossi con rm -rf
+dopo suite 1: exit=0 falliti=0
+esito residui dopo la prima: 0
+dopo suite 2: exit=0 falliti=0
+esito residui /work/tmp: 0
+Confronto `ls -1 /work/tmp` (TEST-10): dopo ciascuna suite le sole voci nuove sono di altri test di s02 fuori dal perimetro del piano (`s02-docling-<pid>-*`, `s02-extract-<pid>-*`, `s02-locator-tw-<pid>-*`, `s02-prescan-tw-<pid>`, `s02-score-<pid>-*`, `s02-tables-<pid>-*`), che la potatura di questo piano non tocca e che pulisce 01.6-09; nessuna voce nuova dei quattro pattern.
+esito potatura: rimossa=si
+Potatura, dettaglio: `/work/tmp/s02-isolation-999999` con un file dentro rimossa dal solo `--exact argv_echo_passes_path_with_spaces_and_non_ascii_unchanged` (1 passed); il caso negativo `/work/tmp/s02-isolation-999999-keep` è sopravvissuto (poi rimosso a mano). Il predicato è coperto dagli unit `orphan_root_predicate_accepts_only_dead_foreign_canonical_pids` in isolation e in drivers (pid corrente, pid vivo, suffisso, vuoto, non numerico, zeri iniziali, segno, overflow, prefisso dell'altro binario: nessuno potato).
+Guardia col panico: `case_dir_guard_cleans_on_panic` verde nelle due suite (drivers 6 passed).
+residui dopo i 5 giri sotto carico: 0 (prima della Task 3 erano 7 dopo gli stessi giri)
+esito gate rust finale: fmt=0 clippy=0
+provenienza del gate rust finale: host da spikes/, come per la Task 2 (runner senza rustfmt né clippy); clippy sull'host non analizza i tre file `#![cfg(target_os = "linux")]`, compilati nel runner con 0 warning
+Nota: lo script locale dei giri è uscito con exit 2 per l'ultimo `ls -d` senza corrispondenze (zero residui), non per un test; tutti i `cargo test` della sessione hanno exit 0.
+
+## Pulizia
+
+PRENOTAZIONE: nessuna
+container con label cka.run_id (docker ps -a --filter label=cka.run_id --format '{{.Names}}'):
+(fine elenco)

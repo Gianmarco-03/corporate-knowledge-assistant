@@ -19,6 +19,9 @@
 //! elemento di `argv` uguale all'`arg` del job.
 #![cfg(target_os = "linux")]
 
+// Modifica: Claude (test-write 01.6-07) · 2026-10-26 · budget_admits, dropped_future e quota_counts deterministici sotto carico, senza tolleranze allargate (gap-closure 1.6, D-11)
+// Modifica: Claude (gsd-executor 01.6-07) · 2026-10-26 · test deterministici sotto carico e pulizia delle cartelle temporanee (gap-closure 1.6, D-11)
+
 use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
@@ -26,6 +29,7 @@ use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use nix::sys::signal::{Signal, kill, killpg};
@@ -57,17 +61,88 @@ printf 'ok' > "$4/result.txt"
 printf '{"status":"ok","pages":null,"output":null,"data":null}\n'
 "#;
 
+// ---- pulizia della radice di processo (piano 01.6-07, D-11) ---------------------------------
+
+/// Prefisso della radice di processo di questo binario: `<root>/s02-isolation-<pid>`.
+const ROOT_PREFIX: &str = "s02-isolation-";
+
+/// Radice di processo da rimuovere all'uscita, letta dalla callback di `atexit`.
+static PROCESS_ROOT: OnceLock<PathBuf> = OnceLock::new();
+
+unsafe extern "C" {
+    fn atexit(cb: extern "C" fn()) -> std::ffi::c_int;
+}
+
+/// Callback di `atexit`: rimuove la radice di processo. Non panica (nessun `unwrap`, errore
+/// ignorato) e legge solo uno stato `'static`.
+extern "C" fn remove_process_root() {
+    if let Some(p) = PROCESS_ROOT.get() {
+        let _ = fs::remove_dir_all(p);
+    }
+}
+
+/// `name` è la radice orfana di un'altra esecuzione di questo binario: esattamente
+/// `<prefix><pid>` con `<pid>` decimale canonico (niente zeri iniziali, niente suffissi),
+/// diverso da `own_pid` e non vivo secondo `alive`. Funzione pura (TEST-8 del test design).
+fn is_orphan_root(name: &str, prefix: &str, own_pid: u32, alive: impl Fn(u32) -> bool) -> bool {
+    let Some(rest) = name.strip_prefix(prefix) else {
+        return false;
+    };
+    let Ok(pid) = rest.parse::<u32>() else {
+        return false;
+    };
+    if pid.to_string() != rest {
+        return false;
+    }
+    pid != own_pid && !alive(pid)
+}
+
+fn pid_alive(pid: u32) -> bool {
+    Path::new("/proc").join(pid.to_string()).exists()
+}
+
+/// Pota sotto `root` le radici orfane di questo binario lasciate da run interrotte. Tocca solo
+/// i nomi `s02-isolation-<pid>` con pid diverso dal corrente e assente da `/proc`. `/proc` è
+/// quello del container: la potatura è sicura perché i binari di test di una sessione girano
+/// in sequenza dentro un solo `oneshot`, e la prenotazione di `session.sh` esclude sessioni
+/// concorrenti sul volume `work-tmp` (hard rule 6 del piano).
+fn prune_orphan_roots(root: &Path) {
+    let own = std::process::id();
+    let Ok(rd) = fs::read_dir(root) else {
+        return;
+    };
+    for e in rd.flatten() {
+        let is_dir = e.file_type().is_ok_and(|t| t.is_dir());
+        if is_dir
+            && e.file_name()
+                .to_str()
+                .is_some_and(|n| is_orphan_root(n, ROOT_PREFIX, own, pid_alive))
+        {
+            let _ = fs::remove_dir_all(e.path());
+        }
+    }
+}
+
 fn env() -> &'static Env {
     static ENV: OnceLock<Env> = OnceLock::new();
     ENV.get_or_init(|| {
         let root = std::env::var_os("S02_TEST_BASE")
             .map_or_else(|| PathBuf::from("/work/tmp"), PathBuf::from);
-        let base = root.join(format!("s02-isolation-{}", std::process::id()));
+        prune_orphan_roots(&root);
+        let base = root.join(format!("{ROOT_PREFIX}{}", std::process::id()));
         let _ = fs::remove_dir_all(&base);
         for d in ["jobs", "raw/fixtures", "bin", "outside"] {
             fs::create_dir_all(base.join(d)).unwrap();
         }
         let base = base.canonicalize().unwrap();
+        if PROCESS_ROOT.set(base.clone()).is_ok() {
+            // SAFETY: `atexit` della libc, già collegata da std; registrata una sola volta (dentro
+            // `OnceLock`). La callback non panica e legge solo `PROCESS_ROOT`, uno stato
+            // `'static` mai rilasciato.
+            unsafe {
+                atexit(remove_process_root);
+            }
+        }
         let e = Env {
             work_root: base.join("jobs"),
             raw: base.join("raw"),
@@ -852,7 +927,25 @@ async fn budget_admits_alloc_jobs_and_all_complete() {
     }
 }
 
-/// (f) Mai più di 2 ammessi insieme: 4 job `sleep 1` a coppie durano ~2 s, non ~1 s.
+/// Numero di cartelle `tw-pair-*` vive nella radice dei job, da **una sola** `read_dir` della
+/// cartella padre: quattro `is_dir` separati leggerebbero quattro istanti diversi e potrebbero
+/// contare insieme una cartella appena rimossa e una appena creata (test design 01.6-07, RISK-2).
+fn pair_dirs_alive(work_root: &Path) -> usize {
+    fs::read_dir(work_root).map_or(0, |rd| {
+        rd.flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .is_some_and(|n| n.starts_with("tw-pair-"))
+            })
+            .count()
+    })
+}
+
+/// (f) Mai più di 2 ammessi insieme, e 2 davvero insieme: il contatore del budget arriva a 2
+/// e non oltre, un osservatore concorrente vede al massimo 2 cartelle di job vive e ne vede 2
+/// insieme; i 4 job `sleep 1` a coppie durano almeno ~2 s. Nessun limite superiore di tempo:
+/// il tetto lo prova `max_admitted`, la coppia lo prova l'osservatore (piano 01.6-07, D-11).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn budget_admits_at_most_two_jobs_together() {
     let budget = Budget::fixed(320 * MIB, 64 * MIB);
@@ -865,19 +958,41 @@ async fn budget_admits_at_most_two_jobs_together() {
     let specs: Vec<ChildSpec> = (0..4)
         .map(|i| spec(&selftest(&format!("tw-pair-{i}"), "sleep", Some("1"))))
         .collect();
+    let work_root = env().work_root.clone();
+    let stop = AtomicBool::new(false);
+    let jobs = async {
+        let out = tokio::join!(
+            run_child(&specs[0], &l, &budget),
+            run_child(&specs[1], &l, &budget),
+            run_child(&specs[2], &l, &budget),
+            run_child(&specs[3], &l, &budget),
+        );
+        stop.store(true, Ordering::SeqCst);
+        out
+    };
+    // Campiona ogni 10 ms fino al termine dei 4 job; si ferma con `stop`, altrimenti il `join!`
+    // non finirebbe.
+    let observer = async {
+        let mut max = 0usize;
+        while !stop.load(Ordering::SeqCst) {
+            max = max.max(pair_dirs_alive(&work_root));
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        max
+    };
     let t0 = Instant::now();
-    let (a, b, c, d) = tokio::join!(
-        run_child(&specs[0], &l, &budget),
-        run_child(&specs[1], &l, &budget),
-        run_child(&specs[2], &l, &budget),
-        run_child(&specs[3], &l, &budget),
-    );
+    let ((a, b, c, d), osservati_max) = tokio::join!(jobs, observer);
     let wall = t0.elapsed();
     for (i, r) in [a, b, c, d].into_iter().enumerate() {
         assert_ok_report(&r.unwrap(), &format!("tw-pair-{i}"));
     }
+    assert_eq!(budget.max_admitted(), 2, "tetto dei job ammessi insieme");
+    assert_eq!(
+        osservati_max, 2,
+        "massimo di cartelle tw-pair vive insieme (attese 2: a coppie, mai 3)"
+    );
     assert!(
-        wall >= Duration::from_millis(1900) && wall < Duration::from_millis(3600),
+        wall >= Duration::from_millis(1900),
         "4 job da 1 s a coppie: wall {wall:?}"
     );
 }
@@ -982,8 +1097,12 @@ async fn timeout_kills_grandchild_group_and_removes_job_dir() {
     assert!(!job_dir(id).exists());
 }
 
-/// (d) Futuro di `run_child` droppato dal chiamante: entro 1 s gruppo assente, cartella
-/// rimossa e permesso del budget restituito.
+/// (d) Futuro di `run_child` droppato dal chiamante quando figlio e nipote del job sono vivi:
+/// entro 1 s gruppo assente e cartella rimossa; il permesso del budget restituito si prova con
+/// la cartella del job successivo comparsa entro 1 s (la cartella nasce solo dopo `admit`,
+/// `isolate.rs:218` poi `prepare`). Il budget ammette un solo job da 200 MiB alla volta
+/// (capacità 256 MiB), quindi la cartella di `tw-drop-next` può nascere solo dal permesso
+/// restituito (piano 01.6-07, D-11).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn dropped_future_kills_group_and_cleans_within_one_second() {
     let budget = Budget::fixed(320 * MIB, 64 * MIB);
@@ -992,20 +1111,45 @@ async fn dropped_future_kills_group_and_cleans_within_one_second() {
         address_space_bytes: 200 * MIB,
         memory_reservation_bytes: 200 * MIB,
         out_quota_bytes: 0,
+        // guardia: tetto di durata del figlio contro il blocco, invariato dalla base.
         wall_timeout: Duration::from_secs(30),
         ..limits()
     };
     let s = spec(&selftest(id, "spawn-grandchild", None));
-    let (res, groups) = tokio::join!(
-        tokio::time::timeout(Duration::from_millis(800), run_child(&s, &l, &budget)),
-        watch_groups(job_dir(id), Duration::from_millis(700)),
-    );
+    let dir = job_dir(id);
+    // Il futuro di `run_child` passa per valore al `select!`: all'uscita del `select!` il ramo
+    // perdente cade subito, non a fine scope (test design, RISK-4).
+    let (pids, groups) = tokio::select! {
+        r = run_child(&s, &l, &budget) => {
+            panic!("il futuro doveva essere droppato: run_child è finito prima dell'evento, {r:?}")
+        }
+        seen = async {
+            // Evento: figlio e nipote `sleep 300` vivi, entrambi con la cartella del job come
+            // cwd (test design, RISK-3).
+            // guardia di blocco di 30 s, non la proprietà: allo scadere il test fallisce.
+            let both = eventually(Duration::from_secs(30), || procs_with_cwd(&dir).len() >= 2);
+            assert!(both.await, "figlio e nipote del job non osservati entro la guardia di 30 s");
+            let mut pids = Vec::new();
+            let mut groups = Vec::new();
+            for (pid, _, pgid) in procs_with_cwd(&dir) {
+                pids.push(pid);
+                if !groups.contains(&pgid) {
+                    groups.push(pgid);
+                }
+            }
+            for pgid in watch_groups(dir.clone(), Duration::from_millis(100)).await {
+                if !groups.contains(&pgid) {
+                    groups.push(pgid);
+                }
+            }
+            (pids, groups)
+        } => seen,
+    };
     assert!(
-        res.is_err(),
-        "il futuro doveva essere droppato dal timeout del test"
+        pids.len() >= 2,
+        "processi del job all'evento: {pids:?} (attesi figlio e nipote)"
     );
     assert!(!groups.is_empty(), "nessun processo del job osservato");
-    let dir = job_dir(id);
     let gone = eventually(Duration::from_secs(1), || {
         groups.iter().all(|g| !group_alive(*g)) && !dir.exists()
     })
@@ -1017,16 +1161,22 @@ async fn dropped_future_kills_group_and_cleans_within_one_second() {
         dir.exists()
     );
 
-    let next = tokio::time::timeout(
-        Duration::from_secs(3),
-        run_child(
-            &spec(&selftest("tw-drop-next", "sleep", Some("0"))),
-            &l,
-            &budget,
-        ),
-    )
+    let next_spec = spec(&selftest("tw-drop-next", "sleep", Some("1")));
+    let next_dir = job_dir("tw-drop-next");
+    // guardia di blocco di 30 s, non la proprietà: allo scadere il test fallisce.
+    let guard = Duration::from_secs(30);
+    let (next, admitted) = tokio::time::timeout(guard, async {
+        tokio::join!(
+            run_child(&next_spec, &l, &budget),
+            eventually(Duration::from_secs(1), || next_dir.is_dir()),
+        )
+    })
     .await
-    .expect("permesso del budget non restituito dopo il drop");
+    .expect("guardia di 30 s scaduta: run_child di tw-drop-next bloccato");
+    assert!(
+        admitted,
+        "permesso del budget non restituito entro 1 s dal drop: cartella di tw-drop-next assente"
+    );
     assert_ok_report(&next.unwrap(), "tw-drop-next");
 }
 
@@ -1156,10 +1306,13 @@ async fn quota_counts_job_dir_plus_out_dir() {
         );
         write_bytes(&jd.join("half.bin"), quota / 2);
         write_bytes(&od.join("half-plus-one.bin"), quota / 2 + 1);
+        // Istante del termine delle scritture, restituito come valore del ramo del `join!`:
+        // i 5 s si misurano da qui, non dall'avvio del job (piano 01.6-07, D-11).
+        Instant::now()
     };
-    let t0 = Instant::now();
     let bb = big_budget();
-    let (r, ()) = tokio::join!(run_child(&s, &l, &bb), writer);
+    let (r, scritto) = tokio::join!(run_child(&s, &l, &bb), writer);
+    let rilevata = scritto.elapsed();
     let r = r.unwrap();
     assert_eq!(
         failed(&r.outcome),
@@ -1167,8 +1320,8 @@ async fn quota_counts_job_dir_plus_out_dir() {
         "{r:?}"
     );
     assert!(
-        t0.elapsed() < Duration::from_secs(5),
-        "quota non rilevata in tempo"
+        rilevata < Duration::from_secs(5),
+        "quota non rilevata in tempo: {rilevata:?} dal termine delle scritture"
     );
     assert!(!jd.exists());
 }
@@ -1636,4 +1789,45 @@ fn parse_child_data_schema() {
         work >= floor,
         "decompress_work_bytes {work} sotto il minimo {floor}"
     );
+}
+
+// ---- D-11 (piano 01.6-07): riconoscimento delle radici orfane --------------------------------
+
+/// Predicato della potatura (TEST-8): solo `s02-isolation-<pid>` canonico, con pid diverso dal
+/// corrente e morto. Nomi con suffissi, vuoti, non numerici, con zeri iniziali o di un altro
+/// binario non si potano mai.
+#[test]
+fn orphan_root_predicate_accepts_only_dead_foreign_canonical_pids() {
+    let own = 4242;
+    let dead = |_: u32| false;
+    let alive = |_: u32| true;
+    assert!(is_orphan_root(
+        "s02-isolation-999999",
+        ROOT_PREFIX,
+        own,
+        dead
+    ));
+    assert!(
+        !is_orphan_root("s02-isolation-4242", ROOT_PREFIX, own, dead),
+        "pid corrente"
+    );
+    assert!(
+        !is_orphan_root("s02-isolation-999999", ROOT_PREFIX, own, alive),
+        "pid vivo"
+    );
+    for name in [
+        "s02-isolation-123-keep",
+        "s02-isolation-",
+        "s02-isolation-abc",
+        "s02-isolation-0012",
+        "s02-isolation-+12",
+        "s02-isolation-99999999999",
+        "s02-drivers-999999",
+        "x-s02-isolation-999999",
+    ] {
+        assert!(
+            !is_orphan_root(name, ROOT_PREFIX, own, dead),
+            "potato a torto: {name}"
+        );
+    }
 }
