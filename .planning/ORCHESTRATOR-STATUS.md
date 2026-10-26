@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda — / slice — / verify: gaps_found 105/110 (gap 1.6) · aggiornato: 2026-10-26
+fase 01.6 / onda — / slice — / plan completato · aggiornato: 2026-10-26
 
 ## Prossima azione
 
-/plan 1.6 --gaps da 01-VERIFICATION.md (5 gap: scanner, hook, compose, driver misura, test/TODO; riapre_perimetro [1]; verificare scanner/hook contro proprieta-file.whitelist.json) → /execute 1.6 → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/execute 1.6 onda 1 (01.6-01 + 01.6-07, Opus, worktree exec/01.6-NN) → onde 2-5 per 01.6-ONDE.md (prima di 01.6-03 valorizzare EMBED_REVISION/RERANK_REVISION in spikes.env, D-13) → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -102,6 +102,9 @@ fase 01 / onda — / slice — / verify: gaps_found 105/110 (gap 1.6) · aggiorn
 - [f05] Argon2id 64 MiB t=3 p=4 PHC+rehash, semaforo 4; NIST min 15/max 128 + blocklist locale; hash fittizio; throttling PG 5/15 min account + tetto IP; audit HMAC email (D-12..15b) · fonte RFC 9106, NIST 800-63B-4, OWASP Auth → 05-CONTEXT.md
 - [f05] cambio ruoli: 409 ultimo admin, acl_version++, revoca sessioni; scope + elenco utenti, disattivazione, cambio password, password temporanea; primo admin CLI (D-16..18) · fonte T-04, ADR-0012, prodotti comparabili → 05-CONTEXT.md
 - [f05] brief ricerca 11 aree con fonti → 05-RICERCA-DISCUSSIONE.md; log → 05-DISCUSSION-LOG.md
+- fase 01.6 inserita (gap /verify 1, «Strumenti + TODO noti»), criticità normale; CONTEXT D-01..D-13 (D-13: push main 0bfc62b, revisioni TEI in spikes.env da Claude, ORACOLI.md:39 senza double-check · utente 2026-10-26) → 01.6-CONTEXT.md
+- plan 01.6: 9 piani, checker GSD 3 giri 0 blocker; gate security 3 giri (F1-F7, N1-N5, 2 residui giro 3 alla lettera), solid/perimetro/proprieta conformi, crate-boundary n/a → 01.6-GATE.md
+- test design Claude 9/9 (dubbi decisi dal coordinatore, D-01 precisata: multiriga senza take = HIGH) → 01.6-NN-TEST-DESIGN.md; contratto → 01.6-CONTRATTO.md; 5 onde da 2 → 01.6-ONDE.md
 
 ## Limiti trovati
 
@@ -142,7 +145,7 @@ fase 01 / onda — / slice — / verify: gaps_found 105/110 (gap 1.6) · aggiorn
 
 - /verify 1 da 01-17: ADR-0006:66-67 Modifica attaccate alla tabella (resa GFM); titolo ADR-0011 «routing per complessità» e D-18/D-19 in DEPENDENCIES:89 vs D-33; checklist LLM threat-model:96 rimando T-18 impreciso; PLAT-07 ancora Pending in REQUIREMENTS.md:67,109 → 01-17-SUMMARY.md
 - /verify 1 da 01-16: Locator (titoli sezione) stampato dal Debug derivato di Block/IndexedChunk/IndexVersionDraft (s07 lib.rs:1171,1273,1283); InvalidationScope::DocumentVersion senza campo in CacheKey (fake svuota tutto); collocazione Embedder + query_text in RetrievalSearchRequest da decidere in 01-17/Fondazione → 01-16-SUMMARY.md
-- scanner security_scan.py: regola upload-in-memory segnala read_to_end anche su reader limitato da .take( (falso positivo, fase 1.5) → ignorare con take o waiver motivato · da proporre all'utente
+- ~~scanner upload-in-memory falso positivo su .take(~~ superato da D-01 della 1.6 (regola sensibile alla posizione di .take() → 01.6-CONTEXT.md
 - hardware spike: i7-13700K 16C/24T, 32 GB RAM, RTX 3050 6 GB VRAM, Windows 11.
 - Docker Desktop non installato: prerequisito execute 1 (passthrough GPU WSL2, .wslconfig) → HANDOFF §7.
 - S-07 porte: Embedder copre embedding query; validate_query restituisce complessità; locator in contracts.
@@ -210,3 +213,4 @@ fase 01 / onda — / slice — / verify: gaps_found 105/110 (gap 1.6) · aggiorn
 **Modifica:** Claude (Anthropic) · 2026-10-23 · --verify e --uat: fase 1.4 chiusa
 **Modifica:** Claude (Anthropic) · 2026-10-23 · --verify-ecc: fase 1.5
 **Modifica:** Claude (Anthropic) · 2026-10-24 · --verify e --uat: fase 1.5 chiusa
+**Modifica:** Claude (Anthropic) · 2026-10-26 · --plan: fase 1.6
