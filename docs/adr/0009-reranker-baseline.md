@@ -77,7 +77,7 @@ Misure dello spike sulle 74 query ratificate di S-03, con i loro top-20 autorizz
   - la guardia di visibilità è nella porta, per tutte le implementazioni.
 - **VRAM e parametri di batch:**
   - senza TEI reranker restano liberi circa 1,5 GiB: con tei-embed e Docling il margine stimato è di circa 1,2 GiB con il desktop a 1,6 GiB;
-  - il budget dipende dalla quota del desktop di Windows, che sulla stessa macchina va da 1,5 a 2,9 GiB. Con il desktop a 2,8 GiB e i tre servizi, una serie scartata ha superato il tetto (5.851 MiB). L'ambiente locale tiene quindi il desktop leggero, oppure misura con `vram.sh` prima di aggiungere un servizio GPU;
+  - il budget dipende dalla quota del desktop di Windows, che sulla stessa macchina va da circa 1,44 a 2,80 GiB (1.479-2.869 MiB). Con il desktop a 2,8 GiB e i tre servizi, una serie scartata ha superato il tetto (5.851 MiB). L'ambiente locale tiene quindi il desktop leggero, oppure misura con `vram.sh` prima di aggiungere un servizio GPU;
   - se si riattiva il TEI reranker accanto agli altri due, prima si riducono i max-batch-tokens e si rimisura con `spikes/s04-jev/vram.sh`. Le configurazioni ridotte non sono state misurate.
 - **Da rivedere se:**
   - cambia la GPU, o il numero di candidati da riordinare scende sotto 20;
@@ -95,3 +95,5 @@ Misure dello spike sulle 74 query ratificate di S-03, con i loro top-20 autorizz
 - `spikes/s04-jev/results/rerank/vram.csv`: campioni di VRAM per scenario e fase.
 - `spikes/s04-jev/results/rerank/hw.json`: macchina, immagini, revisioni dei pesi e `git_rev` del codice misurato.
 - `spikes/s04-jev/results/jev/hw.json` e `spikes/s04-jev/RISULTATI-jev.md`: la parte JEV dello spike (ADR-0008).
+
+**Modifica:** Claude (Anthropic) · 2026-10-26 · quota del desktop corretta in 1,44-2,80 GiB (1.479-2.869 MiB), segnalata dal bridge di 01-15

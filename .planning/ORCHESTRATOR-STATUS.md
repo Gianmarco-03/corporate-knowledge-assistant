@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 9 / slice 01-15 / execute in corso (test rossi 11201ac, esecutore avviato) · aggiornato: 2026-10-26
+fase 01 / onda 10 / slice 01-16 / execute in corso (Task 1 19a7304, test-write in corso) · aggiornato: 2026-10-26
 
 ## Prossima azione
 
-01-15: se .planning/tmp/rapporto-01-15.yaml esiste e il worktree .claude/worktrees/01-15 ha commit oltre 11201ac → safe-resume (verifica commit vs piano, rilancia esecutore fresco dal primo task non committato, mai ri-eseguire misure già committate); poi merge --no-ff, gate, bridge; poi 01-16 (critico, READ-GATE PLAN-010-16) e 01-17.
+01-16 (critico, gate TEST_SPEC_READY, worktree .claude/worktrees/01-16 su task/PLAN-010-16): se .planning/tmp/test-write-01-16.yaml del worktree dice RED_EXPECTED → esecutore Task 2 (Opus, brief con RISK-001 MEDIUM di risk_audit_14; niente query_text in search); poi merge --no-ff, gate, bridge; poi 01-17.
 
 ## Findings
 
@@ -91,6 +91,7 @@ fase 01 / onda 9 / slice 01-15 / execute in corso (test rossi 11201ac, esecutore
 - onda 7 chiusa: 01-13 (merge d13e23a, bridge); gate main fmt/clippy ok, runner s02-parser 380 pass 0 fail 8 ign al rilancio (1° giro 3 rossi temporizzazione isolation.rs, flaky sotto carico, file non toccati); decisioni utente lock Paddle cooldown dbb615b, apt fissati 24654ca, PP-OCRv6 1 tentativo detection ridotta non vince → Tesseract in ADR-0004 (Proposed, ratifica 01-17); deviazioni a: test1 uv 307de01, manifest pesi sha 64; difetto file chiuso parse-parent.rs calibrate BudgetExceeded → gap-closure riapre [1]; T-09 jbig2 aperto → 01-13-SUMMARY.md
 - D-41 scanner upload-in-memory opzione B corretta su deepsearch_7 (take dopo decoder, ambigui «da verificare») + D-19 fase 3 lettore limitato → 01-CONTEXT.md, 01-DEEPSEARCH-7.md
 - onda 8 chiusa: 01-14 (merge 050eb8f, bridge); gate main fmt/clippy ok, s03-pgvector host 28 pass, scanner 0/118; integrazione Postgres solo nel runner dell'esecutore (40 verdi) → human_judgment; leak 0/2.067, soglia esatto→HNSW 50k, I-2 recall ≥0,95 solo 10k, ibrida non adottata, ADR-0006 Proposed; deviazioni a: maintenance_work_mem 768MB (misure HNSW con modifica non committata, git_rev 22d6d5f), query HNSW EXISTS OFFSET 0; testi RISULTATI/ADR corretti al bridge; aperto 23,7 vs 27,7 ms → 01-14-SUMMARY.md
+- onda 9 chiusa: 01-15 (merge a7341dc, bridge); gate main fmt/clippy ok, s04-jev lib 16 + bin rerank 13 pass/11 ign (bridge ne ha rieseguiti 9, verdi), scanner 0/18; baseline no-rerank, TEI non adottato (p95 360 ms), JEV forma A rank, VRAM picco 5.562 MiB margine 70, unauthorized 0/887, ADR-0009 Proposed; human_judgment: test9 (WSL bash) e legame misura VRAM-codice (raw copiato in spikes/s04-jev/results/raw del checkout principale); quota desktop corretta 1,44-2,80 GiB → 01-15-SUMMARY.md
 - pulizia disco 2026-10-25 (utente ok): build cache 23,1 GB, 419 dir s02-* residue test 9,6 GB, 8 modelli VLM docling ~27 GB; vhdx da compattare a mano (admin); TODO verify: test s02 senza pulizia tmp, compose.yaml:175 docling --all, results/docling-models.txt elenca modelli rimossi
 
 ## Limiti trovati

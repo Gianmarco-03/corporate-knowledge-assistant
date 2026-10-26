@@ -22,7 +22,7 @@ Lo spike S-04 (assunzioni A-09 e A-06, criterio 4 della fase) ha due parti. Cias
 - **Differenza di JEV rispetto alla baseline:** +0,1872 di nDCG@5 e +0,0541 di recall@8 sul no-rerank, al costo di circa 0,00059 USD e 483 ms di p95 per query. Rispetto al reranker TEI su GPU (non adottato) la differenza è +0,0311 di nDCG@5.
 - **Budget VRAM: rispettato con i default** (soglia R-3, [`results/rerank/vram.csv`](results/rerank/vram.csv)).
   - tei-embed (`TEI_MAX_BATCH_TOKENS` 16384), tei-rerank (`TEI_RERANK_MAX_BATCH_TOKENS` 8192) e docling GPU sono stati caricati insieme, sotto carico concorrente per 3 minuti. Il picco è di 5.562 MiB contro un tetto di 5.632, senza OOM, e sta circa 3,9 GiB sopra il desktop (1,6 GiB). La riduzione dei batch non è servita.
-  - Il margine è di 70 MiB e dipende dalla quota del desktop di Windows, che sulla stessa macchina va da 1,5 a 2,9 GiB. Con i tre servizi il tetto regge se il desktop resta sotto circa 1,65 GiB.
+  - Il margine è di 70 MiB e dipende dalla quota del desktop di Windows, che sulla stessa macchina va da circa 1,44 a 2,80 GiB (1.479-2.869 MiB). Con i tre servizi il tetto regge se il desktop resta sotto circa 1,64 GiB (1.677 MiB).
   - Con la baseline no-rerank il reranker TEI non si installa nell'MVP: sulla GPU restano tei-embed e docling. La loro quota, stimata per attribuzione e non misurata in uno scenario a due servizi, è di circa 2,8 GiB.
 
 ## Impatto su porte (S-07)
@@ -49,3 +49,5 @@ Lo spike S-04 (assunzioni A-09 e A-06, criterio 4 della fase) ha due parti. Cias
 - [ADR-0008](../../docs/adr/0008-jev-forma-rank-concorrenza-pin.md) (forma, concorrenza, pin di JEV) e [ADR-0009](../../docs/adr/0009-reranker-baseline.md) (baseline di reranking e budget VRAM), entrambi *Proposed*, ratifica nel consolidamento (piano 01-17).
 - Riga di `DEPENDENCIES.md` «Reranker baseline»: da Aperta a Decisa, «no-rerank (adapter identità); bge-reranker-v2-m3 su TEI misurato e non adottato per latenza; JEV forma A resta il rank». La scrive il consolidamento (piano 01-17), non questo piano.
 - Riga «Modello testuale» (`jev-1.13.0`, da ADR-0008): consolidamento.
+
+**Modifica:** Claude (Anthropic) · 2026-10-26 · quota del desktop corretta in 1,44-2,80 GiB (1.479-2.869 MiB), segnalata dal bridge di 01-15

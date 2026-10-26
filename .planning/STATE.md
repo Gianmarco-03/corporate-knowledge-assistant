@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-25T17:41:14.971Z"
-last_activity: 2026-10-25 — 01-14 completato (ricerca esatta autorizzata, leak 0, ibrida non adottata); prossimo 01-15
+last_updated: "2026-10-26T10:34:30.305Z"
+last_activity: 2026-10-26 — 01-15 completato (baseline no-rerank, ADR-0009 proposto); 01-16 in esecuzione
 progress:
   total_phases: 20
   completed_phases: 5
   total_plans: 24
-  completed_plans: 21
+  completed_plans: 22
   percent: 25
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 15 of 18 in current phase
+Plan: 16 of 18 in current phase
 Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-25 — 01-14 completato (ricerca esatta autorizzata, leak 0, ibrida non adottata); prossimo 01-15
+Last activity: 2026-10-26 — 01-15 completato (baseline no-rerank, ADR-0009 proposto); 01-16 in esecuzione
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -146,6 +146,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: D-41 corretta su deepsearch_7: eccezione solo con take dopo il decoder, ambigui «da verificare»; helper limitato e divieto Clippy alla fase 3 (D-19) → `phases/01-spike-tecnici/01-CONTEXT.md#implementation-decisions`
 - [Phase ?]: 01-13: lock PaddleOCR con cooldown al 2026-10-10 (uv), librerie apt fissate, PP-OCRv6 misurato una volta a detection ridotta: non vince, Tesseract in ADR-0004 → `phases/01-spike-tecnici/01-13-SUMMARY.md`
 - [Phase ?]: 01-14: ricerca esatta con ACL nella stessa query nell'MVP, coseno, ibrida RRF non adottata, HNSW da rivalutare oltre 50k (recall filtrata ≥0,95 solo a 10k) → `phases/01-spike-tecnici/01-14-SUMMARY.md`
+- [Phase 01]: 01-15: baseline rerank no-rerank; TEI bge-reranker-v2-m3 misurato e non adottato (p95 360 ms > 300); JEV forma A resta il rank; picco VRAM 5.562 MiB, margine 70 MiB → `spikes/s04-jev/RISULTATI-rerank.md#Esito`
 
 ### Pending Todos
 

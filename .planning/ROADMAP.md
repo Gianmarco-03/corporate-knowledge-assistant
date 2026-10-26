@@ -464,7 +464,7 @@ Discuss di tutte le fasi, poi Spike, poi plan di Fondazione e Provider, plan dei
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Spike tecnici | 15/18 | In Progress|  |
+| 1. Spike tecnici | 16/18 | In Progress|  |
 | 2. Fondazione | 0/TBD | Not started | - |
 | 3. Provider di ingestion e indice | 0/TBD | Not started | - |
 | 4. Provider di decisione, risposta e trasversali | 0/TBD | Not started | - |
