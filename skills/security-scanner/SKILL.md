@@ -109,7 +109,13 @@ una fn che riceve chunk, prompt, query o credenziali serve `skip`/`skip_all`.
 nominativo, IBAN; si logga un id pseudonimo. `log-secret` (HIGH): token,
 header `Authorization`, cookie. Queste regole guardano gli identificatori
 loggati, non il testo del messaggio (le stringhe sono svuotate prima del
-confronto). La cache non ha una regola automatica: in review si verifica che
+confronto). Una macro di log (`tracing::*!`, `log::*!`, `println!`,
+`eprintln!`, `dbg!`, `panic!`, `console.*`) che rustfmt spezza su più righe si
+valuta sul testo unito fino alla parentesi di chiusura bilanciata (al più 60
+righe; oltre il tetto vale il testo unito fin lì, mai la sola riga
+d'apertura): il bilanciamento conta le parentesi dopo aver svuotato stringhe e
+char literal (`')'`), e il finding va sulla riga d'apertura, senza doppioni
+(gap-closure 1.6, D-05). La cache non ha una regola automatica: in review si verifica che
 la chiave includa identità, versione della policy e versioni dei documenti.
 
 **Autorizzazione (ASVS V4, deny by default).**
@@ -121,7 +127,16 @@ sentinella **motivato**: `// security-scanner: public-endpoint - <motivazione>`
 (login, refresh, JWKS, health) o `// security-scanner: authz-layer - <dove sta
 il layer>`. Una rinuncia senza motivazione è essa stessa una violazione. La
 regola non verifica *quale* ruolo: quello lo giudica la review, insieme al
-ricontrollo prima di citazioni, link e viewer.
+ricontrollo prima di citazioni, link e viewer. Sono handler anche senza
+argomenti (gap-closure 1.6, D-06): gli `async fn` il cui nome è registrato
+nello stesso file in `.route(<path>, <metodo>(<nome>))`, comprese le catene
+del `MethodRouter` (`get(a).post(b)`), `on(<filtro>, <nome>)` e i nomi
+qualificati (`handlers::upload`), cercati sul testo con le righe unite; e ogni
+`async fn` pubblico di un modulo di handler (`handler.rs`, `handlers.rs`,
+cartella `handlers/`). Un `.get(<nome>)` fuori dal secondo argomento di
+`.route(` (`cache.get(key)`) non è una rotta, e una closure
+(`get(|| async { "ok" })`) non è un nome. Il waiver motivato resta l'unica
+eccezione; senza motivo è una violazione anche sopra un handler registrato.
 
 **Browser (ASVS V8, LLM05).** `credentials-in-webstorage` (CRITICAL: access
 token solo in memoria, refresh token in cookie `HttpOnly`/`Secure`/`SameSite`),
@@ -132,6 +147,80 @@ documenti sono input non fidati), `creds-in-querystring`, `cors-permissive` (HIG
 `upload-in-memory` e `upload-path-traversal` (HIGH), `upload-mime-trust`,
 `archive-decompress` (zip bomb: DOCX è uno zip) e `pdf-untrusted-parse`
 (MEDIUM: processo isolato o `spawn_blocking` con timeout e limiti).
+
+*Letture fino all'EOF (gap-closure 1.6, D-01; CWE-409, ASVS 5.0 V5.2.3).*
+`.bytes().await` e `to_bytes(.., usize::MAX)` restano regole di riga
+`upload-in-memory` (HIGH). `read_to_end`, `read_until` (anche con `.await`), la
+forma UFCS (`Read::read_to_end(&mut r, ..)`, `AsyncReadExt::…`) e `io::copy`
+(`std::io`, `tokio::io`) sono invece regole di file con un classificatore
+comune, su testo a commenti e stringhe svuotati:
+
+- **il ricevitore** è l'espressione prima della chiamata, risalendo fino al
+  delimitatore dell'istruzione (`;`, `{`, `}`, `,`, `=`, `=>`, `|` di una
+  closure, una parentesi aperta che la contiene) e togliendo `if`, `match`,
+  `while`, `return`. Così anche una lettura senza `;` di chiusura (condizione
+  di `if`, scrutinio di `match`, `while let`, corpo di una closure) ha sempre
+  un esito;
+- **conta come limite solo `.take(<argomento>)`**: `.take()` vuoto è
+  `Option::take` e non limita nulla;
+- **con un decoder** (`<Nome>::new(` con `<Nome>` che finisce in `Decoder` o
+  `Decompressor`) il `take` deve stare *dopo* la parentesi di chiusura del
+  costruttore più esterno, cioè sull'output decompresso:
+  `ZlibDecoder::new(src).take(N)` è limitato, `ZlibDecoder::new(src.take(N))`
+  limita solo i byte compressi e dà `upload-in-memory` (HIGH), come
+  `GzDecoder::new(ZlibDecoder::new(src).take(N))`;
+- **senza decoder**, un `.take(` sulla catena limita i byte letti
+  (`r.take(MAX + 1)`, `(&mut stdout).take(..)`, `BufReader::new(f.take(N))`);
+  senza `take`, una catena con una chiamata (`File::open(p)?`,
+  `BufReader::new(f)`) è `upload-in-memory` (HIGH), un identificatore nudo è
+  `upload-in-memory-unverified` (MEDIUM: reader costruito altrove), come la
+  forma UFCS senza `take` nel primo argomento;
+- **su più righe** (ricevitore o argomenti della chiamata a capo) l'esito è
+  `upload-in-memory-unverified` solo se c'è un `.take(<argomento>)`, perché la
+  sua posizione rispetto al decoder non si determina; senza alcun `take` si
+  classifica come una riga sola, quindi un decoder senza limite resta HIGH. I
+  combinatori in coda (`.map_err(..)`, `?`, `.await`, `.unwrap()`) non contano;
+- **`io::copy(&mut <src>, <dst>)`**: con una sorgente limitata nessun
+  finding; con una sorgente non limitata, `sink()`, `stdout()` e `stderr()`
+  non accumulano e non danno finding; un `Vec` dichiarato nel file
+  (`let [mut] v[: Vec<..>] = Vec::new()`, `vec![..]`, `Vec::with_capacity(..)`)
+  dà `unbounded-copy-to-vec` (HIGH), o `upload-in-memory-unverified` se la
+  sorgente è un identificatore nudo; ogni altra destinazione (turbofish
+  `Vec::<u8>::new()`, parametro `&mut Vec<u8>`, `Cursor`, identificatore non
+  dichiarato) dà `upload-in-memory-unverified`, mai silenzio.
+
+`upload-in-memory-unverified` è MEDIUM di proposito: nell'hook (soglia HIGH) è
+un avviso, nei gate di `plan` e `verify` (soglia MEDIUM) blocca e va motivato
+nel SUMMARY. `upload-in-memory-capacity-unverified` (MEDIUM) segnala la
+capacità del buffer presa da un'espressione non costante:
+`Vec::with_capacity(<arg>)`, `String::with_capacity(..)`,
+`BytesMut::with_capacity(..)`, anche in forma turbofish, con un argomento che
+non è un letterale intero né un'espressione di soli letterali e costanti in
+maiuscolo (`MAX_LEN`, `4 * MIB`). Ha un id proprio perché i gate separano
+questi MEDIUM dagli altri filtrando sul campo `rule`, mai sul testo del
+`message`. Il rimedio delle tre regole è lo stesso: `.take(quota + 1)`
+sull'output, rifiuto oltre la quota, e dalla fase 3 il lettore limitato
+unico.
+
+*Varchi dichiarati.* La regola è lessicale e non vede: `read_to_string`,
+`fs::read` e i cicli di `read` manuali; un `copy` importato nudo (senza
+`io::`); un reader passato fra funzioni (il `take` sta nel chiamante, lo
+scanner vede solo un identificatore nudo e dice «da verificare»); un handler
+registrato in un altro file. Li chiude la fase 3 (D-19 di `03-CONTEXT.md`:
+lettore limitato unico e `disallowed-methods` di clippy; CodeQL
+`rust/uncontrolled-allocation-size` in `01-DEEPSEARCH-7.md`); fino ad allora
+la garanzia sostanziale resta dei test ostili e della review.
+
+*Storia.* Fino alla gap-closure 1.6 `upload-in-memory` conteneva anche
+l'alternativa di riga `\.read_to_end\s*\(`, che scattava su ogni
+`read_to_end` senza guardare il `take`. Premiava chi evitava la parola: il
+prescan della fase 1.5 usava `io::copy` al posto di `take` + `read_to_end` per
+non far scattare la regola, e la bomba con il `take` sul lato sbagliato
+(`ZlibDecoder::new(src.take(N))`) passava per una lettura qualsiasi. La banda
+ECC di /verify 1 (`01-REVIEW.md` §B.1, D-41, `deepsearch_7`) ha chiesto una
+regola sensibile alla posizione del `take`: è la classificazione sopra, con
+il «da verificare» al posto del silenzio sulle forme che una regola lessicale
+non sa distinguere.
 
 **SSRF (fonti online).** `ssrf-dynamic-url` (HIGH): allow-list di schema e
 host, blocco di IP privati, loopback, link-local e metadata dopo la
@@ -188,7 +277,12 @@ di `gsd-secure-phase`).
 Una regola nuova dichiara le famiglie di file a cui si applica, ha un
 esempio che deve scattare e uno che non deve (fixture sotto una directory con
 il marcatore), e si conferma con una scansione reale, non solo a occhio: una
-regola su un'estensione che lo scanner non vede è una regola morta.
+regola su un'estensione che lo scanner non vede è una regola morta. I test
+dello scanner stanno in `skills/security-scanner/tests/test_security_scan.py`
+(`unittest` della libreria standard, a subprocess su una cartella
+temporanea): `sh scripts/py.sh -m unittest discover -s
+skills/security-scanner/tests -p 'test_security_scan.py'`.
 
 **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
 **Modifica:** Claude (Anthropic) · 2026-10-21 · opzione `--fail-on`; l'hook blocca solo CRITICAL e HIGH, i MEDIUM sono avvisi da motivare nel SUMMARY (decisione utente)
+**Modifica:** Claude (gsd-executor 01.6-01) · 2026-10-26 · regole upload-in-memory, upload-in-memory-unverified, upload-in-memory-capacity-unverified, unbounded-copy-to-vec; log su più righe; handler senza argomenti (D-01, D-05, D-06)
