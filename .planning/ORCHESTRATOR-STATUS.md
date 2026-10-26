@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 8 / slice 01-14 / execute completato (bridge) · aggiornato: 2026-10-25
+fase 01 / onda 9 / slice 01-15 / execute in corso (test rossi 11201ac, esecutore avviato) · aggiornato: 2026-10-26
 
 ## Prossima azione
 
-onda 9: preflight 01-15 (reranker GPU; verificare criticità e test design, worktree da main), test-write fresco, esecutore; poi 01-16 (critico, READ-GATE PLAN-010-16) e 01-17.
+01-15: se .planning/tmp/rapporto-01-15.yaml esiste e il worktree .claude/worktrees/01-15 ha commit oltre 11201ac → safe-resume (verifica commit vs piano, rilancia esecutore fresco dal primo task non committato, mai ri-eseguire misure già committate); poi merge --no-ff, gate, bridge; poi 01-16 (critico, READ-GATE PLAN-010-16) e 01-17.
 
 ## Findings
 
