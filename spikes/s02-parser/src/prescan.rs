@@ -32,10 +32,12 @@
 
 // Modifica: Claude (gsd-executor 01.4-02) · 2026-10-23 · filtri immagine ammessi anche sulla forma T senza /Subtype, con lo stesso tetto (gap-closure 1.4, D-07)
 // Modifica: Claude (gsd-executor 01.5-01) · 2026-10-23 · tetto delle immagini DCT e JPX sulle dimensioni codificate (gap-closure 1.5, D-01, D-02, D-09, D-10)
+// Modifica: Claude (gsd-executor 01.6-01) · 2026-10-26 · ramo FlateDecode di image_prefix: take + read_to_end (gap-closure 1.6, D-01)
 use std::collections::BTreeSet;
 use std::io::{self, Read};
 use std::path::Path;
 
+use flate2::read::ZlibDecoder;
 use lopdf::xref::XrefEntry;
 use lopdf::{Document, LoadOptions, Object, ObjectId};
 
@@ -854,17 +856,12 @@ fn image_prefix(
                 decoded.map_err(|_| PrefixError::Prefilter("prefilter"))?
             }
             b"FlateDecode" => {
-                // Copia limitata da `take`: al più IMAGE_HEADER_SCAN_BYTES + 1 byte in memoria.
-                // Equivale a `read_to_end` sullo stesso `Take`, che il piano prescriveva:
-                // `io::copy` è stato scelto perché la regola lessicale `upload-in-memory`
-                // dello scanner segnala `read_to_end` senza vedere il `take` (falso
-                // positivo, verify della fase 1.5).
-                let mut limited =
-                    flate2::read::ZlibDecoder::new(cur).take(IMAGE_HEADER_SCAN_BYTES as u64 + 1);
+                // Al più IMAGE_HEADER_SCAN_BYTES + 1 byte decompressi: il `take` sta sull'output.
+                let cap = IMAGE_HEADER_SCAN_BYTES as u64 + 1;
                 let mut out = Vec::new();
-                let n = io::copy(&mut limited, &mut out)
-                    .map_err(|_| PrefixError::Prefilter("prefilter"))?;
-                meter.add_work(n).map_err(PrefixError::Work)?;
+                let read = ZlibDecoder::new(cur).take(cap).read_to_end(&mut out);
+                let n = read.map_err(|_| PrefixError::Prefilter("prefilter"))?;
+                meter.add_work(n as u64).map_err(PrefixError::Work)?;
                 out
             }
             _ => return Err(PrefixError::Prefilter("invalid")),

@@ -105,3 +105,84 @@ nuovo: MEDIUM upload-in-memory-unverified spikes/s02-parser/src/prescan.rs:865 �
 esito with_capacity: medium_nuovi=55 file=spikes/s01-upload/src/bin/probe.rs(3),spikes/s01-upload/src/sink.rs(1),spikes/s01-upload/tests/dhat_10m.rs(1),spikes/s01-upload/tests/dhat_1m.rs(1),spikes/s01-upload/tests/dhat_25m.rs(1),spikes/s02-parser/src/bin/extract/score.rs(3),spikes/s02-parser/src/bin/locator/canon.rs(1),spikes/s02-parser/src/bin/locator/docx.rs(1),spikes/s02-parser/src/bin/locator/md.rs(2),spikes/s02-parser/src/bin/ocr/main.rs(1),spikes/s02-parser/src/bin/ocr/score.rs(1),spikes/s02-parser/src/prescan.rs(3),spikes/s03-pgvector/src/bin/index-bench/ingest.rs(1),spikes/s03-pgvector/src/bin/index-bench/main.rs(2),spikes/s03-pgvector/src/bin/index-bench/synth.rs(4),spikes/s03-pgvector/src/db.rs(10),spikes/s03-pgvector/src/main.rs(2),spikes/s03-pgvector/src/metrics.rs(2),spikes/s03-pgvector/src/tei.rs(1),spikes/s04-jev/src/bin/rerank/main.rs(3),spikes/s04-jev/src/bin/rerank/tei_rerank.rs(1),spikes/s04-jev/src/candidates.rs(2),spikes/s04-jev/src/jev.rs(4),spikes/s05-cancel/src/main.rs(1),spikes/s06-llm/src/context.rs(1),spikes/s06-llm/src/main.rs(2)
 nota with_capacity: 55 MEDIUM (46 Vec, 9 String, 0 BytesMut), uguale alla stima di <interfaces>; s02=12 (prescan.rs 3), s01=7, s03=22, s04=11, s05=1, s06=2. Nessuno è HIGH.
 nota read_to_end: nessun upload-in-memory di riga legato a read_to_end, perché l'albero di BASE non ne contiene fuori dai commenti.
+
+## Prescan
+
+**Modifica:** Claude (gsd-executor 01.6-01) · 2026-10-26 · ramo FlateDecode di image_prefix riportato a take + read_to_end
+
+forma: `let cap = IMAGE_HEADER_SCAN_BYTES as u64 + 1;` / `let mut out = Vec::new();` / `let read = ZlibDecoder::new(cur).take(cap).read_to_end(&mut out);` / `let n = read.map_err(..)?;` / `meter.add_work(n as u64)..`; `use flate2::read::ZlibDecoder;` nell'intestazione; `use std::io::{self, Read};` resta (io::Result e io::ErrorKind sono usati altrove nel modulo); commento di giustificazione dell'io::copy tolto; mod tests identico a BASE; 17 righe cambiate rispetto a BASE.
+$ cd spikes && cargo fmt --all && cargo fmt --all -- --check
+esito fmt: ok
+controllo catena: grep -c 'ZlibDecoder::new(cur).take(cap).read_to_end(&mut out)' spikes/s02-parser/src/prescan.rs = 1 (rustfmt non la spezza)
+$ cd spikes && cargo clippy --workspace --all-targets --locked --offline -- -D warnings
+esito clippy host: exit=0
+$ sh scripts/py.sh skills/security-scanner/security_scan.py --json --fail-on HIGH spikes/s02-parser/src/prescan.rs
+esito scanner prescan: letture=0 exit=0
+esito with_capacity prescan: 3
+nota scanner prescan: filtro sul campo rule (upload-in-memory, upload-in-memory-unverified, unbounded-copy-to-vec) a vuoto; i 3 MEDIUM upload-in-memory-capacity-unverified sono le righe 589, 612 e 1564 di BASE (591, 614, 1561 dopo il ramo riscritto), gli stessi 3 della riga esito with_capacity del GREEN.
+
+## Regressione
+
+**Modifica:** Claude (gsd-executor 01.6-01) · 2026-10-26 · test di s02 nel runner, worker ricostruito, ostili di 01-18 e della 1.5
+
+eccezioni della regola 2 usate qui: docker image inspect --format '{{.Id}}' cka-spikes-worker:latest | cut -c8-19 (sola lettura); CKA_RUN_ID=$CKA_RUN_ID docker compose --env-file "$CKA_SPIKES_ENV" -f spikes/compose.yaml build worker dentro la prenotazione; docker ps -a --filter label=cka.run_id --format '{{.Names}}' (sola lettura). Il file segreti non è stato aperto.
+driver: <driver>/scripts/regr.sh, lanciato da spikes/ con bash tools/session.sh with 01-6-01 --wait 3600 -- bash -c 'bash <driver>/scripts/regr.sh'; dentro, ogni test con bash tools/session.sh oneshot "$CKA_RUN_ID" -- …
+
+prenotazione 1 (non valida come prova): run_id=01-6-01-20261026t194836z-292b. La ricostruzione del worker è fallita (exit 1, «couldn't find env file»: con MSYS_NO_PATHCONV esportato da session.sh il percorso del file segreti arriva a docker.exe in forma /c/…, non convertita). L'immagine è rimasta 4209c2754c10, quindi gli ostili di questa prenotazione sono girati sul binario vecchio e non valgono come prova (TEST-13); i loro CSV sono stati spostati da results/raw nella cartella del driver. Per informazione: anche lì 78 su 78 uguali, 72 pass, sof 21 su 21. Correzione del driver: --env-file "$(cygpath -m …)" e uno stop se l'immagine non cambia.
+
+prenotazione 2 (valida): run_id=01-6-01-20261026t194959z-c00b, RT6=da21a3, run-tag ostili 01-18 da21a301, ostili sof da21a302
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast
+[exit 0] 13 suite ok, 0 FAILED, ma senza «Compiling s02-parser»: la cache del volume cargo-target era già calda dalla prenotazione 1, con lo stesso prescan.rs. Rilancio nella prenotazione 3.
+immagine worker prima: 4209c2754c10
+$ CKA_RUN_ID=$CKA_RUN_ID docker compose --env-file "$CKA_SPIKES_ENV" -f spikes/compose.yaml build worker
+[exit 0] (uscita nel driver; ultima riga «Image cka-spikes-worker Built»)
+immagine worker dopo: 9f2771769446
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_hostile.py --out /src/data/hostile/generated
+[exit 0] 26 casi generati (sha256 nel driver, non qui)
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_hostile.py --out /src/data/hostile/generated --verify-only --manifest /src/data/hostile/manifest.json
+[exit 1] verifica manifest: 18 casi conformi su 26
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_sof.py --out /src/data/hostile/generated/sof
+[exit 0] 7 casi generati (senza --manifest: il manifest versionato non si tocca)
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 /src/s02-parser/hostile-gen/gen_sof.py --out /src/data/hostile/generated/sof --verify-only --manifest /src/data/hostile/sof/manifest.json
+[exit 0] verifica manifest: 7 casi conformi su 7
+esito fixture: 01-18 diversi=encrypted-user,encrypted-owner-only,encrypted-object-dropped,encrypted-objstm-quota,docx-zip-bomb,docx-xml-bomb,docm-macro,docx-external-link sof diversi=
+nota fixture: per 01-18 i diversi sono i 4 encrypted-* (cifratura con sale casuale) e i 4 DOCX di D-11 della 1.4 (date dello zip), come in 01.5-01; per la 1.5 nessuno.
+$ bash tools/session.sh up "$CKA_RUN_ID" worker
+[exit 0]
+$ bash tools/session.sh ps "$CKA_RUN_ID" --assert-only worker
+[exit 0]
+$ bash tools/session.sh exec "$CKA_RUN_ID" worker -- id -u
+10001
+hw.json copiato da results/isolation/ in results/raw/isolation-1-6-01/ (come nella 1.4 e nella 1.5)
+controllo immagine prima di hostile 01-18: 9f2771769446 (atteso 9f2771769446)
+$ bash tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent hostile --manifest /data/hostile/manifest.json --cases-dir /data/hostile/generated --runs 3 --run-tag "da21a301" --out /results/raw/isolation-1-6-01/hostile.csv
+[exit 0]
+controllo immagine prima di hostile sof: 9f2771769446 (atteso 9f2771769446)
+$ bash tools/session.sh exec "$CKA_RUN_ID" worker -- parse-parent hostile --manifest /data/hostile/sof/manifest.json --cases-dir /data/hostile/generated/sof --runs 3 --run-tag "da21a302" --out /results/raw/isolation-1-6-01/hostile-sof.csv
+[exit 0]
+$ bash tools/session.sh exec "$CKA_RUN_ID" worker -- sh -c 'find /work -mindepth 1 -maxdepth 1 | wc -l'
+0
+$ sh scripts/py.sh -I <driver>/scripts/cmp_hostile.py <git show BASE:spikes/s02-parser/results/isolation/hostile.csv> results/raw/isolation-1-6-01/hostile.csv results/raw/isolation-1-6-01/hostile-sof.csv
+confronto su (case_id, run): outcome, kind, extra_reasons, pass; hostile.csv letto da BASE con git show, mai dal working tree
+esito ostili 01-18: righe=78 uguali=78 pass=72 (atteso 78, 78, 72)
+esito ostili sof: righe=21 pass=21 (atteso 21, 21)
+esito chiavi ostili: base=78 nuove=78 duplicate=0 sof=21 (atteso 78, 78, 0, 21)
+with: down (rimossi 1, residui 0) e release
+
+prenotazione 3 (rilancio dei test di s02 come da hard rule 3): run_id=01-6-01-20261026t195205z-6adf, dopo touch spikes/s02-parser/src/prescan.rs
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast
+[exit 0] «Compiling s02-parser v0.0.0 (/src/s02-parser)» presente; 13 suite, 380 passed, 0 failed
+esito test s02: exit=0 compiling=si falliti=0
+test ramo flate: dct_sof_extra_flate_reread_counted_in_work dct_sof_after_flate_is_checked jpx_siz_after_flate_is_checked ok
+nota ramo flate: dct_sof_extra_flate_reread_counted_in_work prova il tetto WINDOW + 1 sul JPEG compresso da 400000 byte e il conteggio I2: take + read_to_end produce gli stessi byte e lo stesso lavoro dell'io::copy di prima.
+
+## Pulizia
+
+**Modifica:** Claude (gsd-executor 01.6-01) · 2026-10-26 · cartella del driver rimossa, prenotazione rilasciata
+
+cartella del driver (mktemp -d fuori dal repo) e file ${TMPDIR:-/tmp}/cka-01-6-01-driver.path cancellati; test ! -e sulla cartella: ok
+file ignorati lasciati nel worktree, non committati: spikes/target/pdfium/lib/libpdfium.so (copiata dal checkout principale), spikes/data/hostile/generated/ (fixture generate nel runner), spikes/s02-parser/results/raw/isolation-1-6-01/ (hw.json e i due CSV della prenotazione 2)
+$ bash spikes/tools/session.sh status
+PRENOTAZIONE: nessuna
+$ docker ps -a --filter label=cka.run_id --format '{{.Names}}'
+(fine elenco)
