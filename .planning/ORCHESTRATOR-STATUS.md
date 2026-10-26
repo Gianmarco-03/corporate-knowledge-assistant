@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 11 / slice 01-17 / execute completato (18/18 piani) · aggiornato: 2026-10-26
+fase 01 / onda — / slice — / verify in corso: banda ECC chiusa (cerniera), threat model in correzione, gap-closure 1.6 da pianificare · aggiornato: 2026-10-26
 
 ## Prossima azione
 
-/verify 1: banda ECC sul diff di fase (fmt/clippy/test spikes, review Rust/Python, security, flaky isolation s02), poi --verify-ecc, poi gsd-verifier, riconciliazione WIRING-MAP e UAT filtrata; TODO della sezione sotto entrano nel verify o in gap-closure decimale.
+/verify 1: a correzione threat model rientrata → commit banda ECC (01-REVIEW.md, threat model, s06 RISULTATI) → gsd-verifier su fase 01 (attesi gaps_found per 1.6) → /plan 1.6 --gaps (strumenti + TODO noti, 01-REVIEW.md §B).
 
 ## Findings
 
@@ -113,6 +113,7 @@ fase 01 / onda 11 / slice 01-17 / execute completato (18/18 piani) · aggiornato
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| fase 01 (01-01..01-18) | conforme (giri per piano → 01-GATE.md) | verde con gap: fmt/clippy spikes ok, test host ok tranne s02 runner-only (runner -p s02-parser tutti verdi, isolamento 37/37), lint-stato ok; prodotto/web/e2e/eval n/a; 4 review: 0 CRITICAL, 14 HIGH (scanner falsi verdi, hook senza manifest spike, runner compose senza hardening, run_ttq/vram/budget_real esiti non contati, threat model 7 righe «misurata» sopravvalutate, setsid fuori gruppo); verifica sui dati: 0 misure ratificate alterate; instradamento utente: threat model riscritto ora, 1.6 strumenti+TODO, pattern → vincoli fasi 2-4 → 01-REVIEW.md | — |
 | 01.5-01 | conforme 6/6 (3 giri sul test design: D-09 JPX, D-10, residui a-c) → 01.5-GATE.md | verde: fmt/clippy host, runner -p s02-parser 333 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review Warning 0 gravi: MEDIUM un byte per campione (12/16 bit, JPX Ssiz>8) = RISK-14 accettato (dimensioni codificate ≤ dichiarate, RLIMIT_AS), LOW fail-closed accettati; security PASS con riserve: io::copy equivalente a read_to_end su Take (falso positivo lessicale upload-in-memory), deviazione non dichiarata → commento corretto 5239f0e e SUMMARY; follow-up scanner → TODO | passed 11/11, 0 gap; UAT 3/3 accettate → 01.5-VERIFICATION.md |
 | 01.4-02 | conforme 6/6 (1° giro) → 01.4-GATE.md | verde: fmt/clippy host, runner -p s02-parser 269 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review APPROVE 0 gravi, LOW accettati (test overflow accetta 2 Kind; forma T non legata a /Thumb = RISK-7); security APPROVATO 0 gravi: forma T più stretta del ramo /Image; debito preesistente 01-07 tetto su /Width /Height non su SOF JPEG (RISK-16) → verify fase 1 | passed 16/16 (fase), 0 gap; UAT 4/4 accettate → 01.4-VERIFICATION.md |
 | 01.4-01 | conforme 6/6 (1° giro) → 01.4-GATE.md | verde (stesso gate); rust-review APPROVE, LOW: status misto maiuscole/minuscole (error:Corrupt vs error:pdfium_*) e riepilogo stderr solo in-process → nota per consumatori 01-18; remove_file su run_tag preesistente teorico (run_tag univoco); security: Drop + valid_run_tag senza traversal | passed 16/16 (fase), 0 gap → 01.4-VERIFICATION.md |
