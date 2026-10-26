@@ -23,3 +23,26 @@ Note della base:
 ## RED del test-write
 
 Il RED della pulizia è il conteggio dei residui della base (2, atteso almeno 2). L'unico test nuovo rosso è `case_dir_guard_cleans_on_panic` in `tests/drivers.rs`: non compila perché `CaseDir` non esiste ancora (RED_EXPECTED, motivo «simbolo assente»).
+
+## Task 2 — tre test deterministici (esecutore)
+
+**Modifica:** Claude (gsd-executor 01.6-07) · 2026-10-26 · righe della Task 2: giudizi sulle asserzioni, suite, gate Rust, giro sotto carico
+
+run_id dei giri: 01-6-07-20261026t194226z-dfbb (una sola prenotazione per Task 2 e Task 3)
+
+## Asserzioni
+
+asserzione budget_admits_at_most_two_jobs_together: prima=4 esiti ok; 1900 ms <= wall < 3600 ms dopo=4 esiti ok; budget.max_admitted() == 2; osservati_max == 2 (una sola read_dir per campione, ogni 10 ms); wall >= 1900 ms giudizio=più forte motivo=max_admitted == 2 prova il tetto in modo diretto ed esclude 3 job insieme, che wall < 3600 non escludeva; osservati_max == 2 prova che due job girano davvero insieme, che era il senso del limite superiore; il limite inferiore di 1900 ms resta identico
+asserzione dropped_future_kills_group_and_cleans_within_one_second: prima=timeout(800 ms) scaduto; gruppi osservati in 700 ms non vuoti; entro 1 s gruppi morti e cartella assente; job successivo sleep 0 finito entro 3 s dopo=futuro droppato nel select! (per valore) all'evento figlio e nipote vivi, procs_with_cwd(&dir).len() >= 2 sotto guardia di blocco di 30 s; ramo run_child vincente = panic; almeno 2 pid e gruppi non vuoti; entro 1 s gruppi morti e cartella assente (identico); cartella di tw-drop-next comparsa entro 1 s, esito ok, sotto guardia di 30 s giudizio=più forte motivo=il drop avviene con il nipote vivo (prima poteva cadere prima della sua nascita), il vincolo di 1 s del drop è identico, e il permesso restituito si prova entro 1 s invece di 3 s: la cartella del job nasce solo dopo admit (isolate.rs:218, poi prepare a :588) e il budget di 256 MiB ammette un solo job da 200 MiB; le guardie di 30 s non provano la proprietà, allo scadere il test fallisce
+asserzione quota_counts_job_dir_plus_out_dir: prima=esito ResourceLimit/out_quota; t0 preso prima del join!, t0.elapsed() < 5 s; cartella del job assente dopo=esito ResourceLimit/out_quota (identico); Instant restituito dal ramo dello scrittore dopo la seconda scrittura, scritto.elapsed() < 5 s; cartella del job assente giudizio=stessa forza motivo=soglia di 5 s identica, misurata dal termine delle scritture invece che dall'avvio del job: misura solo la latenza di rilevamento della quota, che è la proprietà; l'attesa dello scrittore sulla creazione delle cartelle resta eventually(5 s) invariato (RISK-12, guardia di 30 s non aggiunta)
+
+## Suite, gate e carico
+
+dopo suite: exit=0 falliti=0
+passed della suite: 383 = 380 della base + 3 test nuovi (case_dir_guard_cleans_on_panic e orphan_root_predicate_accepts_only_dead_foreign_canonical_pids in drivers, orphan_root_predicate_accepts_only_dead_foreign_canonical_pids in isolation); per binario drivers 4 -> 6, isolation 37 -> 38, gli altri invariati; nessun test sparito
+warning di compilazione dei test nel runner: 0
+esito gate rust: fmt=0 clippy=0
+provenienza del gate rust: eseguito sull'host da spikes/ (rustc 1.95.0, x86_64-pc-windows-msvc), perché il runner non ha rustfmt né clippy ("'cargo-fmt' is not installed for the toolchain '1.99.1-x86_64-unknown-linux-gnu'"); cargo fmt --all -- --check exit 0, cargo clippy --workspace --all-targets --locked --offline -- -D warnings exit 0. Limite dichiarato: tests/isolation.rs, tests/drivers.rs e tests/oom.rs sono #![cfg(target_os = "linux")], quindi clippy sull'host non li analizza; la loro compilazione nel runner (cargo test) ha dato 0 warning di rustc
+dopo sotto carico: giri=5 falliti=0
+Note del carico: 16 generatori vivi prima e dopo i 5 giri, 0 dopo il kill; attesa di 20 s prima dei giri (load average a 1 minuto 0.15 -> 4.65); load average ai giri 5.56, 5.56, 6.40, 6.40, 7.17; ogni giro `running 3 tests` e `test result: ok. 3 passed`.
+Nota d'ordine: la suite di questa sezione è stata eseguita sull'albero con CaseDir, atexit e potatura della Task 3, perché il rosso di compilazione di drivers (CaseDir assente) impediva una suite verde sul solo albero della Task 2; il codice dei tre test è quello del commit del test-write (b59a294), invariato.

@@ -20,6 +20,7 @@
 #![cfg(target_os = "linux")]
 
 // Modifica: Claude (test-write 01.6-07) · 2026-10-26 · budget_admits, dropped_future e quota_counts deterministici sotto carico, senza tolleranze allargate (gap-closure 1.6, D-11)
+// Modifica: Claude (gsd-executor 01.6-07) · 2026-10-26 · test deterministici sotto carico e pulizia delle cartelle temporanee (gap-closure 1.6, D-11)
 
 use std::ffi::OsString;
 use std::fs;
