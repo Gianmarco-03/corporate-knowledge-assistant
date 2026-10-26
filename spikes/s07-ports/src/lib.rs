@@ -4,8 +4,8 @@
 //! `spikes/s07-ports/RISULTATI.md` e la prova con fake di contratto nei test.
 //! Nessun adapter reale: le firme si trascrivono nella Fondazione, non si importano.
 //!
-//! Stato: scheletro scritto dall'agente test-write del piano 01-16. I corpi
-//! marcati `todo!()` li implementa l'esecutore; lo stato finale non ne contiene.
+//! Stato: test di contratto scritti dall'agente test-write del piano 01-16, corpi
+//! implementati dall'esecutore dello stesso piano (Task 2). Decisione in ADR-0012.
 
 /// Identificativi opachi, versioni e testi con `Debug` redatto.
 pub mod ids {
@@ -207,8 +207,42 @@ pub mod context {
         /// Valida `version-traceid-parentid-flags` (55 caratteri, esadecimale minuscolo,
         /// trace id e parent id non tutti zero).
         pub fn parse(traceparent: &str) -> Result<Self, TraceContextError> {
-            let _ = traceparent;
-            todo!("validazione traceparent W3C")
+            fn lower_hex(field: &str, len: usize) -> bool {
+                field.len() == len
+                    && field
+                        .bytes()
+                        .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+            }
+            fn all_zero(field: &str) -> bool {
+                field.bytes().all(|b| b == b'0')
+            }
+
+            if traceparent.len() != 55 {
+                return Err(TraceContextError::Malformed);
+            }
+            let mut fields = traceparent.split('-');
+            let (Some(version), Some(trace_id), Some(parent_id), Some(flags), None) = (
+                fields.next(),
+                fields.next(),
+                fields.next(),
+                fields.next(),
+                fields.next(),
+            ) else {
+                return Err(TraceContextError::Malformed);
+            };
+            let well_formed = lower_hex(version, 2)
+                && version != "ff"
+                && lower_hex(trace_id, 32)
+                && !all_zero(trace_id)
+                && lower_hex(parent_id, 16)
+                && !all_zero(parent_id)
+                && lower_hex(flags, 2);
+            if !well_formed {
+                return Err(TraceContextError::Malformed);
+            }
+            Ok(Self {
+                traceparent: traceparent.to_owned(),
+            })
         }
 
         /// Stringa `traceparent`.
@@ -393,6 +427,7 @@ pub mod errors {
         AclVersionMismatch,
         DuplicatePassageRef,
         UnknownPassageRef,
+        InvalidScore,
         Index(IndexError),
     }
 
@@ -518,8 +553,13 @@ pub mod embedding {
     impl Embedding {
         /// Rifiuta `values.len() != space.dimension` (S-03, RISK-004).
         pub fn new(space: EmbeddingSpace, values: Vec<f32>) -> Result<Self, EmbeddingError> {
-            let _ = (space, values);
-            todo!("controllo di dimensione dello spazio")
+            if values.len() != space.dimension as usize {
+                return Err(EmbeddingError::DimensionMismatch {
+                    expected: space.dimension,
+                    actual: values.len(),
+                });
+            }
+            Ok(Self { space, values })
         }
 
         /// Spazio del vettore.
@@ -559,14 +599,15 @@ pub mod embedding {
 pub mod evidence {
     /// Lato documento (futuro document-service): predicato, ricontrollo e `RetrievedEvidence`.
     pub mod document_side {
+        use std::collections::HashSet;
         use std::fmt;
 
         use crate::context::CallContext;
         use crate::embedding::{Embedding, EmbeddingSpace};
         use crate::errors::EvidenceError;
-        use crate::evidence::wire::RetrievalSearchResponse;
+        use crate::evidence::wire::{RetrievalSearchResponse, RetrievedPassageDto};
         use crate::ids::{AclVersion, DocumentVersionId, PassageRef, SubjectId};
-        use crate::index::VectorIndex;
+        use crate::index::{Candidate, VectorIndex};
         use crate::locator::Locator;
         use crate::policy::Role;
 
@@ -610,8 +651,11 @@ pub mod evidence {
 
         impl fmt::Debug for RetrievedPassage {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let _ = f;
-                todo!("Debug redatto di RetrievedPassage: identificativi, mai il testo")
+                f.debug_struct("RetrievedPassage")
+                    .field("passage_ref", &self.passage_ref)
+                    .field("document_version_id", &self.document_version_id)
+                    .field("text_chars", &self.text.chars().count())
+                    .finish_non_exhaustive()
             }
         }
 
@@ -628,10 +672,6 @@ pub mod evidence {
         ///     RetrievedEvidence { subject_id, acl_version, space, passages: Vec::new() }
         /// }
         /// ```
-        #[allow(
-            dead_code,
-            reason = "campi letti da into_response, corpo ancora todo! (scheletro test-write)"
-        )]
         pub struct RetrievedEvidence {
             subject_id: SubjectId,
             acl_version: AclVersion,
@@ -647,16 +687,47 @@ pub mod evidence {
 
             /// Unica uscita: DTO del confine con `subject_id` e `acl_version` del predicato usato.
             pub fn into_response(self) -> RetrievalSearchResponse {
-                let _ = self;
-                todo!("conversione RetrievedEvidence -> RetrievalSearchResponse")
+                RetrievalSearchResponse {
+                    subject_id: self.subject_id,
+                    acl_version: self.acl_version,
+                    space: self.space,
+                    passages: self
+                        .passages
+                        .into_iter()
+                        .map(|p| RetrievedPassageDto {
+                            passage_ref: p.passage_ref,
+                            document_version_id: p.document_version_id,
+                            locator: p.locator,
+                            text: p.text,
+                        })
+                        .collect(),
+                }
             }
         }
 
         impl fmt::Debug for RetrievedEvidence {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let _ = f;
-                todo!("Debug redatto di RetrievedEvidence: identificativi e conteggi, mai testi")
+                f.debug_struct("RetrievedEvidence")
+                    .field("subject_id", &self.subject_id)
+                    .field("acl_version", &self.acl_version)
+                    .field("space", &self.space.model_id)
+                    .field("passages", &self.passages)
+                    .finish()
             }
+        }
+
+        /// Ricontrollo deterministico di un candidato contro il predicato usato per la
+        /// ricerca: versione pubblicata, stessa versione ACL (deny by default su una
+        /// versione diversa, anche più recente) e soggetto o ruolo ammesso.
+        fn admits(predicate: &AuthorizationPredicate, candidate: &Candidate) -> bool {
+            let acl = &candidate.acl;
+            acl.published
+                && acl.acl_version == predicate.acl_version
+                && (acl.allowed_subjects.contains(&predicate.subject_id)
+                    || acl
+                        .allowed_roles
+                        .iter()
+                        .any(|role| predicate.roles.contains(role)))
         }
 
         /// (a) rifiuta il mismatch di spazio prima di `search`, (b) cerca col predicato,
@@ -669,8 +740,34 @@ pub mod evidence {
             predicate: &AuthorizationPredicate,
             k: usize,
         ) -> Result<RetrievedEvidence, EvidenceError> {
-            let _ = (index, ctx, query, predicate, k);
-            todo!("retrieve_authorized: spazio, ricerca col predicato, ricontrollo")
+            if query.space() != index.space() {
+                return Err(EvidenceError::SpaceMismatch);
+            }
+            let candidates = index
+                .search(ctx, &query, predicate, k)
+                .await
+                .map_err(EvidenceError::Index)?;
+
+            let mut seen = HashSet::new();
+            let passages = candidates
+                .into_iter()
+                .filter(|candidate| admits(predicate, candidate))
+                .filter(|candidate| seen.insert(candidate.passage_ref))
+                .take(k)
+                .map(|candidate| RetrievedPassage {
+                    passage_ref: candidate.passage_ref,
+                    document_version_id: candidate.document_version_id,
+                    locator: candidate.locator,
+                    text: candidate.text,
+                })
+                .collect();
+
+            Ok(RetrievedEvidence {
+                subject_id: predicate.subject_id,
+                acl_version: predicate.acl_version,
+                space: index.space().clone(),
+                passages,
+            })
         }
     }
 
@@ -711,14 +808,18 @@ pub mod evidence {
 
         impl fmt::Debug for RetrievedPassageDto {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let _ = f;
-                todo!("Debug redatto di RetrievedPassageDto: identificativi, mai il testo")
+                f.debug_struct("RetrievedPassageDto")
+                    .field("passage_ref", &self.passage_ref)
+                    .field("document_version_id", &self.document_version_id)
+                    .field("text_chars", &self.text.chars().count())
+                    .finish_non_exhaustive()
             }
         }
     }
 
     /// Lato RAG (futuro rag-service): `EvidenceRetriever`, `authorize_response`, `AuthorizedEvidence`.
     pub mod rag_side {
+        use std::collections::{HashMap, HashSet};
         use std::fmt;
 
         use async_trait::async_trait;
@@ -775,8 +876,11 @@ pub mod evidence {
 
         impl fmt::Debug for AuthorizedPassage {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let _ = f;
-                todo!("Debug redatto di AuthorizedPassage: identificativi, mai il testo")
+                f.debug_struct("AuthorizedPassage")
+                    .field("passage_ref", &self.passage_ref)
+                    .field("document_version_id", &self.document_version_id)
+                    .field("text_chars", &self.text.chars().count())
+                    .finish_non_exhaustive()
             }
         }
 
@@ -838,22 +942,60 @@ pub mod evidence {
             /// Riordina per `score` decrescente (a parità resta l'ordine corrente) e toglie i
             /// passaggi senza score: può solo permutare o togliere. Un `PassageRef` assente
             /// dall'evidenza è `UnknownPassageRef`, uno ripetuto `DuplicatePassageRef` (S-04, D-21).
+            ///
+            /// Uno score non finito (NaN o infinito) è `InvalidScore`: un segnale guasto non
+            /// decide l'ordine.
             pub fn reorder(self, scores: &[RankScore]) -> Result<Self, EvidenceError> {
-                let _ = (self, scores);
-                todo!("reorder: solo permuta o toglie")
+                let known: HashSet<PassageRef> =
+                    self.passages.iter().map(|p| p.passage_ref).collect();
+                let mut by_ref: HashMap<PassageRef, f32> = HashMap::with_capacity(scores.len());
+                for score in scores {
+                    if !known.contains(&score.passage_ref) {
+                        return Err(EvidenceError::UnknownPassageRef);
+                    }
+                    if !score.score.is_finite() {
+                        return Err(EvidenceError::InvalidScore);
+                    }
+                    if by_ref.insert(score.passage_ref, score.score).is_some() {
+                        return Err(EvidenceError::DuplicatePassageRef);
+                    }
+                }
+
+                let Self {
+                    subject_id,
+                    acl_version,
+                    space,
+                    passages,
+                } = self;
+                let mut scored: Vec<(f32, AuthorizedPassage)> = passages
+                    .into_iter()
+                    .filter_map(|p| by_ref.get(&p.passage_ref).map(|s| (*s, p)))
+                    .collect();
+                // `sort_by` è stabile: a parità di score resta l'ordine corrente.
+                scored.sort_by(|a, b| b.0.total_cmp(&a.0));
+
+                Ok(Self {
+                    subject_id,
+                    acl_version,
+                    space,
+                    passages: scored.into_iter().map(|(_, p)| p).collect(),
+                })
             }
 
             /// Mapping deterministico di una citazione al passaggio; `None` se ignoto (D-20).
             pub fn resolve(&self, passage_ref: &PassageRef) -> Option<&AuthorizedPassage> {
-                let _ = (self, passage_ref);
-                todo!("resolve: mapping deterministico della citazione")
+                self.passages.iter().find(|p| p.passage_ref == *passage_ref)
             }
         }
 
         impl fmt::Debug for AuthorizedEvidence {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let _ = f;
-                todo!("Debug redatto di AuthorizedEvidence: identificativi e conteggi, mai testi")
+                f.debug_struct("AuthorizedEvidence")
+                    .field("subject_id", &self.subject_id)
+                    .field("acl_version", &self.acl_version)
+                    .field("space", &self.space.model_id)
+                    .field("passages", &self.passages)
+                    .finish()
             }
         }
 
@@ -865,8 +1007,35 @@ pub mod evidence {
             expected: &AuthorizationScope,
             expected_space: &EmbeddingSpace,
         ) -> Result<AuthorizedEvidence, EvidenceError> {
-            let _ = (response, expected, expected_space);
-            todo!("authorize_response: ricontrollo di soggetto, versione ACL e spazio")
+            if response.subject_id != expected.subject_id {
+                return Err(EvidenceError::SubjectMismatch);
+            }
+            if response.acl_version != expected.acl_version {
+                return Err(EvidenceError::AclVersionMismatch);
+            }
+            if response.space != *expected_space {
+                return Err(EvidenceError::SpaceMismatch);
+            }
+            let mut seen = HashSet::with_capacity(response.passages.len());
+            if !response.passages.iter().all(|p| seen.insert(p.passage_ref)) {
+                return Err(EvidenceError::DuplicatePassageRef);
+            }
+
+            Ok(AuthorizedEvidence {
+                subject_id: response.subject_id,
+                acl_version: response.acl_version,
+                space: response.space,
+                passages: response
+                    .passages
+                    .into_iter()
+                    .map(|p| AuthorizedPassage {
+                        passage_ref: p.passage_ref,
+                        document_version_id: p.document_version_id,
+                        locator: p.locator,
+                        text: p.text,
+                    })
+                    .collect(),
+            })
         }
     }
 }
@@ -1090,8 +1259,13 @@ pub mod index {
 
     impl fmt::Debug for Candidate {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let _ = f;
-            todo!("Debug redatto di Candidate: identificativi e distanza, mai il testo")
+            f.debug_struct("Candidate")
+                .field("passage_ref", &self.passage_ref)
+                .field("document_version_id", &self.document_version_id)
+                .field("acl", &self.acl)
+                .field("distance", &self.distance)
+                .field("text_chars", &self.text.chars().count())
+                .finish_non_exhaustive()
         }
     }
 
@@ -1120,8 +1294,14 @@ pub mod index {
             document_version_id: DocumentVersionId,
             chunks: Vec<IndexedChunk>,
         ) -> Result<Self, DraftError> {
-            let _ = (space, document_version_id, chunks);
-            todo!("IndexVersionDraft::new: controllo dello spazio dei chunk")
+            if let Some(chunk_index) = chunks.iter().position(|c| c.embedding.space() != &space) {
+                return Err(DraftError::SpaceMismatch { chunk_index });
+            }
+            Ok(Self {
+                space,
+                document_version_id,
+                chunks,
+            })
         }
 
         /// Spazio della bozza.
@@ -1302,8 +1482,10 @@ pub mod answer {
 
     impl fmt::Debug for Claim {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let _ = f;
-            todo!("Debug redatto di Claim: citazioni e lunghezza, mai il testo")
+            f.debug_struct("Claim")
+                .field("text_chars", &self.text.chars().count())
+                .field("citations", &self.citations)
+                .finish()
         }
     }
 
@@ -1317,8 +1499,11 @@ pub mod answer {
 
     impl fmt::Debug for StructuredAnswer {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let _ = f;
-            todo!("Debug redatto di StructuredAnswer: conteggi, mai testi")
+            f.debug_struct("StructuredAnswer")
+                .field("answer_chars", &self.answer.chars().count())
+                .field("claims", &self.claims)
+                .field("refused", &self.refusal.is_some())
+                .finish()
         }
     }
 
@@ -1516,8 +1701,13 @@ pub mod cache {
             pipeline_version: PipelineVersion,
             query_digest: QueryDigest,
         ) -> Self {
-            let _ = (scope, corpus_version, space, pipeline_version, query_digest);
-            todo!("CacheKey::new")
+            Self {
+                scope,
+                corpus_version,
+                space,
+                pipeline_version,
+                query_digest,
+            }
         }
 
         /// Scope autorizzativo della voce.
@@ -3009,6 +3199,145 @@ mod tests {
         assert_eq!(
             result.err(),
             Some(DraftError::SpaceMismatch { chunk_index: 0 })
+        );
+    }
+
+    // ------------------- test dell'esecutore: comportamenti oltre lo scheletro
+
+    #[test]
+    fn x_trace_context_rejects_malformed_traceparent() {
+        let valid = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        assert_eq!(
+            TraceContext::parse(valid).map(|t| t.as_str().to_owned()),
+            Ok(valid.to_owned())
+        );
+        let malformed = [
+            "",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7",
+            "00-4BF92F3577B34DA6A3CE929D0E0E4736-00f067aa0ba902b7-01",
+            "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+            "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "00-4bf92f3577b34da6a3ce929d0e0e473g-00f067aa0ba902b7-01",
+            "00_4bf92f3577b34da6a3ce929d0e0e4736_00f067aa0ba902b7_01",
+        ];
+        for value in malformed {
+            assert_eq!(
+                TraceContext::parse(value),
+                Err(crate::errors::TraceContextError::Malformed),
+                "accettato: {value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn x_reorder_rejects_duplicate_and_non_finite_scores() {
+        let a = PassageRef::random();
+        let duplicate = [
+            RankScore {
+                passage_ref: a,
+                score: 0.4,
+            },
+            RankScore {
+                passage_ref: a,
+                score: 0.6,
+            },
+        ];
+        assert_eq!(
+            authorized(&[a], "t").reorder(&duplicate).err(),
+            Some(EvidenceError::DuplicatePassageRef)
+        );
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let scores = [RankScore {
+                passage_ref: a,
+                score: bad,
+            }];
+            assert_eq!(
+                authorized(&[a], "t").reorder(&scores).err(),
+                Some(EvidenceError::InvalidScore)
+            );
+        }
+    }
+
+    #[test]
+    fn x_reorder_is_stable_on_equal_scores() {
+        let a = PassageRef::random();
+        let b = PassageRef::random();
+        let scores = [
+            RankScore {
+                passage_ref: b,
+                score: 0.5,
+            },
+            RankScore {
+                passage_ref: a,
+                score: 0.5,
+            },
+        ];
+        let refs: Vec<PassageRef> = authorized(&[a, b], "t")
+            .reorder(&scores)
+            .expect("riferimenti noti")
+            .passages()
+            .iter()
+            .map(|p| p.passage_ref())
+            .collect();
+        assert_eq!(refs, vec![a, b]);
+    }
+
+    #[test]
+    fn x_retrieve_authorized_drops_duplicate_candidates_and_caps_at_k() {
+        let me = SubjectId::random();
+        let twice = PassageRef::random();
+        let third = PassageRef::random();
+        let index = FakeIndex::new(
+            bge(),
+            vec![
+                candidate(twice, acl(vec![me], vec![], 1, true), "primo"),
+                candidate(twice, acl(vec![me], vec![], 1, true), "doppione"),
+                candidate(third, acl(vec![me], vec![], 1, true), "terzo"),
+                candidate(
+                    PassageRef::random(),
+                    acl(vec![me], vec![], 1, true),
+                    "oltre k",
+                ),
+            ],
+        );
+        let predicate = AuthorizationPredicate {
+            subject_id: me,
+            roles: vec![],
+            acl_version: AclVersion::new(1),
+        };
+        let wire = block_on(retrieve_authorized(
+            &index,
+            ctx(),
+            embedding_in(bge()),
+            &predicate,
+            2,
+        ))
+        .expect("spazio coerente")
+        .into_response();
+        let refs: Vec<PassageRef> = wire.passages.iter().map(|p| p.passage_ref).collect();
+        assert_eq!(refs, vec![twice, third]);
+        assert!(authorize_response(wire, &scope(me, 1), &bge()).is_ok());
+    }
+
+    #[test]
+    fn x_retrieve_authorized_propagates_index_error() {
+        let failing_index: Arc<dyn VectorIndex + Send + Sync> = Arc::new(failing());
+        let predicate = AuthorizationPredicate {
+            subject_id: SubjectId::random(),
+            roles: vec![Role::Guest],
+            acl_version: AclVersion::new(1),
+        };
+        let result = block_on(retrieve_authorized(
+            failing_index.as_ref(),
+            ctx(),
+            embedding_in(bge()),
+            &predicate,
+            8,
+        ));
+        assert_eq!(
+            result.err(),
+            Some(EvidenceError::Index(IndexError::Unavailable))
         );
     }
 
