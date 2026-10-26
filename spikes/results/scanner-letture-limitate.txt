@@ -1,0 +1,10 @@
+## RED (base)
+
+**Modifica:** Claude (test-write 01.6-01) · 2026-10-26T19:32:52Z · sezione RED: test rossi dello scanner per D-01, D-05, D-06 sullo scanner di base (intestazione, linea di base sull'albero e riga `RED commit:` a cura dell'esecutore del piano)
+
+scanner_rev: 9ab8e9d1dfbc2d6e89ffa91508384e5f49f05cd3 (skills/security-scanner/security_scan.py identico a quel commit)
+comando: sh scripts/py.sh -m unittest discover -s skills/security-scanner/tests -p 'test_security_scan.py' -v
+interprete: Python 3.13.15
+totale test: 56 (ok=26 FAIL=30 ERROR=0)
+rossi: test_async_read_to_end_take_is_allowed, test_async_read_to_end_ufcs_is_unverified, test_handler_module_async_fn_without_args_is_flagged, test_io_copy_decoder_without_take_to_vec_is_high, test_io_copy_reader_built_elsewhere_to_vec_is_unverified, test_io_copy_take_inside_decoder_to_vec_is_high, test_io_copy_to_unrecognized_destination_is_unverified, test_method_router_chain_second_handler_is_seen, test_multiline_log_char_paren_is_flagged, test_multiline_log_macro_with_chunk_is_flagged, test_multiline_log_paren_inside_string_is_flagged, test_multiline_log_with_email_is_pii, test_multiline_println_with_token_is_log_secret, test_multiline_route_registration_is_seen, test_prescan_flate_form_is_allowed, test_qualified_route_name_is_seen, test_read_to_end_bare_reader_with_take_is_allowed, test_read_to_end_in_closure_is_flagged, test_read_to_end_in_match_scrutinee_is_flagged, test_read_to_end_multiline_statement_is_unverified, test_read_to_end_on_reader_built_elsewhere_is_unverified, test_read_to_end_paren_mut_take_is_allowed, test_read_to_end_take_after_decoder_is_allowed, test_read_until_bufreader_without_take_is_high, test_read_until_on_reader_built_elsewhere_is_unverified, test_routed_handler_with_unmotivated_waiver_is_flagged, test_routed_handler_without_args_is_flagged, test_tokio_io_copy_decoder_to_vec_is_high, test_with_capacity_from_input_is_unverified, test_with_capacity_turbofish_is_unverified
+esito RED: rossi_attesi=30 rossi_osservati=30 rossi_inattesi=0 verdi_inattesi=0 errori=0
