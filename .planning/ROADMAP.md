@@ -37,7 +37,7 @@ Decisione utente U-04 (2026-10-18): provider-first e insiemi di file chiusi per 
 - Integer phases (1, 2, 3): lavoro pianificato della milestone
 - Decimal phases (2.1, 2.2): inserimenti urgenti o gap-closure su un perimetro chiuso (marcati INSERTED)
 
-- [ ] **Phase 1: Spike tecnici** - Chiude con misure documentate le decisioni aperte che bloccano porte e provider; threat model compilato (M0, critica)
+- [x] **Phase 1: Spike tecnici** - Chiude con misure documentate le decisioni aperte che bloccano porte e provider; threat model compilato (M0, critica) (completed 2026-10-26)
 - [ ] **Phase 2: Fondazione** - Workspace, composition root, config, pool DB, errori, telemetria, router, migrazioni, shell di apps/web, Compose, CI, hook vuoti per tutte le fasi (M0/M1, normale)
 - [ ] **Phase 3: Provider di ingestion e indice** - DocumentStore, DocumentParser con OCR, Chunker, Embedder, VectorIndex, DocumentSource completi, con fake e contract test (M1, critica)
 - [ ] **Phase 4: Provider di decisione, risposta e trasversali** - DecisionEngine JEV con fake e baseline, AnswerGenerator, AuditSink, NoOpCache, con contract test (M1, critica)
@@ -464,7 +464,7 @@ Discuss di tutte le fasi, poi Spike, poi plan di Fondazione e Provider, plan dei
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Spike tecnici | 17/18 | In Progress|  |
+| 1. Spike tecnici | 18/18 | Complete   | 2026-10-26 |
 | 2. Fondazione | 0/TBD | Not started | - |
 | 3. Provider di ingestion e indice | 0/TBD | Not started | - |
 | 4. Provider di decisione, risposta e trasversali | 0/TBD | Not started | - |

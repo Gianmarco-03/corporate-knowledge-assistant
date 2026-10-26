@@ -46,6 +46,7 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-25 · 01-14: ricerca esatta con ACL nella stessa query nell'MVP, coseno, ibrida RRF non adottata, HNSW da rivalutare oltre 50k (recall filtrata ≥0,95 solo a 10k) → `phases/01-spike-tecnici/01-14-SUMMARY.md`
 - 2026-10-26 · 01-15: baseline rerank no-rerank; bge-reranker-v2-m3 su TEI misurato e non adottato (p95 360 ms); JEV forma A resta il rank; picco VRAM 5.562 MiB, margine 70 MiB → `phases/01-spike-tecnici/01-15-SUMMARY.md`
 - 2026-10-26 · 01-16: 13 porte candidate con async-trait; AuthorizedEvidence costruita solo da authorize_response lato RAG; Reranker separato da DecisionEngine; CacheKey con scope e acl_version → `phases/01-spike-tecnici/01-16-SUMMARY.md`
+- 2026-10-26 · 01-17: utente ratifica tutti gli ADR 0003-0012, threat model e ADR-0013 (AV/CDR rinviati a fase 14); DEPENDENCIES Decisa con valori reali → `phases/01-spike-tecnici/01-17-SUMMARY.md`
 
 ## Fase 1.1 — Gap-closure di session.sh
 

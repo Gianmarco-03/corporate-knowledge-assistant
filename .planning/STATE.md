@@ -4,14 +4,14 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-26T11:03:22.820Z"
-last_activity: 2026-10-26 — 01-16 completato (firme candidate delle 13 porte, ADR-0012 proposto); prossimo 01-17
+last_updated: "2026-10-26T13:13:24.027Z"
+last_activity: 2026-10-26 — 01-17 completato (threat model, ADR 0003-0013 ratificati, DEPENDENCIES aggiornato); prossimo /verify 1
 progress:
   total_phases: 20
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 24
-  completed_plans: 23
-  percent: 25
+  completed_plans: 24
+  percent: 30
 ---
 
 # Project State
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 17 of 18 in current phase
-Status: Executing — 01-07 e 01-12 chiusi; prossima onda 5 (01-18, 01-08)
-Last activity: 2026-10-26 — 01-16 completato (firme candidate delle 13 porte, ADR-0012 proposto); prossimo 01-17
+Plan: 18 of 18 in current phase
+Status: Executing — 18 piani su 18 eseguiti; prossimo /verify 1 (banda ECC, poi gsd-verifier e UAT)
+Last activity: 2026-10-26 — 01-17 completato (threat model, ADR 0003-0013 ratificati, DEPENDENCIES aggiornato); prossimo /verify 1
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -148,6 +148,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase ?]: 01-14: ricerca esatta con ACL nella stessa query nell'MVP, coseno, ibrida RRF non adottata, HNSW da rivalutare oltre 50k (recall filtrata ≥0,95 solo a 10k) → `phases/01-spike-tecnici/01-14-SUMMARY.md`
 - [Phase 01]: 01-15: baseline rerank no-rerank; TEI bge-reranker-v2-m3 misurato e non adottato (p95 360 ms > 300); JEV forma A resta il rank; picco VRAM 5.562 MiB, margine 70 MiB → `spikes/s04-jev/RISULTATI-rerank.md#Esito`
 - [Phase 01]: 01-16: 13 porte candidate con async-trait; AuthorizedEvidence costruita solo da authorize_response lato RAG; Reranker separato da DecisionEngine; CacheKey con scope e acl_version → `docs/adr/0012-firme-porte-candidate.md`
+- [Phase 01]: 01-17: utente ratifica tutti gli ADR 0003-0012, threat model e ADR-0013 (AV/CDR rinviati a fase 14); DEPENDENCIES Decisa con valori reali → `phases/01-spike-tecnici/01-17-SUMMARY.md`
 
 ### Pending Todos
 

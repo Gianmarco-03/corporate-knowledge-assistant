@@ -49,13 +49,15 @@ Dettagli: `docs/architecture/architecture.md` e `docs/architecture/interfaces-an
 
 - Frontend: React con TypeScript.
 - Backend: Rust.
-- Persistenza: PostgreSQL; `pgvector` è il candidato predefinito per gli embedding.
+- Persistenza: PostgreSQL con `pgvector`, ricerca esatta con il filtro ACL nella stessa query ([ADR-0006](docs/adr/0006-indice-vettoriale-ricerca-esatta-ibrida.md)); originali su Garage S3 ([ADR-0003](docs/adr/0003-storage-originali-garage.md)).
 - Decision layer: JEV tramite API HTTP e adapter interno.
 - Autenticazione: password sottoposte a hash Argon2id; nessun MFA nell'MVP.
 - Contratti sincroni: HTTP/JSON documentato con OpenAPI.
 - Operazioni lunghe: job asincroni, idempotenti e osservabili.
 
-Caching, object storage, modello generativo, embedding model e strategia container sono ancora decisioni aperte. Vedere `DEPENDENCIES.md`.
+Dopo gli spike della fase 1 sono decisi anche l'embedding (`bge-m3` su TEI, [ADR-0007](docs/adr/0007-embedding-tei-gpu.md)), il modello generativo (Sonnet 5.5 per tutte le query, [ADR-0011](docs/adr/0011-llm-generativo-routing-structured-output.md)) e il parser con OCR ([ADR-0004](docs/adr/0004-parser-ocr-isolamento.md)). Caching e strategia container restano decisioni aperte. Vedere `DEPENDENCIES.md`.
+
+*Storia.* Fino alla ratifica del 2026-10-26 questo paragrafo elencava come aperti anche object storage, modello generativo ed embedding model, e `pgvector` era solo il candidato predefinito.
 
 ## JEV nella pipeline
 
@@ -116,6 +118,8 @@ Il CKA è un progetto dimostrativo e alcuni documenti, per scelta, non si posson
 Il limite di capacità del worker di parsing oltre i 2 GiB di memoria misurati è una stima, non una misura. I dettagli tecnici, i numeri e le motivazioni stanno in [`docs/adr/0004-parser-ocr-isolamento.md`](docs/adr/0004-parser-ocr-isolamento.md), sezione «Limiti noti».
 
 **Modifica:** Claude (Anthropic) · 2026-10-26 · sezione «Limiti noti» per l'utente (D-25, piano 01-17)
+
+**Modifica:** Claude (Anthropic) · 2026-10-26 · «Stack deciso» allineato alle decisioni ratificate nel piano 01-17, con paragrafo Storia
 
 ## Avvio
 

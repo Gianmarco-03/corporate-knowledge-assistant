@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 11 / slice 01-17 / execute da avviare · aggiornato: 2026-10-26
+fase 01 / onda 11 / slice 01-17 / execute completato (18/18 piani) · aggiornato: 2026-10-26
 
 ## Prossima azione
 
-01-17 (non critico, consolidamento, autonomous false): worktree exec/01-17 da main, test-write fresco su 01-17-TEST-DESIGN.md, esecutore Task 1 (threat model) → checkpoint Task 2 ratifica utente ADR 0003-0012 → Task 3; poi /verify 1.
+/verify 1: banda ECC sul diff di fase (fmt/clippy/test spikes, review Rust/Python, security, flaky isolation s02), poi --verify-ecc, poi gsd-verifier, riconciliazione WIRING-MAP e UAT filtrata; TODO della sezione sotto entrano nel verify o in gap-closure decimale.
 
 ## Findings
 
@@ -93,6 +93,7 @@ fase 01 / onda 11 / slice 01-17 / execute da avviare · aggiornato: 2026-10-26
 - onda 8 chiusa: 01-14 (merge 050eb8f, bridge); gate main fmt/clippy ok, s03-pgvector host 28 pass, scanner 0/118; integrazione Postgres solo nel runner dell'esecutore (40 verdi) → human_judgment; leak 0/2.067, soglia esatto→HNSW 50k, I-2 recall ≥0,95 solo 10k, ibrida non adottata, ADR-0006 Proposed; deviazioni a: maintenance_work_mem 768MB (misure HNSW con modifica non committata, git_rev 22d6d5f), query HNSW EXISTS OFFSET 0; testi RISULTATI/ADR corretti al bridge; aperto 23,7 vs 27,7 ms → 01-14-SUMMARY.md
 - onda 9 chiusa: 01-15 (merge a7341dc, bridge); gate main fmt/clippy ok, s04-jev lib 16 + bin rerank 13 pass/11 ign (bridge ne ha rieseguiti 9, verdi), scanner 0/18; baseline no-rerank, TEI non adottato (p95 360 ms), JEV forma A rank, VRAM picco 5.562 MiB margine 70, unauthorized 0/887, ADR-0009 Proposed; human_judgment: test9 (WSL bash) e legame misura VRAM-codice (raw copiato in spikes/s04-jev/results/raw del checkout principale); quota desktop corretta 1,44-2,80 GiB → 01-15-SUMMARY.md
 - onda 10 chiusa: 01-16 (merge 0cd4c42, bridge); gate main fmt/clippy ok, s07-ports 45 + 5 doctest compile_fail (codici verificati fuori rustdoc), verify piano ok, scanner 0/4, proprieta conforme; 13 porte async-trait, AuthorizedEvidence solo da authorize_response, Reranker separato, ADR-0012 Proposed; deviazioni a: InvalidScore, query_text tolto da search, Chunker sincrono; human_judgment: adapter HTTP EvidenceRetriever (RISK-001 v2 residuo), Locator nel Debug di Block/IndexedChunk/IndexVersionDraft, query_text+Embedder lato documento → 01-16-SUMMARY.md
+- onda 11 chiusa: 01-17 (merge 26bb554, bridge); threat model 39 minacce (21 misurate, 17 da implementare, 1 rinviata), ADR 0003-0013 Accepted, DEPENDENCIES Decisa con valori reali (Sonnet su tutto, bge-m3, esatta senza ibrida, no-rerank, jev-1.13.0); TEST-1..12 verdi; test-write n/a (solo controlli shell); post-merge coordinatore: README «Stack deciso» + link ADR-0013 nel threat model → 01-17-SUMMARY.md
 - pulizia disco 2026-10-25 (utente ok): build cache 23,1 GB, 419 dir s02-* residue test 9,6 GB, 8 modelli VLM docling ~27 GB; vhdx da compattare a mano (admin); TODO verify: test s02 senza pulizia tmp, compose.yaml:175 docling --all, results/docling-models.txt elenca modelli rimossi
 
 ## Limiti trovati
@@ -130,6 +131,7 @@ fase 01 / onda 11 / slice 01-17 / execute da avviare · aggiornato: 2026-10-26
 
 ## TODO
 
+- /verify 1 da 01-17: ADR-0006:66-67 Modifica attaccate alla tabella (resa GFM); titolo ADR-0011 «routing per complessità» e D-18/D-19 in DEPENDENCIES:89 vs D-33; checklist LLM threat-model:96 rimando T-18 impreciso; PLAT-07 ancora Pending in REQUIREMENTS.md:67,109 → 01-17-SUMMARY.md
 - /verify 1 da 01-16: Locator (titoli sezione) stampato dal Debug derivato di Block/IndexedChunk/IndexVersionDraft (s07 lib.rs:1171,1273,1283); InvalidationScope::DocumentVersion senza campo in CacheKey (fake svuota tutto); collocazione Embedder + query_text in RetrievalSearchRequest da decidere in 01-17/Fondazione → 01-16-SUMMARY.md
 - scanner security_scan.py: regola upload-in-memory segnala read_to_end anche su reader limitato da .take( (falso positivo, fase 1.5) → ignorare con take o waiver motivato · da proporre all'utente
 - hardware spike: i7-13700K 16C/24T, 32 GB RAM, RTX 3050 6 GB VRAM, Windows 11.
@@ -162,6 +164,7 @@ fase 01 / onda 11 / slice 01-17 / execute da avviare · aggiornato: 2026-10-26
 
 ## Decisioni ratificate in corsa
 
+- ratifica-tutti ADR 0003-0012 + threat model + ADR-0013; ADR-0006 query_text con rimando nella riga Modifica · utente · 2026-10-26 → 01-17-SUMMARY.md
 - strategia provider-first + insiemi file chiusi (U-04) · utente · 2026-10-18 → PROJECT.md
 - racconto didattico per slice · utente · 2026-10-18 → skills/execute/SKILL.md §bridge 3-bis
 - hook pre-commit invariato: evidenze solo .txt/.csv → RED nel commit della correzione, sezione distinta · utente · 2026-10-21 → 01.1-01-SUMMARY.md#punti-aperti
