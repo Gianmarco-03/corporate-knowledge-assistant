@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda 10 / slice 01-16 / execute in corso (Task 1 19a7304, test-write in corso) · aggiornato: 2026-10-26
+fase 01 / onda 11 / slice 01-17 / execute da avviare · aggiornato: 2026-10-26
 
 ## Prossima azione
 
-01-16 (critico, gate TEST_SPEC_READY, worktree .claude/worktrees/01-16 su task/PLAN-010-16): se .planning/tmp/test-write-01-16.yaml del worktree dice RED_EXPECTED → esecutore Task 2 (Opus, brief con RISK-001 MEDIUM di risk_audit_14; niente query_text in search); poi merge --no-ff, gate, bridge; poi 01-17.
+01-17 (non critico, consolidamento, autonomous false): worktree exec/01-17 da main, test-write fresco su 01-17-TEST-DESIGN.md, esecutore Task 1 (threat model) → checkpoint Task 2 ratifica utente ADR 0003-0012 → Task 3; poi /verify 1.
 
 ## Findings
 
@@ -92,6 +92,7 @@ fase 01 / onda 10 / slice 01-16 / execute in corso (Task 1 19a7304, test-write i
 - D-41 scanner upload-in-memory opzione B corretta su deepsearch_7 (take dopo decoder, ambigui «da verificare») + D-19 fase 3 lettore limitato → 01-CONTEXT.md, 01-DEEPSEARCH-7.md
 - onda 8 chiusa: 01-14 (merge 050eb8f, bridge); gate main fmt/clippy ok, s03-pgvector host 28 pass, scanner 0/118; integrazione Postgres solo nel runner dell'esecutore (40 verdi) → human_judgment; leak 0/2.067, soglia esatto→HNSW 50k, I-2 recall ≥0,95 solo 10k, ibrida non adottata, ADR-0006 Proposed; deviazioni a: maintenance_work_mem 768MB (misure HNSW con modifica non committata, git_rev 22d6d5f), query HNSW EXISTS OFFSET 0; testi RISULTATI/ADR corretti al bridge; aperto 23,7 vs 27,7 ms → 01-14-SUMMARY.md
 - onda 9 chiusa: 01-15 (merge a7341dc, bridge); gate main fmt/clippy ok, s04-jev lib 16 + bin rerank 13 pass/11 ign (bridge ne ha rieseguiti 9, verdi), scanner 0/18; baseline no-rerank, TEI non adottato (p95 360 ms), JEV forma A rank, VRAM picco 5.562 MiB margine 70, unauthorized 0/887, ADR-0009 Proposed; human_judgment: test9 (WSL bash) e legame misura VRAM-codice (raw copiato in spikes/s04-jev/results/raw del checkout principale); quota desktop corretta 1,44-2,80 GiB → 01-15-SUMMARY.md
+- onda 10 chiusa: 01-16 (merge 0cd4c42, bridge); gate main fmt/clippy ok, s07-ports 45 + 5 doctest compile_fail (codici verificati fuori rustdoc), verify piano ok, scanner 0/4, proprieta conforme; 13 porte async-trait, AuthorizedEvidence solo da authorize_response, Reranker separato, ADR-0012 Proposed; deviazioni a: InvalidScore, query_text tolto da search, Chunker sincrono; human_judgment: adapter HTTP EvidenceRetriever (RISK-001 v2 residuo), Locator nel Debug di Block/IndexedChunk/IndexVersionDraft, query_text+Embedder lato documento → 01-16-SUMMARY.md
 - pulizia disco 2026-10-25 (utente ok): build cache 23,1 GB, 419 dir s02-* residue test 9,6 GB, 8 modelli VLM docling ~27 GB; vhdx da compattare a mano (admin); TODO verify: test s02 senza pulizia tmp, compose.yaml:175 docling --all, results/docling-models.txt elenca modelli rimossi
 
 ## Limiti trovati
@@ -129,6 +130,7 @@ fase 01 / onda 10 / slice 01-16 / execute in corso (Task 1 19a7304, test-write i
 
 ## TODO
 
+- /verify 1 da 01-16: Locator (titoli sezione) stampato dal Debug derivato di Block/IndexedChunk/IndexVersionDraft (s07 lib.rs:1171,1273,1283); InvalidationScope::DocumentVersion senza campo in CacheKey (fake svuota tutto); collocazione Embedder + query_text in RetrievalSearchRequest da decidere in 01-17/Fondazione → 01-16-SUMMARY.md
 - scanner security_scan.py: regola upload-in-memory segnala read_to_end anche su reader limitato da .take( (falso positivo, fase 1.5) → ignorare con take o waiver motivato · da proporre all'utente
 - hardware spike: i7-13700K 16C/24T, 32 GB RAM, RTX 3050 6 GB VRAM, Windows 11.
 - Docker Desktop non installato: prerequisito execute 1 (passthrough GPU WSL2, .wslconfig) → HANDOFF §7.
