@@ -46,3 +46,29 @@ provenienza del gate rust: eseguito sull'host da spikes/ (rustc 1.95.0, x86_64-p
 dopo sotto carico: giri=5 falliti=0
 Note del carico: 16 generatori vivi prima e dopo i 5 giri, 0 dopo il kill; attesa di 20 s prima dei giri (load average a 1 minuto 0.15 -> 4.65); load average ai giri 5.56, 5.56, 6.40, 6.40, 7.17; ogni giro `running 3 tests` e `test result: ok. 3 passed`.
 Nota d'ordine: la suite di questa sezione è stata eseguita sull'albero con CaseDir, atexit e potatura della Task 3, perché il rosso di compilazione di drivers (CaseDir assente) impediva una suite verde sul solo albero della Task 2; il codice dei tre test è quello del commit del test-write (b59a294), invariato.
+
+## Task 3 — pulizia delle cartelle temporanee (esecutore)
+
+**Modifica:** Claude (gsd-executor 01.6-07) · 2026-10-26 · righe della Task 3: residui dopo due suite, potatura, gate finale, pulizia
+
+Codice: `CaseDir(PathBuf)` con `#[must_use]`, `Drop` (`let _ = fs::remove_dir_all`) e `Deref<Target = Path>` in tests/drivers.rs, restituita da `case_dir` e legata a un nome fino alla fine di ogni test; radice di processo rimossa all'uscita con `atexit` (dichiarato `unsafe extern "C"`, registrato una volta dentro `OnceLock`/`Once`, callback senza panico su stato `'static`) in tests/isolation.rs, tests/drivers.rs e tests/oom.rs; potatura all'avvio delle radici `s02-isolation-<pid>` e `s02-drivers-<pid>` orfane con il predicato puro `is_orphan_root` (pid canonico, diverso dal corrente, assente da /proc); in tests/oom.rs `remove_dir_all` di `/work/tmp/oom` e `/work/tmp/oom-raw` all'inizio del test, prima di ogni ritorno `non_esercitato` e di `create_dir_all`. Nessun crate nuovo, Cargo.toml e Cargo.lock invariati.
+
+residui iniziali della Task 3: 15 (radici `s02-isolation-<pid>` e `s02-drivers-<pid>` lasciate dai giri della base e del test-write), rimossi con rm -rf
+dopo suite 1: exit=0 falliti=0
+esito residui dopo la prima: 0
+dopo suite 2: exit=0 falliti=0
+esito residui /work/tmp: 0
+Confronto `ls -1 /work/tmp` (TEST-10): dopo ciascuna suite le sole voci nuove sono di altri test di s02 fuori dal perimetro del piano (`s02-docling-<pid>-*`, `s02-extract-<pid>-*`, `s02-locator-tw-<pid>-*`, `s02-prescan-tw-<pid>`, `s02-score-<pid>-*`, `s02-tables-<pid>-*`), che la potatura di questo piano non tocca e che pulisce 01.6-09; nessuna voce nuova dei quattro pattern.
+esito potatura: rimossa=si
+Potatura, dettaglio: `/work/tmp/s02-isolation-999999` con un file dentro rimossa dal solo `--exact argv_echo_passes_path_with_spaces_and_non_ascii_unchanged` (1 passed); il caso negativo `/work/tmp/s02-isolation-999999-keep` è sopravvissuto (poi rimosso a mano). Il predicato è coperto dagli unit `orphan_root_predicate_accepts_only_dead_foreign_canonical_pids` in isolation e in drivers (pid corrente, pid vivo, suffisso, vuoto, non numerico, zeri iniziali, segno, overflow, prefisso dell'altro binario: nessuno potato).
+Guardia col panico: `case_dir_guard_cleans_on_panic` verde nelle due suite (drivers 6 passed).
+residui dopo i 5 giri sotto carico: 0 (prima della Task 3 erano 7 dopo gli stessi giri)
+esito gate rust finale: fmt=0 clippy=0
+provenienza del gate rust finale: host da spikes/, come per la Task 2 (runner senza rustfmt né clippy); clippy sull'host non analizza i tre file `#![cfg(target_os = "linux")]`, compilati nel runner con 0 warning
+Nota: lo script locale dei giri è uscito con exit 2 per l'ultimo `ls -d` senza corrispondenze (zero residui), non per un test; tutti i `cargo test` della sessione hanno exit 0.
+
+## Pulizia
+
+PRENOTAZIONE: nessuna
+container con label cka.run_id (docker ps -a --filter label=cka.run_id --format '{{.Names}}'):
+(fine elenco)

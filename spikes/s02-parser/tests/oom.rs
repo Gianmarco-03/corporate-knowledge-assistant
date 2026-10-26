@@ -11,6 +11,8 @@
 //! i test non ignorati in coda al file ne fissano il contratto senza container.
 #![cfg(target_os = "linux")]
 
+// Modifica: Claude (gsd-executor 01.6-07) · 2026-10-26 · test deterministici sotto carico e pulizia delle cartelle temporanee (gap-closure 1.6, D-11)
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -29,6 +31,33 @@ const WORK_ROOT: &str = "/work/tmp/oom";
 const RAW_ROOT: &str = "/work/tmp/oom-raw";
 const RESERVATION_BYTES: u64 = 64 * MIB;
 const PARENT_RESERVE_BYTES: u64 = 64 * MIB;
+
+// ---- pulizia delle radici del test (piano 01.6-07, D-11) ------------------------------------
+
+unsafe extern "C" {
+    fn atexit(cb: extern "C" fn()) -> std::ffi::c_int;
+}
+
+/// Callback di `atexit`: rimuove `WORK_ROOT` e `RAW_ROOT`. Non panica (errori ignorati) e usa
+/// solo costanti `'static`.
+extern "C" fn remove_test_roots() {
+    let _ = fs::remove_dir_all(WORK_ROOT);
+    let _ = fs::remove_dir_all(RAW_ROOT);
+}
+
+/// Rimuove i residui di run precedenti e registra una volta la pulizia all'uscita del binario.
+/// Si chiama all'inizio del test, prima di ogni ritorno `non_esercitato` e di `create_dir_all`.
+fn clean_roots_now_and_at_exit() {
+    static REGISTERED: std::sync::Once = std::sync::Once::new();
+    remove_test_roots();
+    REGISTERED.call_once(|| {
+        // SAFETY: `atexit` della libc, già collegata da std; registrata una sola volta (dentro
+        // `Once`). La callback non panica e non usa stato di Rust non `'static`.
+        unsafe {
+            atexit(remove_test_roots);
+        }
+    });
+}
 
 /// Chiavi della riga `OOM_RESULT`, nell'ordine del piano (Task 3). `run_oom.sh` e la verifica
 /// del piano leggono questi nomi.
@@ -225,6 +254,9 @@ fn outcome_fields(o: &ChildOutcome) -> (String, Option<String>, Option<String>) 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "solo nel container a memoria bassa di 01-18"]
 async fn oom_kills_child_not_parent() {
+    // (0) Radici pulite all'avvio e all'uscita del binario (piano 01.6-07, D-11).
+    clean_roots_now_and_at_exit();
+
     // (1) Il test fa le veci di `parse-parent`: subreaper.
     if nix::sys::prctl::set_child_subreaper(true).is_err() {
         return not_exercised("subreaper_unavailable");
