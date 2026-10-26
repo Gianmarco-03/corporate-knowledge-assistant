@@ -1,0 +1,25 @@
+**Modifica:** Claude (test-write 01.6-07) · 2026-10-26 · evidenza dei test stabili e della pulizia di s02 (D-11): base della Task 1 e RED del test-write
+
+# s02 — test d'isolamento deterministici sotto carico e pulizia delle cartelle temporanee (piano 01.6-07)
+
+git_rev base: 9ab8e9d1dfbc2d6e89ffa91508384e5f49f05cd3
+nproc del runner: 16
+run_id della base: 01-6-07-20261026t193121z-6cff
+
+## Base (Task 1, test di BASE non modificati)
+
+precondizione admit prima della cartella: si (isolate.rs:218 budget.admit, isolate.rs:588 create_dir della cartella del job in prepare, chiamato da imp::run a isolate.rs:698 dopo admit)
+residui iniziali: 2
+base suite: exit=0 falliti=0
+base residui dopo la suite: 2
+base sotto carico: giri=5 falliti=0 test=nessuno
+
+Note della base:
+- i 2 residui dopo la suite sono `s02-isolation-<pid>` e `s02-drivers-<pid>`; `oom` e `oom-raw` non compaiono perché in questo runner il test di `oom.rs` esce prima di `create_dir_all` (esito non esercitato).
+- confronto `ls -1 /work/tmp` prima e dopo la suite (TEST-10): oltre ai due residui dei quattro pattern compaiono voci di altri test fuori dal perimetro del piano (`s02-docling-<pid>-*`, `s02-extract-<pid>-*`, `s02-locator-tw-<pid>-*`, `s02-prescan-tw-<pid>`, `s02-score-<pid>-*`, `s02-tables-<pid>-*`): non sono dei tre file di test di questo piano, si registrano e basta.
+- giro sotto carico: 16 generatori vivi prima e dopo i 5 giri, 0 dopo il kill; ogni giro `running 3 tests` e `3 passed`; load average a 1 minuto 2.38, 3.47, 4.47, 4.47, 5.48 (sale lentamente perché è una media). Il verde della base sotto carico è un'informazione, non la prova (instabilità statistica).
+- residui dopo i 5 giri: 7 (una radice `s02-isolation-<pid>` in più per ogni giro).
+
+## RED del test-write
+
+Il RED della pulizia è il conteggio dei residui della base (2, atteso almeno 2). L'unico test nuovo rosso è `case_dir_guard_cleans_on_panic` in `tests/drivers.rs`: non compila perché `CaseDir` non esiste ancora (RED_EXPECTED, motivo «simbolo assente»).

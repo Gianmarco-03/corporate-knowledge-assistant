@@ -359,3 +359,32 @@ fn overhead_in_process_errors_keep_all_rows() {
     }
     assert_work_root_empty(&jobs, &o);
 }
+
+// ---- D-11 (piano 01.6-07): guardia delle cartelle di caso ------------------------------------
+
+// Modifica: Claude (test-write 01.6-07) · 2026-10-26 · test rosso della guardia `CaseDir` col panico (gap-closure 1.6, D-11)
+
+/// La guardia di una cartella di caso la rimuove anche quando il test va in panico: la
+/// cartella esiste dentro la chiusura prima del `panic!` (il test non passa a vuoto), e dopo
+/// l'unwind non esiste più. Il percorso esce dalla chiusura copiato in una variabile esterna.
+#[test]
+fn case_dir_guard_cleans_on_panic() {
+    let mut seen: Option<PathBuf> = None;
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let guard: CaseDir = case_dir("panic-guard");
+        assert!(
+            guard.0.is_dir(),
+            "cartella di caso non creata: {}",
+            guard.0.display()
+        );
+        seen = Some(guard.0.clone());
+        panic!("panico voluto del test della guardia");
+    }));
+    assert!(res.is_err(), "la chiusura doveva andare in panico");
+    let path = seen.expect("percorso della cartella di caso non registrato prima del panico");
+    assert!(
+        !path.exists(),
+        "cartella di caso rimasta dopo il panico: {}",
+        path.display()
+    );
+}
