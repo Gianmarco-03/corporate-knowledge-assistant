@@ -111,6 +111,15 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Hash chain dell'audit già in fase 4 (contro raccomandazione), riga di testa FOR UPDATE, nessun ancoraggio, verify_chain → fase 11 → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#auditsink-area-f-forma-provvisoria-fino-a-q-04`
 - 2026-10-21 · NoOpCache + fake in memoria con scope; replay wiremock in CI + gate locale a 0,50 USD; prova no-leak a sentinelle → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#contract-test-prova-no-leak-e-adapter-reali-aree-h-i`
 
+## Fase 5 — Identità e accesso (discuss)
+
+- 2026-10-26 · JWT EdDSA Ed25519 (Proposta → Decisa, ripiego ES256), typ at+jwt, roles + acl_version nei claim, access token 10 min → `phases/05-identita-e-accesso/05-CONTEXT.md#token-e-firma-area-a`
+- 2026-10-26 · Il RAG inoltra il token utente (aud fisso a document e rag), soggetto solo dal token verificato; auth servizio-servizio alla fase 7 → `phases/05-identita-e-accesso/05-CONTEXT.md#propagazione-dellidentità-area-f`
+- 2026-10-26 · Refresh opaco in cookie HttpOnly/Secure/SameSite=Strict, rotazione con revoca della famiglia al riuso, lock fra schede nel client, sessione 8 h + 1 h → `phases/05-identita-e-accesso/05-CONTEXT.md#sessione-nel-browser-aree-b-e-c`
+- 2026-10-26 · Argon2id 64 MiB t=3 p=4 in PHC con rehash; NIST min 15 + blocklist locale; throttling in PG 5/15 min per account; audit con HMAC dell'email → `phases/05-identita-e-accesso/05-CONTEXT.md#password-e-login-aree-d-e-j`
+- 2026-10-26 · Cambio ruoli con protezione dell'ultimo admin, acl_version e revoca sessioni; scope con elenco utenti, disattivazione, cambio password e password temporanea; primo admin da CLI → `phases/05-identita-e-accesso/05-CONTEXT.md#utenti-e-ruoli-aree-g-h-i`
+
 **Modifica:** Claude (Anthropic) · 2026-10-19 · creazione dell'indice con le decisioni dell'onda 1 della fase 1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 4
+**Modifica:** Claude (Anthropic) · 2026-10-26 · decisioni del discuss della fase 5

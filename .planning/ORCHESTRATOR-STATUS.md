@@ -9,7 +9,7 @@ fase 01 / onda — / slice — / verify: gaps_found 105/110 (gap 1.6) · aggiorn
 
 ## Prossima azione
 
-/plan 1.6 --gaps da 01-VERIFICATION.md (5 gap: scanner, hook, compose, driver misura, test/TODO; riapre_perimetro [1]; verificare scanner/hook contro proprieta-file.whitelist.json) → /execute 1.6 → /verify 1 di nuovo → UAT 6 punti. In parallelo: discuss fase 5 in altra sessione (dir 05 non tracciata, non toccare).
+/plan 1.6 --gaps da 01-VERIFICATION.md (5 gap: scanner, hook, compose, driver misura, test/TODO; riapre_perimetro [1]; verificare scanner/hook contro proprieta-file.whitelist.json) → /execute 1.6 → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -95,6 +95,13 @@ fase 01 / onda — / slice — / verify: gaps_found 105/110 (gap 1.6) · aggiorn
 - onda 10 chiusa: 01-16 (merge 0cd4c42, bridge); gate main fmt/clippy ok, s07-ports 45 + 5 doctest compile_fail (codici verificati fuori rustdoc), verify piano ok, scanner 0/4, proprieta conforme; 13 porte async-trait, AuthorizedEvidence solo da authorize_response, Reranker separato, ADR-0012 Proposed; deviazioni a: InvalidScore, query_text tolto da search, Chunker sincrono; human_judgment: adapter HTTP EvidenceRetriever (RISK-001 v2 residuo), Locator nel Debug di Block/IndexedChunk/IndexVersionDraft, query_text+Embedder lato documento → 01-16-SUMMARY.md
 - onda 11 chiusa: 01-17 (merge 26bb554, bridge); threat model 39 minacce (21 misurate, 17 da implementare, 1 rinviata), ADR 0003-0013 Accepted, DEPENDENCIES Decisa con valori reali (Sonnet su tutto, bge-m3, esatta senza ibrida, no-rerank, jev-1.13.0); TEST-1..12 verdi; test-write n/a (solo controlli shell); post-merge coordinatore: README «Stack deciso» + link ADR-0013 nel threat model → 01-17-SUMMARY.md
 - pulizia disco 2026-10-25 (utente ok): build cache 23,1 GB, 419 dir s02-* residue test 9,6 GB, 8 modelli VLM docling ~27 GB; vhdx da compattare a mano (admin); TODO verify: test s02 senza pulizia tmp, compose.yaml:175 docling --all, results/docling-models.txt elenca modelli rimossi
+- [f05] fase 05 criticità critica, ratificata utente 2026-10-26 → GPT risk-audit + test-design in plan → 05-CONTEXT.md
+- [f05] JWT EdDSA Ed25519 (Proposta→Decisa, ripiego ES256), typ at+jwt, roles+acl_version, AT 10 min (D-01..03) · fonte RFC 8725/9068, T-02 → 05-CONTEXT.md
+- [f05] propagazione F1 token utente inoltrato, aud [cka-document,cka-rag], soggetto solo da token; svc-to-svc → fase 7 (D-04/05) · fonte OWASP Identity Propagation → 05-CONTEXT.md
+- [f05] refresh opaco cookie HttpOnly/Secure/Strict, rotazione + revoca famiglia al riuso, Web Locks fra schede, 8 h + 1 h, logout sola sessione, CSRF header+Origin (D-06..11) · fonte T-03, RFC 9700, draft browser-apps-26 → 05-CONTEXT.md
+- [f05] Argon2id 64 MiB t=3 p=4 PHC+rehash, semaforo 4; NIST min 15/max 128 + blocklist locale; hash fittizio; throttling PG 5/15 min account + tetto IP; audit HMAC email (D-12..15b) · fonte RFC 9106, NIST 800-63B-4, OWASP Auth → 05-CONTEXT.md
+- [f05] cambio ruoli: 409 ultimo admin, acl_version++, revoca sessioni; scope + elenco utenti, disattivazione, cambio password, password temporanea; primo admin CLI (D-16..18) · fonte T-04, ADR-0012, prodotti comparabili → 05-CONTEXT.md
+- [f05] brief ricerca 11 aree con fonti → 05-RICERCA-DISCUSSIONE.md; log → 05-DISCUSSION-LOG.md
 
 ## Limiti trovati
 
@@ -163,6 +170,10 @@ fase 01 / onda — / slice — / verify: gaps_found 105/110 (gap 1.6) · aggiorn
 - 04: rischio pipeline: ADR 0009, 0011, 0012 non emessi → D-02, D-04, D-06 provvisorie fino a fine Spike
 - difetto commento spikes/s05-cancel/src/main.rs:279-281 (file chiuso 01-05): dice «satura a 2047 µs» al presente, reale era 2 µs e oggi corretto → correggere nella prossima gap-closure che riapre la fase 1 · utente 2026-10-21
 - residuo security 01.1 (LOW, preesistente): session.sh passa a compose COMPOSE_PROJECT_NAME/COMPOSE_FILE/DOCKER_HOST/DOCKER_CONTEXT dell'host (fix: -p "$PROJECT" o -u) → candidato prossima gap-closure di 01-02
+- [f05] REQUIREMENTS: righe nuove (es. AUTH-04) per scope D-17 via gsd-tools prima di plan 5 → 05-CONTEXT.md
+- [f05] interfaces-and-concurrency.md: rotte D-17 + race refresh fra schede; DEPENDENCIES Token → Decisa con Storia; .env.example chiavi firma/HMAC (proprietà file) → plan 5
+- [f05] assunzione provvisoria: EdDSA+JWK nel crate (jsonwebtoken 11) da verificare in plan, ripiego ES256 (D-01)
+- [f05] rischio pipeline: hook auth, route registry, fascia 05, slot AuditSink senza righe WM-NNN fino a plan 02 → riallineare vincoli CONTEXT 05
 
 ## Decisioni ratificate in corsa
 

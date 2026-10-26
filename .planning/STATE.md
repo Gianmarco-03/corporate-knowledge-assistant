@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-last_updated: "2026-10-26T13:13:24.027Z"
+stopped_at: Fase 5 discuss completato
+last_updated: "2026-10-26T15:42:04.323Z"
 last_activity: 2026-10-26 — 01-17 completato (threat model, ADR 0003-0013 ratificati, DEPENDENCIES aggiornato); prossimo /verify 1
 progress:
-  total_phases: 20
+  total_phases: 21
   completed_phases: 6
-  total_plans: 24
+  total_plans: 33
   completed_plans: 24
-  percent: 30
+  percent: 29
 ---
 
 # Project State
@@ -149,6 +149,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01]: 01-15: baseline rerank no-rerank; TEI bge-reranker-v2-m3 misurato e non adottato (p95 360 ms > 300); JEV forma A resta il rank; picco VRAM 5.562 MiB, margine 70 MiB → `spikes/s04-jev/RISULTATI-rerank.md#Esito`
 - [Phase 01]: 01-16: 13 porte candidate con async-trait; AuthorizedEvidence costruita solo da authorize_response lato RAG; Reranker separato da DecisionEngine; CacheKey con scope e acl_version → `docs/adr/0012-firme-porte-candidate.md`
 - [Phase 01]: 01-17: utente ratifica tutti gli ADR 0003-0012, threat model e ADR-0013 (AV/CDR rinviati a fase 14); DEPENDENCIES Decisa con valori reali → `phases/01-spike-tecnici/01-17-SUMMARY.md`
+- [Phase 5]: Discuss chiuso: JWT EdDSA 10 min con token inoltrato, refresh ruotato con revoca al riuso, Argon2id 64 MiB + NIST, throttling PG, ultimo admin, scope utenti (D-01..D-18) → `phases/05-identita-e-accesso/05-CONTEXT.md`
 
 ### Pending Todos
 
@@ -169,6 +170,6 @@ Recenti, rilevanti per il lavoro corrente:
 
 ## Session Continuity
 
-Last session: 2026-10-21T16:59:55.544Z
-Stopped at: Fase 1.3 chiusa; 01-07 in ripasso (audit GPT), poi ripresa execute
-Resume file: .planning/phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md
+Last session: 2026-10-26T15:42:04.315Z
+Stopped at: Fase 5 discuss completato
+Resume file: .planning/phases/05-identita-e-accesso/05-CONTEXT.md
