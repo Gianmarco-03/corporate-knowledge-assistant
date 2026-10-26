@@ -106,6 +106,17 @@ I target saranno riesaminati dopo una baseline su hardware documentato.
 - Gli adapter esterni dipendono da porte interne stabili.
 - Un documento online non è attendibile solo perché proviene da un URL valido.
 
+## Limiti noti
+
+Il CKA è un progetto dimostrativo e alcuni documenti, per scelta, non si possono caricare. Il sistema li rifiuta con un errore esplicito invece di indicizzarli in parte:
+
+- **PDF compressi con formati non supportati.** Un PDF che usa la compressione LZW o RunLength, o un filtro di compressione non riconosciuto, è rifiutato come «non supportato». Il sistema non sa verificare in anticipo quanto spazio occuperebbe una volta decompresso, e preferisce rifiutarlo piuttosto che rischiare un file che esaurisce la memoria.
+- **PDF troppo grandi una volta decompressi.** Un PDF i cui contenuti compressi superano in totale 512 MiB una volta decompressi è rifiutato per «limite di decompressione». Nei documenti di prova usati per tarare il limite nessun PDF legittimo è stato rifiutato per queste due regole.
+
+Il limite di capacità del worker di parsing oltre i 2 GiB di memoria misurati è una stima, non una misura. I dettagli tecnici, i numeri e le motivazioni stanno in [`docs/adr/0004-parser-ocr-isolamento.md`](docs/adr/0004-parser-ocr-isolamento.md), sezione «Limiti noti».
+
+**Modifica:** Claude (Anthropic) · 2026-10-26 · sezione «Limiti noti» per l'utente (D-25, piano 01-17)
+
 ## Avvio
 
 Non ancora disponibile. Il primo vertical slice verrà implementato dopo l'approvazione dei contratti elementari e del modello di concorrenza.

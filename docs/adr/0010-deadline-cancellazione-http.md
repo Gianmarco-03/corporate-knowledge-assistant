@@ -1,12 +1,13 @@
 # ADR-0010 — Deadline globale e cancellazione delle richieste HTTP verso i provider
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-21
 - Decisori: l'utente (ratifica nel consolidamento, piano 01-17); la proposta è di Claude (gsd-executor 01-05), dallo spike S-05
 - Sostituisce: nessuno
 
 **Modifica:** Claude (gsd-executor 01-05) · 2026-10-21 · ADR proposto con le misure dello spike S-05; esito sull'addebito JEV in lettura dall'utente
 **Modifica:** Claude (gsd-executor 01-05) · 2026-10-21 · esito sull'addebito JEV dopo la lettura dell'utente: non determinabile (console vuota)
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
 
 ## Contesto
 

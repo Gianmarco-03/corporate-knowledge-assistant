@@ -1,6 +1,6 @@
 # ADR-0004 — Parser PDFium con Docling sulle pagine-tabella, OCR Tesseract, parsing isolato in processo separato e tetto di decompressione nel prescan
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-24
 - Decisori: utente (D-05, D-07, D-08, D-09 emendata, D-28, D-34, D-39, D-40 di `01-CONTEXT.md`; ratifica nel consolidamento, piano 01-17); proposta di Claude (gsd-executor 01-13) dallo spike S-02 (piani 01-07, 01-08, 01-09, 01-13, 01-18, gap-closure 1.4 e 1.5)
 - Sostituisce: nessuno
@@ -8,6 +8,7 @@
 **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · ADR proposto con le misure dei quattro RISULTATI di S-02 (piano 01-13)
 **Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · riga OCR: PP-OCRv6 identificato ma non valutabile a 2 GiB (oneDNN/PIR, OOM); Tesseract provvisorio, stato invariato
 **Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · riga OCR: PP-OCRv6 misurato con detection ridotta (decisione utente, opzione a, un solo tentativo), non vince nettamente; Tesseract confermato, «(provvisorio)» tolto dal titolo; stato Proposed invariato, ratifica nel consolidamento (piano 01-17, Task 2)
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
 
 ## Contesto
 
@@ -71,3 +72,12 @@ PDFium ha avuto CVE nel 2026 (RICERCA Area B §1): un suo crash o un suo consumo
 - Estrazione PDFium e Docling: [`RISULTATI-estrazione.md`](../../spikes/s02-parser/RISULTATI-estrazione.md), [`results/extract/hw.json`](../../spikes/s02-parser/results/extract/hw.json).
 - Locator: [`RISULTATI-locator.md`](../../spikes/s02-parser/RISULTATI-locator.md), [`results/locator/hw.json`](../../spikes/s02-parser/results/locator/hw.json) e [ADR-0005](0005-locator-citazione.md).
 - OCR, throughput, TTQ-parse e prova ostile sul render: [`RISULTATI-ocr.md`](../../spikes/s02-parser/RISULTATI-ocr.md), [`results/ocr/hw.json`](../../spikes/s02-parser/results/ocr/hw.json).
+
+## Limiti noti
+
+Limiti dichiarati per scelta (D-25, decisione utente del 2026-10-19: progetto dimostrativo, limite dichiarato nella documentazione ufficiale; sezione per l'utente in [`README.md`](../../README.md), «Limiti noti»).
+
+- **PDF con filtri non supportati: rifiutati con `Unsupported`.** Un PDF che contiene uno stream non immagine compresso con `LZWDecode`, `RunLengthDecode` o con un filtro ignoto non si indicizza: il prescan non saprebbe verificarne la quota di decompressione senza nuove dipendenze, quindi lo rifiuta con esito tipizzato `Unsupported` (regola in [`RISULTATI-isolamento.md`](../../spikes/s02-parser/RISULTATI-isolamento.md), «Soglie»; caso ostile `lzw-stream` in [`hostile.csv`](../../spikes/s02-parser/results/isolation/hostile.csv), 3 righe su 3 `Unsupported`).
+- **Object stream oltre il limite: rifiutati con `DecompressionLimit`.** Gli object stream non si rifiutano per numero: il tetto è sulla somma reale dei byte decompressi del documento, object stream compresi, che non supera 512 MiB; oltre, l'esito è `DecompressionLimit` (`total_decompressed`). Sui PDF cifrati ammessi vale in più una quota per stream di min(64 MiB, ⌊512 MiB / n⌋), con n il numero di object stream (`objstm_dropped`).
+- **PDF benigni rifiutati in calibrazione.** Con le regole in vigore nessun PDF benigno del corpus è rifiutato per questi due limiti: la calibrazione di 01-07 v6 dà 10 `ok` su 10, con 0 rifiuti per filtro, 0 per somma decompressa e 0 per quota del ramo cifrato (`01-07-SUMMARY.md`, «Anomalie di calibrazione»), e la ricalibrazione della gap-closure 1.4 riportata in `RISULTATI-isolamento.md` di 01-18 dà ancora 10 `ok` su 10. Prima del ripasso dell'utente del 2026-10-21 le regole v3 rifiutavano 8 PDF benigni su 8 (conteggio degli object stream, cifratura dei soli permessi, allegato), ed è per questo che la regola sugli object stream è passata alla somma reale. Il solo altro rifiuto benigno osservato, le 4 pagine di `OTC_NSANY_2004` respinte da 01-08 con `Unsupported` / `image_filter_on_non_image`, non dipende da D-25 ed è stato corretto dalla gap-closure 1.4 (4 su 4 `ok`).
+- **Dimensionamento del worker estrapolato** (D-28): oltre il worker da 2 GiB misurato, il numero di job e la memoria del cgroup per la produzione sono estrapolati dal `max_admitted` misurato, non misurati (formula e numeri in «Conseguenze»).

@@ -1,6 +1,6 @@
 # ADR-0011 — LLM generativo: routing per complessità, fallback e structured output con citazioni per claim
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-22
 - Decisori: l'utente (scelta del modello per le query `simple`, D-33 del 2026-10-22, e ratifica nel consolidamento, piano 01-17); la proposta è di Claude (gsd-executor 01-12), dallo spike S-06/A-04
 - Sostituisce: nessuno
@@ -77,3 +77,4 @@ Le misure vengono da 30 query ratificate (13 `simple`, 12 `complex`, 5 `no_answe
 
 **Modifica:** Claude (gsd-executor 01-12) · 2026-10-22 · Evidenze: misura supplementare di Sonnet sulle `simple` (D-32); Stato e Decisione invariati
 **Modifica:** Claude (Anthropic) · 2026-10-22 · Decisione, Opzioni, Conseguenze, Follow-up ed Evidenze allineati a D-33 (Sonnet anche sulle `simple`); Stato invariato, `Proposed` fino alla ratifica di 01-17
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
