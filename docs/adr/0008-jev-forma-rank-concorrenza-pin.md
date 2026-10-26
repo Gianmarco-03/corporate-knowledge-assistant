@@ -1,11 +1,12 @@
 # ADR-0008 — JEV: forma della chiamata `rank`, concorrenza, retry e pin di versione
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-21
 - Decisori: l'utente (ratifica nel consolidamento, piano 01-17); la proposta è di Claude (gsd-executor 01-11), dallo spike S-04/A-09
 - Sostituisce: nessuno
 
 **Modifica:** Claude (gsd-executor 01-11) · 2026-10-21 · ADR proposto con le misure dello spike S-04/A-09
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
 
 ## Contesto
 

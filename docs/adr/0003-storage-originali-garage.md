@@ -1,11 +1,12 @@
 # ADR-0003 — Storage degli originali PDF/DOCX su Garage
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-21
 - Decisori: utente (ratifica nel consolidamento, piano 01-17); proposta di Claude (gsd-executor 01-04) dallo spike S-01 + A-02
 - Sostituisce: nessuno
 
 **Modifica:** Claude (gsd-executor 01-04) · 2026-10-21 · ADR proposto con le misure dello spike S-01 + A-02
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
 
 ## Contesto
 

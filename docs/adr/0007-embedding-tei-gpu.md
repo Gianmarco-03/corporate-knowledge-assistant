@@ -1,11 +1,12 @@
 # ADR-0007 — Modello di embedding bge-m3 servito da TEI su GPU
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-22
 - Decisori: utente (ratifica nel consolidamento, piano 01-17); proposta di Claude (gsd-executor 01-10) dallo spike S-03/A-03, parte embedding
 - Sostituisce: nessuno
 
 **Modifica:** Claude (gsd-executor 01-10) · 2026-10-22 · ADR proposto con le misure dello spike S-03/A-03, parte embedding
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
 
 ## Contesto
 

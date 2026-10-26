@@ -1,6 +1,6 @@
 # ADR-0004 — Parser PDFium con Docling sulle pagine-tabella, OCR Tesseract, parsing isolato in processo separato e tetto di decompressione nel prescan
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-24
 - Decisori: utente (D-05, D-07, D-08, D-09 emendata, D-28, D-34, D-39, D-40 di `01-CONTEXT.md`; ratifica nel consolidamento, piano 01-17); proposta di Claude (gsd-executor 01-13) dallo spike S-02 (piani 01-07, 01-08, 01-09, 01-13, 01-18, gap-closure 1.4 e 1.5)
 - Sostituisce: nessuno
@@ -8,6 +8,7 @@
 **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · ADR proposto con le misure dei quattro RISULTATI di S-02 (piano 01-13)
 **Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · riga OCR: PP-OCRv6 identificato ma non valutabile a 2 GiB (oneDNN/PIR, OOM); Tesseract provvisorio, stato invariato
 **Modifica:** Claude (gsd-executor 01-13 paddle) · 2026-10-25 · riga OCR: PP-OCRv6 misurato con detection ridotta (decisione utente, opzione a, un solo tentativo), non vince nettamente; Tesseract confermato, «(provvisorio)» tolto dal titolo; stato Proposed invariato, ratifica nel consolidamento (piano 01-17, Task 2)
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
 
 ## Contesto
 

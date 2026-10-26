@@ -1,6 +1,6 @@
 # ADR-0012 — Firme candidate delle porte di dominio
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-26
 - Decisori: l'utente (ratifica nel consolidamento, piano 01-17); la proposta è di Claude (gsd-executor 01-16), dallo spike S-07
 - Sostituisce: nessuno
@@ -92,3 +92,4 @@ Dal WIRING di fase 1 ([`01-WIRING.md`](../../.planning/phases/01-spike-tecnici/0
 - Hardware non rilevante: è una verifica di compilazione e di test unitari, senza misure, quindi non c'è un `hw.json`.
 
 **Modifica:** Claude (Anthropic) · 2026-10-26 · registrata la scelta di `std::time::Instant` per la deadline, segnalata dal bridge di 01-16
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)

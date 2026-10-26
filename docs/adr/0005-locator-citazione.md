@@ -1,11 +1,12 @@
 # ADR-0005 — Locator di citazione: PDF a pagina e rettangoli, DOCX e Markdown a sezione e intervallo di caratteri
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-22
 - Decisori: utente (D-10, D-24 e il paragrafo *Storia* di D-10 in `01-CONTEXT.md`; ratifica nel consolidamento, piano 01-17); proposta di Claude (gsd-executor 01-09) dallo spike S-02 / A-10
 - Sostituisce: nessuno
 
 **Modifica:** Claude (gsd-executor 01-09) · 2026-10-22 · ADR proposto con le misure dello spike A-10 (piano 01-09)
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
 
 ## Contesto
 

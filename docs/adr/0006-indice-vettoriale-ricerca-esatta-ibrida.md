@@ -1,6 +1,6 @@
 # ADR-0006 — Ricerca vettoriale esatta con il predicato ACL nella stessa query, metrica coseno, ibrida non adottata, soglia HNSW a 50.000 chunk
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-25
 - Decisori: utente (D-12, D-15 di `01-CONTEXT.md`; ratifica nel consolidamento, piano 01-17); proposta di Claude (gsd-executor 01-14) dallo spike S-03/A-03, parte indice
 - Sostituisce: nessuno
@@ -64,3 +64,4 @@ Decisioni dell'utente che vincolano la scelta:
 | Metrica | top-10 coseno = prodotto interno in 74/74 query | ranking invariato |
 | `restricted-only` sul corpus reale | 0,48% dei chunk | ≤ 5% |
 **Modifica:** Claude (Anthropic, orchestratore) · 2026-10-25 · «lineare» corretto con i valori misurati (bridge di 01-14)
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti); la conservazione di `query_text` nella firma di `VectorIndex::search` è superata da ADR-0012

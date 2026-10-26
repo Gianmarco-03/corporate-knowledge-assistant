@@ -1,6 +1,6 @@
 # ADR-0009 — Reranker baseline e budget VRAM della GPU locale
 
-- Stato: Proposed
+- Stato: Accepted
 - Data: 2026-10-25
 - Decisori: l'utente (ratifica nel consolidamento, piano 01-17); la proposta è di Claude (gsd-executor 01-15), dallo spike S-04/A-06
 - Sostituisce: nessuno
@@ -97,3 +97,4 @@ Misure dello spike sulle 74 query ratificate di S-03, con i loro top-20 autorizz
 - `spikes/s04-jev/results/jev/hw.json` e `spikes/s04-jev/RISULTATI-jev.md`: la parte JEV dello spike (ADR-0008).
 
 **Modifica:** Claude (Anthropic) · 2026-10-26 · quota del desktop corretta in 1,44-2,80 GiB (1.479-2.869 MiB), segnalata dal bridge di 01-15
+**Modifica:** Claude (Anthropic) · 2026-10-26 · ratificato dall'utente nel piano 01-17 (ratifica-tutti)
