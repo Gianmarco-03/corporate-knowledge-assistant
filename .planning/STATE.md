@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 5 discuss completato
-last_updated: "2026-10-26T15:42:04.323Z"
-last_activity: 2026-10-26 — 01-17 completato (threat model, ADR 0003-0013 ratificati, DEPENDENCIES aggiornato); prossimo /verify 1
+last_updated: "2026-10-27T17:40:14.524Z"
+last_activity: "2026-10-27 — fase 1.6 onda 1 chiusa: 01.6-01 (scanner D-01/D-05/D-06, prescan take+read_to_end) e 01.6-07 (test d'isolamento deterministici, pulizia tmp)"
 progress:
   total_phases: 21
   completed_phases: 6
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 18 of 18 in current phase
-Status: Executing — 18 piani su 18 eseguiti; prossimo /verify 1 (banda ECC, poi gsd-verifier e UAT)
-Last activity: 2026-10-26 — 01-17 completato (threat model, ADR 0003-0013 ratificati, DEPENDENCIES aggiornato); prossimo /verify 1
+Plan: 01.6-07
+Status: Executing — fase 1.6, onda 1 di 5 chiusa (2/9 piani); prossima onda 2: 01.6-03 e 01.6-05
+Last activity: 2026-10-27 — fase 1.6 onda 1 chiusa: 01.6-01 (scanner D-01/D-05/D-06, prescan take+read_to_end) e 01.6-07 (test d'isolamento deterministici, pulizia tmp)
 
 Progress: [░░░░░░░░░░] 0%
 

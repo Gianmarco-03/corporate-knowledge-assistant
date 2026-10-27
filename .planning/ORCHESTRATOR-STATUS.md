@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.6 / onda — / slice — / plan completato · aggiornato: 2026-10-26
+fase 01.6 / onda 1 / slice 01.6-01, 01.6-07 / exec onda 1 completata · aggiornato: 2026-10-27
 
 ## Prossima azione
 
-/execute 1.6 onda 1 (01.6-01 + 01.6-07, Opus, worktree exec/01.6-NN) → onde 2-5 per 01.6-ONDE.md (prima di 01.6-03 valorizzare EMBED_REVISION/RERANK_REVISION in spikes.env, D-13) → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/execute 1.6 onda 2 (01.6-03 + 01.6-05, Opus; revisioni TEI già in spikes.env, D-13) → onde 3-5 per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -105,6 +105,9 @@ fase 01.6 / onda — / slice — / plan completato · aggiornato: 2026-10-26
 - fase 01.6 inserita (gap /verify 1, «Strumenti + TODO noti»), criticità normale; CONTEXT D-01..D-13 (D-13: push main 0bfc62b, revisioni TEI in spikes.env da Claude, ORACOLI.md:39 senza double-check · utente 2026-10-26) → 01.6-CONTEXT.md
 - plan 01.6: 9 piani, checker GSD 3 giri 0 blocker; gate security 3 giri (F1-F7, N1-N5, 2 residui giro 3 alla lettera), solid/perimetro/proprieta conformi, crate-boundary n/a → 01.6-GATE.md
 - test design Claude 9/9 (dubbi decisi dal coordinatore, D-01 precisata: multiriga senza take = HIGH) → 01.6-NN-TEST-DESIGN.md; contratto → 01.6-CONTRATTO.md; 5 onde da 2 → 01.6-ONDE.md
+- onda 1 di 01.6 chiusa: 01.6-01 (merge dbba67c; scanner 56/56, albero 0 HIGH nuovi 0 scomparsi, 55 MEDIUM capacity da rileggere in verify; prescan take+read_to_end, ostili 78/78 e 21/21, worker 9f2771769446) + 01.6-07 (merge 07bc0a5; 383 test, 5/5 sotto carico, residui tmp 15→0); gate onda verde → 01.6-01/01.6-07-SUMMARY.md
+- deviazioni livello a onda 1: pre-commit rifiuta indice di soli .txt (security-scope-empty, lo corregge 01.6-06) → evidenza nel commit di codice o con riga di firma; gate Rust sull'host (runner senza rustfmt/clippy, test cfg(linux) non analizzati da clippy); prova worker scartata per MSYS_NO_PATHCONV su --env-file, rifatta con cygpath -m → SUMMARY
+- flake preesistente fuori onda: s01-upload tests/pdfgen.rs test3_magic_mismatch_e_polyglot_415 (422 validation_timeout sotto carico del workspace), 3/3 verde da solo → segnalare in /verify 1
 
 ## Limiti trovati
 
@@ -214,3 +217,4 @@ fase 01.6 / onda — / slice — / plan completato · aggiornato: 2026-10-26
 **Modifica:** Claude (Anthropic) · 2026-10-23 · --verify-ecc: fase 1.5
 **Modifica:** Claude (Anthropic) · 2026-10-24 · --verify e --uat: fase 1.5 chiusa
 **Modifica:** Claude (Anthropic) · 2026-10-26 · --plan: fase 1.6
+**Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 1
