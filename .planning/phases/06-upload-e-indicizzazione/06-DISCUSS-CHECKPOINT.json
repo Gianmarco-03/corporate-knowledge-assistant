@@ -1,0 +1,19 @@
+{
+  "phase": "6",
+  "phase_name": "upload-e-indicizzazione",
+  "timestamp": "2026-10-26T00:00:00Z",
+  "areas_completed": ["Ruoli e classificazione"],
+  "areas_remaining": ["Quarantena e stati", "Coda, retry, audit", "Perimetro della fase"],
+  "decisions": {
+    "Ruoli e classificazione": [
+      {"question": "Livelli di classificazione", "answer": "4 livelli: public, internal, confidential, restricted", "options_presented": ["4 livelli", "3 livelli", "Nessun livello, ACL libera"]},
+      {"question": "Utenti nominati", "answer": "Solo con restricted; uploader sempre incluso", "options_presented": ["Solo con restricted", "Su ogni livello", "Mai"]},
+      {"question": "Chi carica", "answer": "Solo manager e admin (contro raccomandazione: tutti tranne guest)", "options_presented": ["Tutti tranne guest", "Solo manager e admin", "Solo admin"]},
+      {"question": "Chi cambia livello/ACL", "answer": "Uploader + admin", "options_presented": ["Uploader manager + admin", "Uploader + admin", "Solo admin"]},
+      {"question": "Manager carica restricted", "answer": "Sì", "options_presented": ["Sì", "No, solo admin"]},
+      {"question": "Chi vede i job", "answer": "Uploader + admin", "options_presented": ["Uploader + admin", "Chiunque veda il documento"]}
+    ]
+  },
+  "deferred_ideas": [],
+  "canonical_refs": [".planning/phases/06-upload-e-indicizzazione/06-RICERCA-DISCUSSIONE.md"]
+}
