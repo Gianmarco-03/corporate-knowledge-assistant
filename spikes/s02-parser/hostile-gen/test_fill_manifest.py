@@ -120,6 +120,37 @@ class HostileFillManifest(unittest.TestCase):
         for cid, value in overrides.items():
             self.assertEqual(after[cid], value, f"sha256 del caso dichiarato {cid} sostituito")
 
+    # **Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · eccezioni per nome esatto e
+    # voci dei 4 DOCX a data fissa (TEST-10, TEST-11 del test design; RED prima del GREEN)
+
+    def test_hostile_exceptions_are_exact(self):
+        self.assertEqual(tuple(gen_hostile.NON_DETERMINISTIC), DOCX_CASES)
+        declared = gen_hostile.declared_non_deterministic
+        for cid in gen_hostile.CASES:
+            expected = cid.startswith("encrypted-") or cid in DOCX_CASES
+            self.assertEqual(declared(cid), expected, cid)
+        # Niente prefissi né sottostringhe: solo il prefisso `encrypted-` e i 4 nomi.
+        for cid in ("docx-other", "docx-zip-bomb-2", "xdocm-macro", "x-encrypted-user", "encrypted"):
+            self.assertFalse(declared(cid), cid)
+
+    def test_write_docx_entries_are_fixed(self):
+        for cid in DOCX_CASES:
+            fname = gen_hostile.CASES[cid][0]
+            with zipfile.ZipFile(self.out / fname) as zf:
+                infos = zf.infolist()
+            self.assertTrue(infos, cid)
+            for info in infos:
+                where = f"{cid}:{info.filename}"
+                self.assertEqual(info.date_time, (1980, 1, 1, 0, 0, 0), where)
+                self.assertEqual(info.compress_type, zipfile.ZIP_DEFLATED, where)
+                self.assertEqual(info.external_attr, 0o600 << 16, where)
+        # La bomba resta una bomba: somma dichiarata sopra il tetto, file compresso piccolo.
+        bomb = self.out / gen_hostile.CASES["docx-zip-bomb"][0]
+        with zipfile.ZipFile(bomb) as zf:
+            declared = sum(i.file_size for i in zf.infolist())
+        self.assertGreater(declared, gen_hostile.DOCX_TOTAL_CAP)
+        self.assertLess(bomb.stat().st_size, 16 * gen_hostile.MIB)
+
 
 class SofFillManifest(unittest.TestCase):
     @classmethod

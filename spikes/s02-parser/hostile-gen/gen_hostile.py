@@ -23,7 +23,17 @@ non genera nulla e confronta i file già presenti con gli sha256 del manifest (e
 manca o differisce). I PDF cifrati cambiano a ogni generazione (sale e chiavi casuali di
 qpdf): il manifest registra la generazione usata per la misura.
 
+`fill_manifest` ritorna 1, senza riscrivere il manifest, se lo sha256 di un caso differisce
+dal file generato; tollera per nome soltanto i casi `encrypted-*` e i 4 DOCX di
+`NON_DETERMINISTIC`, con la riga `ATTESO DIVERSO`. `write_docx` scrive ogni voce a data fissa
+(1980-01-01 00:00:00), `ZIP_DEFLATED` e permessi fissi.
+
+*Storia:* fino alla gap-closure 1.6 `fill_manifest` stampava `ATTENZIONE` e riscriveva
+comunque, `main` ne ignorava l'esito, e `write_docx` metteva nelle voci zip l'ora corrente,
+quindi i DOCX cambiavano a ogni generazione (01-REVIEW §B.4, D-11 di 01.4).
+
 **Modifica:** Claude (Anthropic) · 2026-10-22 · generatore dei casi ostili di 01-18
+**Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · fill_manifest esce 1 su sha256 diverso; zip a data fissa (gap-closure 1.6, D-10, D-11)
 """
 
 from __future__ import annotations
@@ -53,6 +63,16 @@ TOTAL_CAP = 512 * MIB
 RATIO_CAP = 100
 RATIO_MIN_BYTES = 16 * MIB
 DOCX_TOTAL_CAP = 200 * MIB
+
+# Casi con sha256 diverso a ogni generazione, tollerati per nome esatto da `fill_manifest`
+# (più il prefisso `encrypted-`: sale e chiavi casuali di qpdf). I 4 DOCX sono qui perché il
+# manifest registra la generazione di 01-18, fatta con il timestamp zip dell'ora corrente
+# (D-11 di 01.4); dalla gap-closure 1.6 `write_docx` scrive a data fissa e i DOCX sono
+# riproducibili, ma il manifest non si aggiorna (D-12).
+NON_DETERMINISTIC = ("docx-zip-bomb", "docx-xml-bomb", "docm-macro", "docx-external-link")
+
+# Permessi fissi delle voci zip (`rw-------`).
+ZIP_EXTERNAL_ATTR = 0o600 << 16
 
 # Allegato dei casi `pdf-embedded-*`: stringa fissa e non segreta, cercata dal controllo (d)
 # della «Validazione di 01-07» nell'out_dir del job.
@@ -570,14 +590,25 @@ def base_docx(main_ct: str = CT_DOCX) -> dict[str, bytes]:
     }
 
 
+def zip_entry(name: str) -> zipfile.ZipInfo:
+    """Voce zip a data fissa (1980-01-01 00:00:00, la minima del formato), permessi fissi e
+    `ZIP_DEFLATED`: lo `ZipInfo` nasce `ZIP_STORED` e `writestr`/`open` usano il suo campo,
+    non la compressione dello zip."""
+    info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.external_attr = ZIP_EXTERNAL_ATTR
+    return info
+
+
 def write_docx(path: Path, parts: dict[str, bytes], big: tuple[str, int] | None = None) -> None:
-    """Scrive lo zip; `big` = (nome, byte) di una parte XML riempita di spazi in streaming."""
+    """Scrive lo zip; `big` = (nome, byte) di una parte XML riempita di spazi in streaming.
+    Ogni voce passa da `zip_entry`: stessi byte a ogni generazione."""
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for name, data in parts.items():
-            zf.writestr(name, data)
+            zf.writestr(zip_entry(name), data)
         if big is not None:
             name, size = big
-            with zf.open(name, "w", force_zip64=True) as f:
+            with zf.open(zip_entry(name), "w", force_zip64=True) as f:
                 head = (XML_DECL + f'<w:document xmlns:w="{NS_W}"><w:body>').encode()
                 tail = b"</w:body></w:document>"
                 f.write(head)
@@ -710,20 +741,38 @@ def load_manifest(path: Path) -> list[dict]:
     return cases
 
 
-def fill_manifest(path: Path, out: Path) -> None:
-    """Scrive lo sha256 dei casi senza hash; un hash già presente non si riscrive."""
+def declared_non_deterministic(case_id: str) -> bool:
+    """Vero solo per i casi dichiarati non deterministici: prefisso `encrypted-` o nome esatto."""
+    return case_id.startswith("encrypted-") or case_id in NON_DETERMINISTIC
+
+
+def fill_manifest(path: Path, out: Path) -> int:
+    """Scrive lo sha256 dei casi senza hash; un hash già presente non si riscrive.
+
+    Calcola tutto prima di scrivere. Uno sha256 diverso su un caso non dichiarato stampa
+    `DIVERSO <case_id>`, lascia il manifest com'è e ritorna 1; su un caso dichiarato
+    (`declared_non_deterministic`) stampa `ATTESO DIVERSO <case_id>` e non lo tocca.
+    """
     cases = load_manifest(path)
-    changed = 0
+    changed, bad = 0, 0
     for c in cases:
         actual = sha256_of(out / c["file"])
         if not c.get("sha256"):
             c["sha256"] = actual
             changed += 1
         elif c["sha256"] != actual:
-            print(f"ATTENZIONE {c['case_id']}: sha256 nel manifest diverso dal file generato", file=sys.stderr)
+            if declared_non_deterministic(c["case_id"]):
+                print(f"ATTESO DIVERSO {c['case_id']} (non deterministico per dichiarazione)", file=sys.stderr)
+            else:
+                print(f"DIVERSO {c['case_id']}: sha256 nel manifest diverso dal file generato", file=sys.stderr)
+                bad += 1
+    if bad:
+        print(f"manifest non scritto: {bad} casi deterministici diversi", file=sys.stderr)
+        return 1
     text = json.dumps(cases, ensure_ascii=False, indent=2) + "\n"
     path.write_bytes(text.encode("utf-8"))
     print(f"manifest: {changed} sha256 scritti")
+    return 0
 
 
 def verify_manifest(path: Path, out: Path) -> int:
@@ -758,7 +807,7 @@ def main(argv: list[str]) -> int:
             return verify_manifest(args.manifest, args.out)
         generate(args.out, args.only)
         if args.manifest is not None:
-            fill_manifest(args.manifest, args.out)
+            return fill_manifest(args.manifest, args.out)
     except BuildError as e:
         print(f"gen_hostile: {e}", file=sys.stderr)
         return 1
