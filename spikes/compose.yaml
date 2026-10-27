@@ -2,6 +2,11 @@
 #
 # Proprietario: piano 01-02 (WIRING W5). Dopo la wave 0 nessun piano modifica questo
 # file: le slice variano solo i parametri via env (`${VAR:-default}`).
+# Storia: la regola del file chiuso dopo la wave 0 è riaperta dalla gap-closure 1.6
+# (piano 01.6-03, `riapre_perimetro: [1, 1.1, 1.3]`, D-09), che rinforza runner e paddle,
+# rende obbligatorie le revisioni TEI (`${VAR:?messaggio}`) e dichiara due servizi nuovi:
+# `runner-init` (unico passo root di init-volumes) e `runner-paid` (runner più le chiavi a
+# pagamento, profilo `paid`, solo da `session.sh oneshot-paid|run-paid`).
 #
 # Regole d'uso:
 # - I profili sono SOLO raggruppamenti e si UNISCONO: un servizio parte se UNO
@@ -11,7 +16,8 @@
 # - `COMPOSE_PROFILES` non va mai impostata (né in shell né nei file env).
 # - Nessuna dipendenza dichiarata fra servizi: il set avviato è esattamente quello nominato.
 # - Segreti e URL interni solo da `--env-file "$CKA_SPIKES_ENV"` (file esterno al repo,
-#   default `$HOME/.cka-spikes/spikes.env`); qui solo `${VAR}` e `${VAR:-default}`.
+#   default `$HOME/.cka-spikes/spikes.env`); qui solo `${VAR}`, `${VAR:-default}` e, per le
+#   revisioni TEI, `${VAR:?messaggio}`.
 # - Ogni servizio porta l'etichetta `cka.run_id` (interpolata da CKA_RUN_ID, impostata da
 #   session.sh): la pulizia tocca solo i container della propria sessione.
 # - Porte pubblicate solo su 127.0.0.1.
@@ -28,6 +34,7 @@
 #     tempi (RISK-003).
 #
 # Modifica: Claude (gsd-executor 01.3-01) · 2026-10-21 · worker: tmpfs /work di uid/gid 10001, modo 0700 (gap-closure 1.3)
+# Modifica: Claude (gsd-executor 01.6-03) · 2026-10-27 · runner e paddle con privilegi minimi, runner-init, runner-paid, revisioni TEI obbligatorie (gap-closure 1.6, D-09)
 
 name: cka-spikes
 
@@ -73,9 +80,10 @@ services:
       cka.run_id: "${CKA_RUN_ID:-none}"
     command:
       - "--model-id"
-      - "${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}"
+      # default allineato ad ADR-0007; revisione obbligatoria, nessun default mutabile (D-09)
+      - "${EMBED_MODEL:-BAAI/bge-m3}"
       - "--revision"
-      - "${EMBED_REVISION:-main}"
+      - "${EMBED_REVISION:?EMBED_REVISION obbligatoria: revisione di ADR-0007 nel file segreti}"
       - "--dtype"
       - "${TEI_EMBED_DTYPE:-float16}"
       - "--max-batch-tokens"
@@ -98,7 +106,7 @@ services:
       - "--model-id"
       - "${RERANK_MODEL:-BAAI/bge-reranker-v2-m3}"
       - "--revision"
-      - "${RERANK_REVISION:-main}"
+      - "${RERANK_REVISION:?RERANK_REVISION obbligatoria: revisione di RISULTATI-rerank.md nel file segreti}"
       - "--dtype"
       - "float16"
       - "--max-batch-tokens"
@@ -206,9 +214,12 @@ services:
     labels:
       cka.run_id: "${CKA_RUN_ID:-none}"
     network_mode: none
+    # filesystem dell'immagine in sola lettura (gap-closure 1.6, D-09)
+    read_only: true
     mem_limit: 2g
     memswap_limit: 2g
     cpus: 8
+    pids_limit: 4096
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     user: "10001:10001"
@@ -223,6 +234,10 @@ services:
       cka.run_id: "${CKA_RUN_ID:-none}"
     user: "10001:10001"
     working_dir: /src
+    # tempra del worker (gap-closure 1.6, D-09)
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 4096
     environment:
       CKA_RUN_ID: "${CKA_RUN_ID:-none}"
       CARGO_TARGET_DIR: /target
@@ -253,7 +268,7 @@ services:
       TEI_MAX_CLIENT_BATCH: ${TEI_MAX_CLIENT_BATCH}
       # s04
       JEV_API_URL: ${JEV_API_URL}
-      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY}
+      # chiave TypeSafe solo nel servizio runner-paid (gap-closure 1.6, D-09)
       JEV_MODEL: ${JEV_MODEL}
       TEI_RERANK_URL: ${TEI_RERANK_URL}
       RERANK_MODEL: ${RERANK_MODEL}
@@ -262,8 +277,7 @@ services:
       S04_MAX_COST_USD: ${S04_MAX_COST_USD}
       # s05
       S05_JEV_CANCEL_REQUESTS: ${S05_JEV_CANCEL_REQUESTS}
-      # s06
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # s06 (chiave Anthropic solo nel servizio runner-paid, gap-closure 1.6, D-09)
       LLM_MODEL_SIMPLE: ${LLM_MODEL_SIMPLE}
       LLM_MODEL_COMPLEX: ${LLM_MODEL_COMPLEX}
       S06_MAX_COST_USD: ${S06_MAX_COST_USD}
@@ -274,6 +288,39 @@ services:
       - cargo-registry:/usr/local/cargo/registry
       - work-tmp:/work/tmp
     networks: [default, parse]
+
+  # Unico passo root di `session.sh init-volumes` (gap-closure 1.6, D-09): chown dei tre
+  # volumi del runner per uid 10001, con le sole capability del chown, senza rete e senza
+  # ambiente. `pull_policy: never`: se il runner non è costruito il job fallisce invece di
+  # scaricare un'immagine omonima.
+  runner-init:
+    image: cka-spikes-runner:latest
+    pull_policy: never
+    profiles: [runner]
+    labels:
+      cka.run_id: "${CKA_RUN_ID:-none}"
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    network_mode: none
+    volumes:
+      - cargo-target:/target
+      - cargo-registry:/usr/local/cargo/registry
+      - work-tmp:/work/tmp
+
+  # Runner con le chiavi a pagamento (gap-closure 1.6, D-09): stessa configurazione del
+  # runner (tempra, volumi, reti) più le due chiavi a pagamento (TypeSafe e Anthropic), che
+  # compose fonde con l'ambiente ereditato. Profilo dedicato `paid`, così nessun avvio per
+  # profilo `runner` lo trascina; si lancia solo con `session.sh oneshot-paid|run-paid`.
+  runner-paid:
+    extends: {service: runner}
+    image: cka-spikes-runner:latest
+    profiles: [paid]
+    environment:
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
 
 networks:
   default: {}

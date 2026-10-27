@@ -1,0 +1,32 @@
+# runner-hardening — tempra del runner e dei servizi degli spike (gap-closure 1.6, D-09)
+git_rev base: 6d7f567a6c0f4c27cb181b9f2fc5302247b2ef64
+data UTC: 2026-10-27T17:42:37Z
+**Modifica:** Claude (test-write 01.6-03) · 2026-10-27 · evidenza della tempra del runner e dei servizi degli spike (D-09), sezione Base (RED)
+**Modifica:** Claude (gsd-executor 01.6-03) · 2026-10-27 · riga base paddle rifatta con la sonda di /proc/self/mounts (decisione del coordinatore), sezioni Dopo e Pulizia
+chiavi revisione nel file segreti: EMBED_REVISION RERANK_REVISION
+# Precondizione verificata solo per nome con il sed della precondizione del piano; nessun valore letto né stampato.
+# Identificativo di piano per session.sh: 01-6-03. Prove nel runner solo via spikes/tools/session.sh.
+
+## Base (RED)
+
+# Prova 1: job del runner di base (session.sh oneshot), run_id 01-6-03-20261027t174237z-1bad.
+# Sonda: grep CapBnd/NoNewPrivs di /proc/self/status, cat /sys/fs/cgroup/pids.max,
+# presenza per nome con [ -n "${NOME+x}" ]; nessun valore stampato.
+base runner: capbnd=00000000a80425fb nonewprivs=0 pids_max=max
+base runner chiavi: TYPESAFE_API_KEY presente ANTHROPIC_API_KEY presente
+
+# Prova 2: paddle di base (session.sh up + exec).
+# Sonda: opzione del mount di / in /proc/self/mounts; cat /sys/fs/cgroup/pids.max.
+# Storia: la prima lettura (test-write) usava la sonda del piano touch /opt/.rw-probe e dava
+# «fs=ro» già sulla base: /opt è 0:0 modo 755 e paddle gira come 10001, quindi il touch
+# falliva per i permessi e non per la sola lettura (falso verde possibile, RISK-9). Diagnosi
+# del test-write (run_id 01-6-03-20261027t174300z-5810):
+diag paddle: uid=10001 opt=0:0 755 rootfs=rw touch=Permission denied
+# Decisione del coordinatore (deviazione a dell'esecutore): la sonda legge l'opzione del mount
+# di / in /proc/self/mounts (primo campo delle opzioni, rw o ro), qui e nella prova del Task 3.
+# Base ripetuta con la sonda nuova, run_id 01-6-03-20261027t174637z-1ad0 (session.sh up + exec):
+base paddle: fs=rw pids_max=max
+
+# Prova 3: statico, fuori dalla sessione, su spikes/compose.yaml alla base.
+base tei: default_main=2 default_embed=Qwen/Qwen3-Embedding-0.6B
+base statico: runner_tempra=0 runner_paid_runner_init=0 paddle_read_only_pids_limit=0 session_paid_cmd=0 init_volumes_user_root=1

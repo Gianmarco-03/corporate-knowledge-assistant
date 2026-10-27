@@ -11,7 +11,10 @@
 #   up <run_id> <svc…>                      avvia i soli servizi nominati, senza profili
 #   run <run_id> <nome> -- <cmd…>           job del runner in background, nominato
 #   oneshot <run_id> -- <cmd…>              job del runner in primo piano (--rm)
-#   init-volumes <run_id>                   chown dei volumi del runner (unico passo root)
+#   run-paid <run_id> <nome> -- <cmd…>      come run, sul servizio runner-paid (chiavi a pagamento)
+#   oneshot-paid <run_id> -- <cmd…>         come oneshot, sul servizio runner-paid
+#   init-volumes <run_id>                   chown dei volumi del runner (unico passo root,
+#                                           servizio runner-init)
 #   exec <run_id> <svc|container> -- <cmd…> docker exec su un container della sessione
 #   cid <run_id> <svc>                      id dell'unico container del servizio
 #   stop <run_id> <container>               ferma e rimuove UN container della sessione
@@ -28,8 +31,12 @@
 # maiuscole comprese, di una chiave del file: così l'interpolazione usa sempre il valore
 # del file (fase 1.1). Del file si leggono solo i nomi delle chiavi; restano escluse
 # CKA_RUN_ID, che imposta dc() stesso, e le variabili interne di session.sh (DC_ENV_KEEP).
+# Le chiavi a pagamento stanno solo nel servizio runner-paid (oneshot-paid, run-paid);
+# up rifiuta runner-paid e runner-init: niente container a lunga vita con quelle chiavi o
+# root con CHOWN (gap-closure 1.6, D-09).
 #
 # Modifica: Claude (gsd-executor 01.1-01) · 2026-10-21 · dc(): i segreti del file prevalgono sull'host (gap-closure 1.1)
+# Modifica: Claude (gsd-executor 01.6-03) · 2026-10-27 · runner senza capability, runner-init, runner-paid (gap-closure 1.6, D-09)
 
 set -euo pipefail
 
@@ -317,14 +324,26 @@ cmd_up() {
   (( $# > 0 )) || die 2 "up richiede almeno un servizio"
   local s
   for s in "$@"; do [[ $s =~ ^[a-z0-9][a-z0-9-]*$ ]] || die 2 "nome di servizio non valido: $s"; done
+  # runner-paid (chiavi a pagamento) e runner-init (root con CHOWN) non si avviano mai a
+  # lunga vita: il controllo guarda ogni nome e precede ogni chiamata a docker
+  # (gap-closure 1.6, D-09).
+  for s in "$@"; do
+    case $s in
+      runner-paid|runner-init)
+        die 2 "up non avvia $s: usare oneshot-paid/run-paid o init-volumes" ;;
+    esac
+  done
 
   # (1) set risolto = set nominato. `config --services` ignora i nomi (verificato in
   # 01-02 Task 3, compose v5.6.0): ripiego del piano, `config --format json <svc…>` senza
   # flag di profilo, cioè la stessa risoluzione di `up <svc…>`, e chiavi di .services.
+  # `--no-interpolate` (gap-closure 1.6): alle chiavi di .services i valori non servono,
+  # quindi la pipe non li porta; un parsing fallito esce con un messaggio fisso, senza il
+  # testo dell'eccezione, che potrebbe riportare un frammento dell'input.
   local want got
   want=$(printf '%s\n' "$@" | sort -u | tr '\n' ' ')
-  got=$(dc "$rid" config --format json "$@" \
-    | node -e 'const j=JSON.parse(require("fs").readFileSync(0));for(const k of Object.keys(j.services||{}))console.log(k)' \
+  got=$(dc "$rid" config --no-interpolate --format json "$@" \
+    | node -e 'let j;try{j=JSON.parse(require("fs").readFileSync(0))}catch(e){console.error("config non JSON");process.exit(1)}for(const k of Object.keys(j.services||{}))console.log(k)' \
     | tr -d '\r' | sort -u | tr '\n' ' ')
   if [[ $want != "$got" ]]; then
     die 1 "set risolto diverso dal nominato: nominato {$want} risolto {$got}"
@@ -381,12 +400,45 @@ cmd_oneshot() {
   dc "$rid" run --rm --no-deps -T --label "cka.run_id=$rid" runner "${cmd[@]}"
 }
 
+# run-paid e oneshot-paid: copie di run e oneshot sul servizio runner-paid, con gli stessi
+# controlli. Le chiavi a pagamento arrivano solo dall'interpolazione di compose (file
+# segreti), mai da argv (gap-closure 1.6, D-09).
+cmd_run_paid() {
+  local rid=${1-}
+  valid_run_id "$rid"
+  local name=${2-}
+  valid_name "$name"
+  shift 2
+  [[ ${1-} == -- ]] || die 2 "uso: run-paid <run_id> <container_name> -- <comando…>"
+  shift
+  (( $# > 0 )) || die 2 "run-paid richiede un comando"
+  require_owner "$rid"
+  if docker inspect "$name" >/dev/null 2>&1; then
+    die 1 "nome già occupato: $name (run_id=$(label_of "$name"))"
+  fi
+  local cmd=("$@")
+  dc "$rid" run -d --no-deps --name "$name" --label "cka.run_id=$rid" runner-paid "${cmd[@]}"
+}
+
+cmd_oneshot_paid() {
+  local rid=${1-}
+  valid_run_id "$rid"; shift
+  [[ ${1-} == -- ]] || die 2 "uso: oneshot-paid <run_id> -- <comando…>"
+  shift
+  (( $# > 0 )) || die 2 "oneshot-paid richiede un comando"
+  require_owner "$rid"
+  local cmd=("$@")
+  dc "$rid" run --rm --no-deps -T --label "cka.run_id=$rid" runner-paid "${cmd[@]}"
+}
+
+# Unico passo root: servizio runner-init (root con le sole CHOWN, DAC_OVERRIDE e FOWNER,
+# senza rete né ambiente); il runner non ha più capability (gap-closure 1.6, D-09).
 cmd_init_volumes() {
   (( $# == 1 )) || die 2 "uso: init-volumes <run_id> (firma fissa, nessun altro argomento)"
   local rid=$1
   valid_run_id "$rid"
   require_owner "$rid"
-  dc "$rid" run --rm --no-deps -T --user 0:0 --label "cka.run_id=$rid" runner \
+  dc "$rid" run --rm --no-deps -T --label "cka.run_id=$rid" runner-init \
     chown -R 10001:10001 /target /usr/local/cargo/registry /work/tmp
   echo "INIT-VOLUMES ok: /target /usr/local/cargo/registry /work/tmp di 10001:10001"
 }
@@ -506,7 +558,7 @@ cmd_with() {
 }
 
 usage() {
-  sed -n '2,24p' "$0" >&2
+  sed -n '2,27p' "$0" >&2
   exit 2
 }
 
@@ -524,6 +576,8 @@ main() {
     up) cmd_up "$@" ;;
     run) cmd_run "$@" ;;
     oneshot) cmd_oneshot "$@" ;;
+    run-paid) cmd_run_paid "$@" ;;
+    oneshot-paid) cmd_oneshot_paid "$@" ;;
     init-volumes) cmd_init_volumes "$@" ;;
     exec) cmd_exec "$@" ;;
     cid) cmd_cid "$@" ;;
