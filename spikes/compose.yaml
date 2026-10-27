@@ -314,10 +314,12 @@ services:
   # runner (tempra, volumi, reti) più le due chiavi a pagamento (TypeSafe e Anthropic), che
   # compose fonde con l'ambiente ereditato. Profilo dedicato `paid`, così nessun avvio per
   # profilo `runner` lo trascina; si lancia solo con `session.sh oneshot-paid|run-paid`.
+  # `!override`: extends unisce le sequenze, e senza il tag i profili risolti sarebbero
+  # [runner, paid] (letto con config --no-interpolate nel Task 3 di 01.6-03).
   runner-paid:
     extends: {service: runner}
     image: cka-spikes-runner:latest
-    profiles: [paid]
+    profiles: !override [paid]
     environment:
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}

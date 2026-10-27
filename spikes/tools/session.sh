@@ -337,13 +337,17 @@ cmd_up() {
   # (1) set risolto = set nominato. `config --services` ignora i nomi (verificato in
   # 01-02 Task 3, compose v5.6.0): ripiego del piano, `config --format json <svc…>` senza
   # flag di profilo, cioè la stessa risoluzione di `up <svc…>`, e chiavi di .services.
-  # `--no-interpolate` (gap-closure 1.6): alle chiavi di .services i valori non servono,
-  # quindi la pipe non li porta; un parsing fallito esce con un messaggio fisso, senza il
-  # testo dell'eccezione, che potrebbe riportare un frammento dell'input.
+  # `--no-interpolate` (gap-closure 1.6): alla risoluzione i valori non servono, quindi la
+  # pipe non li porta; un parsing fallito esce con un messaggio fisso, senza il testo
+  # dell'eccezione, che potrebbe riportare un frammento dell'input. Con --no-interpolate
+  # compose non filtra per servizio e rende il modello intero (avviso «service filtering is
+  # not applied», verificato in 01.6-03): il set risolto lo calcola node, come chiusura dei
+  # nomi dichiarati su depends_on, network_mode service: e volumes_from, cioè quello che
+  # `up <svc…>` tirerebbe dentro. Un nome assente dal modello resta fuori dal set.
   local want got
   want=$(printf '%s\n' "$@" | sort -u | tr '\n' ' ')
-  got=$(dc "$rid" config --no-interpolate --format json "$@" \
-    | node -e 'let j;try{j=JSON.parse(require("fs").readFileSync(0))}catch(e){console.error("config non JSON");process.exit(1)}for(const k of Object.keys(j.services||{}))console.log(k)' \
+  got=$(dc "$rid" config --no-interpolate --format json \
+    | node -e 'let j;try{j=JSON.parse(require("fs").readFileSync(0))}catch(e){console.error("config non JSON");process.exit(1)}const s=j.services||{},seen=new Set(),q=process.argv.slice(1);while(q.length){const n=q.pop();if(seen.has(n)||!Object.hasOwn(s,n))continue;seen.add(n);const v=s[n],d=v.depends_on||{};for(const k of Array.isArray(d)?d:Object.keys(d))q.push(k);const m=String(v.network_mode||"");if(m.startsWith("service:"))q.push(m.slice(8));for(const f of v.volumes_from||[]){const t=String(f);if(!t.startsWith("container:"))q.push(t.split(":")[0])}}for(const k of seen)console.log(k)' "$@" \
     | tr -d '\r' | sort -u | tr '\n' ' ')
   if [[ $want != "$got" ]]; then
     die 1 "set risolto diverso dal nominato: nominato {$want} risolto {$got}"
