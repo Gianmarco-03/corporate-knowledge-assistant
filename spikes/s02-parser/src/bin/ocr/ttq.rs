@@ -368,4 +368,189 @@ mod tests {
         let f: Vec<&str> = row.split(',').collect();
         assert_eq!((f[10], f[11], f[12], f[13]), ("0", "0", "0", "1600"));
     }
+
+    // ---- read_run_dir con reports.jsonl contato (gap-closure 1.6, D-10) ------------------
+    //
+    // **Modifica:** Claude (test-write 01.6-05) · 2026-10-27 · test di read_run_dir con rapporti
+    // assenti, vuoti, mancanti o duplicati (D-10)
+
+    /// Cartella di una run sintetica in `temp_dir()/s02-ttq-<pid>-<n>`, coerente con `meta()`.
+    /// Il `Drop` la rimuove su ogni uscita del test, panico con unwind compreso, come
+    /// `SelftestInput` di `parse-parent.rs`.
+    struct RunDirFixture {
+        path: std::path::PathBuf,
+    }
+
+    impl RunDirFixture {
+        /// Scrive `meta.tsv` e `steps.tsv` per i componenti dati; `reports.jsonl` non c'è.
+        fn new(components: &[Component]) -> RunDirFixture {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let n = NEXT.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!("s02-ttq-{}-{n}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).unwrap();
+            let fixture = RunDirFixture { path };
+            let m = meta();
+            let t0: u64 = 1_000_000_000;
+            let t1 = t0 + m.wall_ms * 1_000_000;
+            let meta_tsv = format!(
+                "run_id\t{}\ndoc_id\t{}\ndoc_sha256\t{}\npages\t{}\nrun\t{}\nwarm\t{}\n\
+                 docling_device\t{}\nt_start_ns\t{t0}\nt_end_ns\t{t1}\n",
+                m.run_id, m.doc_id, m.doc_sha256, m.pages, m.run, m.warm, m.docling_device
+            );
+            std::fs::write(fixture.path.join("meta.tsv"), meta_tsv).unwrap();
+            let mut steps = String::new();
+            let mut at = t0;
+            for c in components {
+                let name = match c.step {
+                    Step::Extract => "extract",
+                    Step::Docling => "docling",
+                    Step::Render => "render",
+                    Step::Tesseract => "tesseract",
+                };
+                let pages: Vec<String> = c.pages.iter().map(|p| p.to_string()).collect();
+                let end = at + c.ms * 1_000_000;
+                steps.push_str(&format!(
+                    "{name}\t{}\t{}\t{}\t{at}\t{end}\n",
+                    c.run_id,
+                    c.doc_sha256,
+                    pages.join(",")
+                ));
+                at = end;
+            }
+            assert!(at <= t1, "fixture: passi oltre la finestra della run");
+            std::fs::write(fixture.path.join("steps.tsv"), steps).unwrap();
+            fixture
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.path
+        }
+
+        /// `reports.jsonl` con il testo dato, così com'è.
+        fn write_reports_raw(&self, text: &str) {
+            std::fs::write(self.path.join("reports.jsonl"), text).unwrap();
+        }
+
+        /// `reports.jsonl` con un `RunReport` ok per ogni suffisso (`extract`, `tess-4`, …).
+        fn write_ok_reports(&self, suffixes: &[&str]) {
+            self.write_reports_raw(&ok_reports(suffixes));
+        }
+    }
+
+    impl Drop for RunDirFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    /// Righe JSON di `RunReport` ok con `job_id` `<run_id>-<suffisso>`.
+    fn ok_reports(suffixes: &[&str]) -> String {
+        let rid = meta().run_id;
+        suffixes
+            .iter()
+            .map(|s| format!("{{\"job_id\":\"{rid}-{s}\",\"outcome\":{{\"status\":\"ok\"}}}}\n"))
+            .collect()
+    }
+
+    const BATCH_SUMMARY: &str = "{\"status\":\"batch_summary\",\"launch_errors\":0}\n";
+
+    /// Rapporti attesi per `ok_components()`: extract, render e una pagina tess per pagina OCR.
+    const FULL: [&str; 4] = ["extract", "render", "tess-4", "tess-5"];
+
+    #[test]
+    fn test10_missing_reports_is_rejected() {
+        let fx = RunDirFixture::new(&ok_components());
+        let r = read_run_dir(fx.path());
+        assert!(r.is_err(), "reports.jsonl assente accettato");
+    }
+
+    #[test]
+    fn test10_empty_reports_is_rejected() {
+        for text in ["", "\n  \n", BATCH_SUMMARY] {
+            let fx = RunDirFixture::new(&ok_components());
+            fx.write_reports_raw(text);
+            match read_run_dir(fx.path()) {
+                Ok(_) => panic!("reports.jsonl senza rapporti ok accettato: {text:?}"),
+                Err(e) => assert!(
+                    e.contains("reports.jsonl vuoto"),
+                    "errore inatteso per {text:?}: {e}"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn test10_missing_tess_report_is_rejected() {
+        let fx = RunDirFixture::new(&ok_components());
+        fx.write_ok_reports(&["extract", "render", "tess-4"]);
+        match read_run_dir(fx.path()) {
+            Ok(_) => panic!("rapporto tess-5 mancante accettato"),
+            Err(e) => {
+                assert!(e.contains("rapporti ok attesi 4, trovati 3"), "errore: {e}");
+                assert!(e.contains("tess-5"), "il mancante non è nominato: {e}");
+            }
+        }
+    }
+
+    #[test]
+    fn test10_duplicate_ok_report_is_rejected() {
+        let fx = RunDirFixture::new(&ok_components());
+        fx.write_ok_reports(&["extract", "render", "tess-4", "tess-4", "tess-5"]);
+        assert!(
+            read_run_dir(fx.path()).is_err(),
+            "rapporto ok duplicato accettato"
+        );
+    }
+
+    #[test]
+    fn test10_full_reports_are_accepted() {
+        let fx = RunDirFixture::new(&ok_components());
+        fx.write_ok_reports(&FULL);
+        let (m, comps) = read_run_dir(fx.path()).unwrap();
+        assert_eq!(m.run_id, meta().run_id);
+        assert_eq!(comps.len(), ok_components().len());
+    }
+
+    #[test]
+    fn test10_digital_run_needs_only_extract() {
+        let v = vec![
+            c(Step::Extract, &[1, 2, 3, 4, 5], 700),
+            c(Step::Docling, &[2, 3], 900),
+        ];
+        let fx = RunDirFixture::new(&v);
+        fx.write_ok_reports(&["extract"]);
+        read_run_dir(fx.path()).unwrap();
+    }
+
+    #[test]
+    fn test10_batch_summary_is_ignored() {
+        let fx = RunDirFixture::new(&ok_components());
+        fx.write_reports_raw(&format!("{}{BATCH_SUMMARY}", ok_reports(&FULL)));
+        read_run_dir(fx.path()).unwrap();
+    }
+
+    #[test]
+    fn run_dir_fixture_cleans_on_panic() {
+        let saved = std::sync::Mutex::new(None);
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let fx = RunDirFixture::new(&ok_components());
+            *saved.lock().unwrap() = Some(fx.path().to_path_buf());
+            panic!("panico voluto");
+        }));
+        assert!(r.is_err());
+        let p = saved.lock().unwrap().take().unwrap();
+        assert!(
+            !p.exists(),
+            "cartella della fixture rimasta: {}",
+            p.display()
+        );
+        assert_ne!(p, std::env::temp_dir());
+        let name = p.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(
+            name.starts_with(&format!("s02-ttq-{}-", std::process::id())),
+            "nome della fixture: {name}"
+        );
+    }
 }

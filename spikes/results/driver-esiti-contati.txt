@@ -1,0 +1,36 @@
+# driver-esiti-contati — driver di misura con esiti contati e DOCX a data fissa (gap-closure 1.6, piano 01.6-05, D-10, D-11)
+git_rev base: 6d7f567a6c0f4c27cb181b9f2fc5302247b2ef64
+# data UTC: 2026-10-27T17:48:51Z
+# Identificativo di piano per session.sh: 01-6-05. Nessuna run di run_ttq.sh o vram.sh; nessuna misura rifatta (D-12).
+# I generatori ostili girano nei test senza --manifest, su copie dei manifest, in TemporaryDirectory sotto /work/tmp.
+**Modifica:** Claude (test-write 01.6-05) · 2026-10-27 · evidenza dei driver con esiti contati (D-10, D-11)
+
+## RED (Task 1, codice di produzione di base)
+
+run_id RED python e prova R1-extract = 01-6-05-20261027t174730z-86d3
+run_id RED ttq (file committato) = 01-6-05-20261027t174901z-4438
+
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast --bin ocr ttq'
+test result: FAILED. 10 passed; 4 failed; 0 ignored; 0 measured; 45 filtered out
+[exit 101]
+RED ttq: falliti=4 nomi=test10_missing_reports_is_rejected,test10_empty_reports_is_rejected,test10_missing_tess_report_is_rejected,test10_duplicate_ok_report_is_rejected
+verdi sulla base: test10_full_reports_are_accepted,test10_digital_run_needs_only_extract,test10_batch_summary_is_ignored,run_dir_fixture_cleans_on_panic (più i 5 test10 preesistenti)
+motivo: panico dell'asserzione (read_run_dir ritorna Ok), nessun errore di compilazione
+nota R1-extract: un test temporaneo non committato (run_id R, rapporto <R>1-extract al posto di <R>-extract) è FAILED sulla base, «R1-extract accettato per la run R»: lo starts_with di oggi accetta il prefisso. Il caso resta coperto da test10_check_ok_reports_rejects_unexpected_id del Task 2 passo 0.
+
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 -m unittest discover -v -s s02-parser/measure -p "test_*.py"
+Ran 7 tests; FAILED (failures=4)
+[exit 1]
+RED budget_real: falliti=4 nomi=test_m10_false_when_report_missing,test_m10_false_when_report_duplicated,test_m10_false_when_report_unknown,test_m10_false_when_jobs_duplicated
+verdi sulla base: test_m10_true_when_ids_match,test_m10_false_when_no_jobs_and_no_reports,test_report_without_job_id_never_true (oggi KeyError su job_id assente, ammesso dal test: mai vero)
+motivo: AssertionError 'true' != 'false' (m10 chiede solo len(reports) > 0)
+
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 -m unittest discover -v -s s02-parser/hostile-gen -p "test_*.py"
+Ran 4 tests; FAILED (failures=4)
+[exit 1]
+RED fill_manifest: falliti=4 nomi=test_hostile_fill_returns_1_on_deterministic_mismatch,test_hostile_fill_tolerates_declared_cases,test_sof_fill_returns_1_on_mismatch,test_write_docx_is_deterministic
+motivo: fill_manifest ritorna None (attesi 1, 0, 1); write_docx con timestamp corrente dà sha256 diversi a 2,2 s di distanza
+
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- bash -c "ls -d /work/tmp/01-6-05-* 2>/dev/null | wc -l"
+0
+git status --porcelain spikes/data/hostile: vuoto
