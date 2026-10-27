@@ -65,3 +65,18 @@ Note della prova:
 - I valori calcolati dalla prova non si confrontano con quelli ratificati e non si adottano (hard rule 4): le uscite temporanee sono rimosse dal runner prima di `session.sh stop`.
 - `git diff --quiet $BASE -- spikes/s02-parser/results spikes/data/corpus/oracles/*.json` vuoto; anche `spikes/results/*.csv` invariati.
 - Primo giro scartato (run 01-6-08-20261027t191247z-c938, immagine d2e5ca669cd9): il job di render aveva un `out_dir` fuori forma (`out_dir_form`, l'ultimo componente deve essere il `job_id`) e il CSV di calibrazione mancava di `hw.json`. Nessun `calibrate` su `ocr_tesseract` è partito, la cartella temporanea è stata rimossa. Il secondo giro ha ricostruito l'immagine nella propria prenotazione.
+
+## Convenzione di section_path in ORACOLI.md (Task 3)
+
+**Modifica:** Claude (gsd-executor 01.6-08) · 2026-10-27 · conteggio dei section_path e correzione della convenzione (D-13)
+
+section_path: da_h1=0 da_h2=44 altro=0
+section_path source_ref: da_h1=0 da_h2=35 altro=0
+oracoli: convenzione section_path corretta con Storia
+deroga double-check: si motivo=JSON degli oracoli invariato; oracoli degli spike, non evaluation corpus (D-13)
+esito json oracoli: invariato
+
+Note del Task 3:
+- Conteggio di sola lettura con uno script `sh scripts/py.sh -I` in una cartella `mktemp -d` fuori dal repo, poi rimossa. Per ogni `section_path` non nullo di `queries.json` (44 negli `expected_passages`, 35 nei `source_ref`) si legge il Markdown `synthetic/<document_id>.md`, se ne estraggono l'unico H1 (`# `) e gli H2 (`## `), e si confronta il primo elemento del percorso (separatore ` > `) con l'H1 reale e con gli H2 reali, non con un'euristica. 9 documenti letti, ciascuno con un solo H1.
+- sha256 di `queries.json` uguale prima e dopo il conteggio (`971e61b4fe6c38cd`); `git diff --quiet $BASE` su `queries.json` e `parser-it.json` vuoto.
+- In `ORACOLI.md` cambia la sola riga 39 (aggiunta della frase sull'H1); sotto, il paragrafo *Storia* riporta alla lettera la convenzione precedente, e la riga **Modifica:** firma la deroga al `double-check` decisa dall'utente (D-13).
