@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 5 discuss completato
-last_updated: "2026-10-27T17:40:14.524Z"
-last_activity: "2026-10-27 — fase 1.6 onda 1 chiusa: 01.6-01 (scanner D-01/D-05/D-06, prescan take+read_to_end) e 01.6-07 (test d'isolamento deterministici, pulizia tmp)"
+last_updated: "2026-10-27T18:58:28.076Z"
+last_activity: 2026-10-27 — fase 1.6 onda 2 chiusa (01.6-03 tempra del runner e revisioni TEI, 01.6-05 driver di misura con esiti contati)
 progress:
   total_phases: 21
   completed_phases: 6
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 01.6-07
-Status: Executing — fase 1.6, onda 1 di 5 chiusa (2/9 piani); prossima onda 2: 01.6-03 e 01.6-05
-Last activity: 2026-10-27 — fase 1.6 onda 1 chiusa: 01.6-01 (scanner D-01/D-05/D-06, prescan take+read_to_end) e 01.6-07 (test d'isolamento deterministici, pulizia tmp)
+Plan: 01.6-05
+Status: Executing — fase 1.6, onda 2 di 5 chiusa (4/9 piani); prossima onda 3: 01.6-02 e 01.6-08
+Last activity: 2026-10-27 — fase 1.6 onda 2 chiusa (01.6-03 tempra del runner e revisioni TEI, 01.6-05 driver di misura con esiti contati)
 
 Progress: [░░░░░░░░░░] 0%
 

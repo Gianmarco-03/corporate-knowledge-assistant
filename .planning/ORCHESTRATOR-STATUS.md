@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.6 / onda 1 / slice 01.6-01, 01.6-07 / exec onda 1 completata · aggiornato: 2026-10-27
+fase 01.6 / onda 2 / slice 01.6-03, 01.6-05 / exec onda 2 completata · aggiornato: 2026-10-27
 
 ## Prossima azione
 
-/execute 1.6 onda 2 (01.6-03 + 01.6-05, Opus; revisioni TEI già in spikes.env, D-13) → onde 3-5 per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/execute 1.6 onda 3 (01.6-02 + 01.6-08, Opus; un solo piano con test s02 per onda, gate con «Compiling s02-parser» e conteggio test) → onde 4-5 per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -108,6 +108,9 @@ fase 01.6 / onda 1 / slice 01.6-01, 01.6-07 / exec onda 1 completata · aggiorna
 - onda 1 di 01.6 chiusa: 01.6-01 (merge dbba67c; scanner 56/56, albero 0 HIGH nuovi 0 scomparsi, 55 MEDIUM capacity da rileggere in verify; prescan take+read_to_end, ostili 78/78 e 21/21, worker 9f2771769446) + 01.6-07 (merge 07bc0a5; 383 test, 5/5 sotto carico, residui tmp 15→0); gate onda verde → 01.6-01/01.6-07-SUMMARY.md
 - deviazioni livello a onda 1: pre-commit rifiuta indice di soli .txt (security-scope-empty, lo corregge 01.6-06) → evidenza nel commit di codice o con riga di firma; gate Rust sull'host (runner senza rustfmt/clippy, test cfg(linux) non analizzati da clippy); prova worker scartata per MSYS_NO_PATHCONV su --env-file, rifatta con cygpath -m → SUMMARY
 - flake preesistente fuori onda: s01-upload tests/pdfgen.rs test3_magic_mismatch_e_polyglot_415 (422 validation_timeout sotto carico del workspace), 3/3 verde da solo → segnalare in /verify 1
+- onda 2 di 01.6 chiusa: 01.6-03 (merge 09c1160; runner cap_drop ALL + no-new-privileges + pids_limit 1024, runner-paid solo in profilo paid via oneshot-paid/run-paid, paddle read_only + tmpfs /tmp, revisioni TEI obbligatorie, tei-embed bge-m3 uguali=si) + 01.6-05 (merge ff5295a; check_ok_reports, budget_real su insiemi di job_id, fill_manifest exit 1, DOCX deterministici; D-12 nessun CSV/manifest cambiato); gate onda verde (s02 400/0 con Compiling) → 01.6-03/01.6-05-SUMMARY.md
+- rimbalzi livello b onda 2 ratificati dall'utente 2026-10-27: `profiles: !override [paid]` (extends unisce le sequenze) e chiusura dei servizi in node per cmd_up (compose non filtra con --no-interpolate; codice da rivedere in /verify 1) → 01.6-03-PLAN.md Storia
+- deviazioni livello a onda 2: sonda paddle sull'opzione di mount di `/`; tmpfs /tmp su paddle; pids_limit runner 1024 dopo picco 274; EMBED_MODEL=BAAI/bge-m3 in spikes.env (utente) e passo 6 rifatto; evidenza finale di runner-hardening.txt committata col SUMMARY; test check_ok_reports dell'esecutore (RED E0425 solo in evidenza); human_judgment 01.6-03 ×4, 01.6-05 ×6 → SUMMARY
 
 ## Limiti trovati
 
@@ -121,6 +124,7 @@ fase 01.6 / onda 1 / slice 01.6-01, 01.6-07 / exec onda 1 completata · aggiorna
 - 2026-10-23 · volume cargo-target condiviso fra worktree: binario parse-parent vecchio (base senza fix) più recente dei sorgenti di main → 3 rossi falsi su drivers.rs; touch + rebuild → verde · impatto: ogni gate dopo merge va verificato con «Compiling s02-parser»
 - 2026-10-24/25 · Docker Desktop spento dall'utente 2 volte durante TTQ 01-13 e una volta fra due giri paddle · serie TTQ invalidate in results/raw/invalid-ttq-docker-restart*, rilancio da capo; esecutore fermo, Docker riavviato dall'orchestratore su richiesta · rif. rapporto-01-13 (c)
 - 2026-10-25 · gsd-tools roadmap update-plan-progress 01 13 scrive «Plans» nella sezione 01.5 (fase 1 ha «**Plans**: TBD») · hunk annullato con git apply -R, solo tabella aggiornata · rif. commit bridge 01-13
+- 2026-10-27 · volume /target del runner condiviso fra worktree: sessione s02 concorrente (01-6-03) ha lasciato binario ocr più nuovo per mtime, suite di 01.6-05 ha eseguito 47 test vecchi invece di 64 con exit 0 · impatto: falso verde possibile su esecuzioni parallele; mitigazione onde 3-5: un solo piano s02 per onda + controllo «Compiling s02-parser» e conteggio test nel gate; correzione (target per worktree o ricompilazione forzata in session.sh) da decidere in /verify 1 · rif. evidenza 01.6-05
 
 ## Gate & verdetti
 
@@ -218,3 +222,4 @@ fase 01.6 / onda 1 / slice 01.6-01, 01.6-07 / exec onda 1 completata · aggiorna
 **Modifica:** Claude (Anthropic) · 2026-10-24 · --verify e --uat: fase 1.5 chiusa
 **Modifica:** Claude (Anthropic) · 2026-10-26 · --plan: fase 1.6
 **Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 1
+**Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 2, limite volume /target condiviso

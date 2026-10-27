@@ -2,6 +2,7 @@
 git_rev base: 6d7f567a6c0f4c27cb181b9f2fc5302247b2ef64
 data UTC: 2026-10-27T17:42:37Z
 **Modifica:** Claude (test-write 01.6-03) · 2026-10-27 · evidenza della tempra del runner e dei servizi degli spike (D-09), sezione Base (RED)
+**Modifica:** Claude (gsd-executor 01.6-03) · 2026-10-27 · esito tei-embed rifatto dopo la correzione di EMBED_MODEL nel file segreti
 **Modifica:** Claude (gsd-executor 01.6-03) · 2026-10-27 · riga base paddle rifatta con la sonda di /proc/self/mounts (decisione del coordinatore), sezioni Dopo e Pulizia
 chiavi revisione nel file segreti: EMBED_REVISION RERANK_REVISION
 # Precondizione verificata solo per nome con il sed della precondizione del piano; nessun valore letto né stampato.
@@ -107,8 +108,13 @@ esito tei-rerank: model_id=BAAI/bge-reranker-v2-m3 model_sha16=953dc6f6f85a1b2d 
 # ad ADR-0007; EMBED_MODEL non vuota e uguale al vecchio default Qwen/Qwen3-Embedding-0.6B.
 # Il file segreti vince sul default di compose, quindi TEI parte col modello Qwen e la
 # revisione di bge-m3, che non esiste per quel modello. Serve EMBED_MODEL=BAAI/bge-m3 nel file
-# segreti (o la chiave tolta): lo scrive l'orchestratore, non l'esecutore (D-13). BLOCCO.
-esito tei-embed: BLOCCATO model_id_atteso=BAAI/bge-m3 atteso16=5617a9f61b028005 revisione16_file_vs_adr=uguale embed_model_file=vecchio_default_qwen container=Exited(1)
+# segreti (o la chiave tolta): lo scrive l'orchestratore, non l'esecutore (D-13).
+# Storia: riga della prima prova, prima della correzione del file segreti:
+# esito tei-embed: BLOCCATO model_id_atteso=BAAI/bge-m3 atteso16=5617a9f61b028005 revisione16_file_vs_adr=uguale embed_model_file=vecchio_default_qwen container=Exited(1)
+# Sblocco: il coordinatore, su decisione dell'utente, ha scritto EMBED_MODEL=BAAI/bge-m3 nel file
+# segreti. Passo 6 di tei-embed rifatto da solo, sessione 01-6-03-20261027t184511z-4561
+# (chiavi di revisione ricontrollate per nome; /info letto dal runner; container fermato):
+esito tei-embed: model_id=BAAI/bge-m3 model_sha16=5617a9f61b028005 atteso16=5617a9f61b028005 uguali=si
 
 # Passo 7, prova negativa: file segreti sintetico nella cartella del driver, chiavi di
 # .env.example con i segreti vuoti (controllato prima: POSTGRES_PASSWORD, DATABASE_URL,
