@@ -30,7 +30,14 @@
 # `TTQ_INJECT_DELAY_MS` (default 0) inserisce un ritardo dentro la finestra misurata, solo per
 # l'autocontrollo del cronometro, che scrive in un CSV a parte (`TTQ_CSV`, sotto results/).
 #
+# Esiti contati (gap-closure 1.6, D-10): il batch tesseract deve dare un rapporto ok per ogni
+# pagina OCR (`count_ok_reports` contro `${#plist[@]}`), e `reports.jsonl` vuoto scarta la run;
+# `ttq-merge` poi confronta l'insieme dei `job_id` ok con quello atteso.
+# *Storia:* fino alla gap-closure 1.6 il batch tesseract controllava solo l'assenza di errori e
+# `reports.jsonl` si costruiva con `|| true`, quindi una run senza rapporti passava (01-REVIEW §B.4).
+#
 # **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · driver del TTQ-parse composto (Task 2)
+# **Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · count_ok_reports, conteggio del batch tesseract e reports.jsonl senza `|| true` (gap-closure 1.6, D-10)
 
 set -euo pipefail
 
@@ -139,6 +146,13 @@ now() { date +%s%N; }
 step() { printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$RUN_ID" "$SHA" "$2" "$3" "$4" >> "$LOG/steps.tsv"; }
 anomaly() { printf '%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$RUN_ID" "$DOC_ID" "$1" >> "$RAW/ttq-logs/anomalies.txt"; log "run $RUN_ID scartata: $1"; }
 ok_report() { grep -q '"outcome":{"status":"ok"' "$1" && ! grep -q '"job_error"' "$1"; }
+# Numero di righe con `outcome.status = ok` e senza `job_error`; 0 (con stato 0) per un file
+# vuoto o assente, così la chiamata dentro `$(...)` non termina lo script sotto `set -e`.
+count_ok_reports() {
+  local n
+  n=$(grep -F '"outcome":{"status":"ok"' "$1" 2>/dev/null | grep -vcF '"job_error"' || true)
+  printf '%s\n' "${n:-0}"
+}
 
 # Intervalli contigui di una lista `a,b,c`.
 ranges() {
@@ -214,11 +228,18 @@ for r in $(seq 1 "$RUNS"); do
     if grep -q '"job_error"' "$LOG/tess.out" || grep -q '"outcome":{"status":"\(failed\|quarantined\)"' "$LOG/tess.out"; then
       anomaly "ocr_tesseract non ok"; continue
     fi
+    n_ok=$(count_ok_reports "$LOG/tess.out")
+    (( n_ok == ${#plist[@]} )) || { anomaly "ocr_tesseract: ok $n_ok su ${#plist[@]} pagine"; continue; }
     step tesseract "$OCRP" "$s" "$e"
   fi
   T1=$(now)
 
-  cat "$LOG/extract.out" "$LOG/render.out" "$LOG/tess.out" 2>/dev/null | grep '^{' > "$LOG/reports.jsonl" || true
+  # Solo i file che la run ha scritto per costruzione: render e tess esistono se ci sono pagine OCR.
+  outs=("$LOG/extract.out")
+  [[ -z $OCRP ]] || outs+=("$LOG/render.out" "$LOG/tess.out")
+  if ! grep -h '^{' "${outs[@]}" > "$LOG/reports.jsonl"; then
+    anomaly "reports.jsonl vuoto"; continue
+  fi
   printf 'run_id\t%s\ndoc_id\t%s\ndoc_sha256\t%s\npages\t%s\nrun\t%s\nwarm\t%s\ndocling_device\t%s\nt_start_ns\t%s\nt_end_ns\t%s\ninject_delay_ms\t%s\n' \
     "$RUN_ID" "$DOC_ID" "$SHA" "$PAGES" "$r" "$WARM" "$DEVICE" "$T0" "$T1" "$DELAY" > "$LOG/meta.tsv"
   rexec "$OCR" ttq-merge --run-dir "$RLOG" --csv "$CSV" | tr -d '\r'

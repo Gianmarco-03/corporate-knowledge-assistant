@@ -24,7 +24,14 @@ file con `json.dumps(…, indent=2, ensure_ascii=False) + "\\n"`; con `--verify-
 genera nulla e confronta i file già presenti con gli sha256 del manifest (exit 1 se uno
 manca o differisce); con `--only CASE` genera un solo caso.
 
+`fill_manifest` ritorna 1, senza riscrivere il manifest, se lo sha256 di un caso differisce
+dal file generato: il generatore è deterministico e non ha eccezioni.
+
+*Storia:* fino alla gap-closure 1.6 `fill_manifest` stampava `ATTENZIONE` e riscriveva
+comunque, e `main` ne ignorava l'esito (01-REVIEW §B.4).
+
 **Modifica:** Claude (agente test-write 01.5-01) · 2026-10-23 · generatore dei 7 casi ostili SOF e SIZ della gap-closure 1.5
+**Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · fill_manifest esce 1 su sha256 diverso; zip a data fissa (gap-closure 1.6, D-10, D-11)
 """
 
 from __future__ import annotations
@@ -440,20 +447,29 @@ def load_manifest(path: Path) -> list[dict]:
     return cases
 
 
-def fill_manifest(path: Path, out: Path) -> None:
-    """Scrive lo sha256 dei soli casi con `"sha256": null`; un hash presente non si tocca."""
+def fill_manifest(path: Path, out: Path) -> int:
+    """Scrive lo sha256 dei soli casi con `"sha256": null`; un hash presente non si tocca.
+
+    Calcola tutto prima di scrivere. Il generatore è deterministico e non ha eccezioni: uno
+    sha256 diverso stampa `DIVERSO <case_id>`, lascia il manifest com'è e ritorna 1.
+    """
     cases = load_manifest(path)
-    changed = 0
+    changed, bad = 0, 0
     for c in cases:
         actual = sha256_of(out / c["file"])
         if c.get("sha256") is None:
             c["sha256"] = actual
             changed += 1
         elif c["sha256"] != actual:
-            print(f"ATTENZIONE {c['case_id']}: sha256 nel manifest diverso dal file generato", file=sys.stderr)
+            print(f"DIVERSO {c['case_id']}: sha256 nel manifest diverso dal file generato", file=sys.stderr)
+            bad += 1
+    if bad:
+        print(f"manifest non scritto: {bad} casi diversi", file=sys.stderr)
+        return 1
     text = json.dumps(cases, indent=2, ensure_ascii=False) + "\n"
     path.write_bytes(text.encode("utf-8"))
     print(f"manifest: {changed} sha256 scritti")
+    return 0
 
 
 def verify_manifest(path: Path, out: Path) -> int:
@@ -488,7 +504,7 @@ def main(argv: list[str]) -> int:
             return verify_manifest(args.manifest, args.out)
         generate(args.out, args.only)
         if args.manifest is not None:
-            fill_manifest(args.manifest, args.out)
+            return fill_manifest(args.manifest, args.out)
     except BuildError as e:
         print(f"gen_sof: {e}", file=sys.stderr)
         return 1

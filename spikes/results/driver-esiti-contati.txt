@@ -1,0 +1,148 @@
+# driver-esiti-contati — driver di misura con esiti contati e DOCX a data fissa (gap-closure 1.6, piano 01.6-05, D-10, D-11)
+git_rev base: 6d7f567a6c0f4c27cb181b9f2fc5302247b2ef64
+# data UTC: 2026-10-27T17:48:51Z
+# Identificativo di piano per session.sh: 01-6-05. Nessuna run di run_ttq.sh o vram.sh; nessuna misura rifatta (D-12).
+# I generatori ostili girano nei test senza --manifest, su copie dei manifest, in TemporaryDirectory sotto /work/tmp.
+**Modifica:** Claude (test-write 01.6-05) · 2026-10-27 · evidenza dei driver con esiti contati (D-10, D-11)
+
+## RED (Task 1, codice di produzione di base)
+
+run_id RED python e prova R1-extract = 01-6-05-20261027t174730z-86d3
+run_id RED ttq (file committato) = 01-6-05-20261027t174901z-4438
+
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast --bin ocr ttq'
+test result: FAILED. 10 passed; 4 failed; 0 ignored; 0 measured; 45 filtered out
+[exit 101]
+RED ttq: falliti=4 nomi=test10_missing_reports_is_rejected,test10_empty_reports_is_rejected,test10_missing_tess_report_is_rejected,test10_duplicate_ok_report_is_rejected
+verdi sulla base: test10_full_reports_are_accepted,test10_digital_run_needs_only_extract,test10_batch_summary_is_ignored,run_dir_fixture_cleans_on_panic (più i 5 test10 preesistenti)
+motivo: panico dell'asserzione (read_run_dir ritorna Ok), nessun errore di compilazione
+nota R1-extract: un test temporaneo non committato (run_id R, rapporto <R>1-extract al posto di <R>-extract) è FAILED sulla base, «R1-extract accettato per la run R»: lo starts_with di oggi accetta il prefisso. Il caso resta coperto da test10_check_ok_reports_rejects_unexpected_id del Task 2 passo 0.
+
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 -m unittest discover -v -s s02-parser/measure -p "test_*.py"
+Ran 7 tests; FAILED (failures=4)
+[exit 1]
+RED budget_real: falliti=4 nomi=test_m10_false_when_report_missing,test_m10_false_when_report_duplicated,test_m10_false_when_report_unknown,test_m10_false_when_jobs_duplicated
+verdi sulla base: test_m10_true_when_ids_match,test_m10_false_when_no_jobs_and_no_reports,test_report_without_job_id_never_true (oggi KeyError su job_id assente, ammesso dal test: mai vero)
+motivo: AssertionError 'true' != 'false' (m10 chiede solo len(reports) > 0)
+
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 -m unittest discover -v -s s02-parser/hostile-gen -p "test_*.py"
+Ran 4 tests; FAILED (failures=4)
+[exit 1]
+RED fill_manifest: falliti=4 nomi=test_hostile_fill_returns_1_on_deterministic_mismatch,test_hostile_fill_tolerates_declared_cases,test_sof_fill_returns_1_on_mismatch,test_write_docx_is_deterministic
+motivo: fill_manifest ritorna None (attesi 1, 0, 1); write_docx con timestamp corrente dà sha256 diversi a 2,2 s di distanza
+
+$ bash tools/session.sh oneshot "$CKA_RUN_ID" -- bash -c "ls -d /work/tmp/01-6-05-* 2>/dev/null | wc -l"
+0
+git status --porcelain spikes/data/hostile: vuoto
+
+## Task 2: ttq-merge, run_ttq.sh e vram.sh contano gli esiti
+
+**Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · RED dell'helper, GREEN dei driver di TTQ e VRAM (D-10)
+# I test dell'helper puro (passo 0) li ha scritti l'esecutore, perché il test-write li ha lasciati a questo passo:
+# test10_check_ok_reports_{accepts_expected_set,rejects_missing_tess,rejects_duplicate,rejects_unexpected_id,
+# rejects_empty,render_without_tesseract}, più tess_uses_page_number e digital_needs_only_extract (TEST-4) e
+# test10_missing_job_id_is_rejected (TEST-3, verde anche sulla base: job_id assente letto come "" e rifiutato dallo starts_with).
+# rejects_unexpected_id contiene il caso R1-extract nella run R (TEST-3), verificato rosso sulla base dal test-write.
+
+run_id RED helper = 01-6-05-20261027t175332z-5e25
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast --bin ocr ttq'
+error[E0425]: cannot find function `check_ok_reports` in this scope   (15 occorrenze)
+error: could not compile `s02-parser` (bin "ocr" test) due to 15 previous errors
+[exit 101]
+RED ttq helper: compila=no simbolo=check_ok_reports
+
+run_id GREEN = 01-6-05-20261027t180016z-343a
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast --bin ocr ttq; …'
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 45 filtered out
+GREEN ttq: falliti=0 passati=23
+$ … cargo test -p s02-parser --locked --offline --no-fail-fast
+13 binari di test, tutti «test result: ok»: 400 passati, 0 falliti, 8 ignorati
+esito test s02: exit=0 falliti=0
+$ … cargo test -p s04-jev --locked --offline --no-fail-fast --bin rerank   (test di forma di vram.sh)
+test result: ok. 13 passed; 0 failed; 11 ignored
+esito test s04 rerank: exit=0 falliti=0
+
+# Gate Rust sull'host, da spikes/: il runner non ha cargo-fmt né cargo-clippy per la toolchain
+# (decisione del coordinatore, deviazione di livello a).
+$ cargo fmt --all -- --check            → exit 0
+$ cargo clippy --workspace --all-targets --locked --offline -- -D warnings   → exit 0
+esito gate rust: fmt=0 clippy=0 (provenienza: host Windows, non runner)
+
+# Funzioni shell estratte con sed in mktemp -d, caricate con source sotto set -euo pipefail, sull'host.
+esito count_ok_reports: casi=2/2 (piano: 3 ok + 1 job_error → 3; file vuoto → 0) extra=3/3 (solo failed → 0; ok con job_error nella riga → 0; file assente → 0)
+esito carichi_falliti: casi=2/2 (piano: tei-embed=0 tei-rerank=137 docling=0 → tei-rerank=137; tutti a 0 → vuoto) extra=1/1 (due falliti → entrambi nominati)
+shell ancora viva dopo x=$(carichi_falliti …) con uscita vuota: si
+statico run_ttq.sh: grep -c 'reports.jsonl" || true' = 0; controllo count_ok_reports (riga 231) dopo il controllo esistente (229) e prima di step tesseract (233); bash -n = 0
+statico vram.sh: die 1 "carichi falliti" (riga 277) dopo la scrittura del CSV (266), dei campioni (268) e dell'ultimo log (276); bash -n = 0
+# Nessuna run di run_ttq.sh né di vram.sh (D-12).
+
+## Task 3: budget_real, fill_manifest, DOCX a data fissa
+
+**Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · GREEN Python, determinismo dei DOCX, verifica dei manifest su /work/tmp, pulizia (D-10, D-11, D-12)
+# Test aggiunti dall'esecutore prima del GREEN (TEST-10 e TEST-11 del test design, RISK-6 HIGH):
+# test_hostile_exceptions_are_exact (NON_DETERMINISTIC = i 4 nomi esatti; declared_non_deterministic
+# vero solo per encrypted-* e i 4 nomi, falso per docx-other, docx-zip-bomb-2, xdocm-macro, x-encrypted-user,
+# encrypted) e test_write_docx_entries_are_fixed (ogni voce dei 4 DOCX generati: data 1980, ZIP_DEFLATED,
+# 0o600 << 16; docx-zip-bomb ancora sopra DOCX_TOTAL_CAP e sotto 16 MiB compresso).
+
+run_id RED extra = 01-6-05-20261027t180923z-49ac (budget_real già corretto, generatori di base)
+$ … python3 -m unittest discover -v -s s02-parser/hostile-gen -p "test_*.py"
+Ran 6 tests; FAILED (failures=5, errors=1)
+RED fill_manifest extra: falliti=2 nomi=test_hostile_exceptions_are_exact (AttributeError: module 'gen_hostile' has no attribute 'NON_DETERMINISTIC'),test_write_docx_entries_are_fixed (AssertionError: Tuples differ: (2026, 10, 27, 18, 17, 10) != (1980, 1, 1, 0, 0, 0))
+
+run_id GREEN python e determinismo = 01-6-05-20261027t181931z-b32b
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 -m unittest discover -s s02-parser/measure -p "test_*.py" && bash tools/session.sh oneshot "$CKA_RUN_ID" -- python3 -m unittest discover -s s02-parser/hostile-gen -p "test_*.py"'
+test_budget_real: Ran 7 tests, OK
+test_fill_manifest: Ran 6 tests, OK
+GREEN python: test_budget_real=7 ok test_fill_manifest=6 ok falliti=0
+nota: ripetuti dopo una correzione della sola docstring di budget_real.py (il paragrafo Storia non cita più la
+vecchia formula, che il verify cerca con grep): run_id 01-6-05-20261027t182323z-6032, 7 OK e 6 OK, exit 0
+
+$ … python3 s02-parser/hostile-gen/gen_hostile.py --out /work/tmp/01-6-05-a   (senza --manifest)   → exit 0
+$ sleep 3
+$ … python3 s02-parser/hostile-gen/gen_hostile.py --out /work/tmp/01-6-05-b   (senza --manifest)   → exit 0
+$ … sha256sum dei 4 DOCX in a e b (primi 16 caratteri)
+uguale docx-zip-bomb.docx sha16=822574ed74b3a3b4
+uguale docx-xml-bomb.docx sha16=07795c2b68d50224
+uguale docm-macro.docm sha16=dd2bc9b672ccd882
+uguale docx-external-link.docx sha16=fa71e4ffb3c45531
+esito determinismo docx: 4/4 uguali fra due generazioni
+
+$ … python3 s02-parser/hostile-gen/gen_hostile.py --verify-only --manifest data/hostile/manifest.json --out /work/tmp/01-6-05-a
+DIVERSO encrypted-user, encrypted-owner-only, encrypted-object-dropped, encrypted-objstm-quota (prefisso encrypted-, dichiarati)
+DIVERSO docx-zip-bomb, docx-xml-bomb, docm-macro, docx-external-link (NON_DETERMINISTIC, dichiarati: il manifest registra la generazione di 01-18)
+verifica manifest: 18 casi conformi su 26   [exit 1, atteso: i diversi sono tutti dichiarati]
+nota: encrypted-pubsec conforme al manifest in questa generazione (dichiarato comunque, prefisso encrypted-)
+esito verify hostile su /work/tmp: diversi=8 tutti_dichiarati=si
+
+$ … python3 s02-parser/hostile-gen/gen_sof.py --out /work/tmp/01-6-05-sof   → exit 0
+$ … python3 s02-parser/hostile-gen/gen_sof.py --verify-only --manifest data/hostile/sof/manifest.json --out /work/tmp/01-6-05-sof
+verifica manifest: 7 casi conformi su 7   [exit 0]
+esito verify sof su /work/tmp: diversi=0
+
+# Contenuto invariato (TEST-11, RISK-8): il generatore di BASE (git show <base>:…/gen_hostile.py, passato
+# via stdin in /work/tmp/01-6-05-base) genera i 4 DOCX con --only; elenco delle voci, file_size e CRC32 di
+# ogni voce confrontati con la generazione a.
+uguale docx-zip-bomb.docx voci 3; uguale docx-xml-bomb.docx voci 3; uguale docm-macro.docm voci 4; uguale docx-external-link.docx voci 4
+esito contenuto docx contro BASE: 4/4 uguali (cambiano solo i metadati delle voci)
+
+run_id suite finale = 01-6-05-20261027t182149z-2d0e
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast'
+13 binari di test, tutti «test result: ok»: 400 passati, 0 falliti, 8 ignorati (ocr: 64 passati, compresi i test10_check_ok_reports_*)
+esito test s02 finale: exit=0 falliti=0
+nota: un primo giro (run_id 01-6-05-20261027t182032z-42da, exit 0) aveva eseguito un binario ocr vecchio,
+47 test invece di 64, senza i test di 01.6-05: il volume /target del runner è condiviso fra i worktree, che
+montano tutti la stessa /src, e una sessione concorrente di 01-6-03 aveva ricompilato ocr dal proprio albero
+con mtime più recenti. Aggiornato l'mtime di ttq.rs e main.rs (contenuto invariato), il giro sopra ricompila
+s02-parser ed esegue i 64 test. Il primo giro non vale come prova.
+
+## Pulizia
+
+$ … bash -c 'rm -rf /work/tmp/01-6-05-*; ls -d /work/tmp/01-6-05-* 2>/dev/null | wc -l'
+0
+pulizia: /work/tmp/01-6-05-* rimosse
+$ bash tools/session.sh status
+PRENOTAZIONE: nessuna
+container del piano (docker ps --filter label=cka.run_id=<run_id del piano>):
+(fine elenco)
+git status --porcelain spikes/data/hostile: vuoto

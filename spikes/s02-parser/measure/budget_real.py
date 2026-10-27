@@ -32,9 +32,17 @@ Regole di `summarize` (M10 di `RISULTATI-isolamento.md`, scritte prima della mis
 - `m10_pass` = padre vivo, exit di `batch` 0, `memory.max` limitato, riga `batch_summary`
   presente, `oom_kill_delta` = 0, nessun `job_error`, `leftover_procs` = 0 su ogni job e, solo
   per `benign`, rapporto prenotazione/`peak_rss_kb` ≥ 1 su ogni job ammesso (un picco assente
-  conta come rapporto non verificato).
+  conta come rapporto non verificato), e rapporti contati come insieme (`ids_ok`): `jobs.jsonl`
+  con almeno un job e senza `job_id` ripetuti, nessun `job_id` ripetuto fra i rapporti,
+  insieme dei `job_id` dei rapporti uguale a quello di `jobs.jsonl` (gap-closure 1.6, D-10).
+
+*Storia:* fino alla gap-closure 1.6 m10 chiedeva soltanto «almeno un rapporto» (lista dei
+rapporti non vuota): un rapporto mancante, duplicato o estraneo, o un job ripetuto in
+`jobs.jsonl`, non lo faceva cadere (01-REVIEW §B.4). Le righe di `budget-real.csv` già
+ratificate non si ricalcolano (D-12).
 
 **Modifica:** Claude (Anthropic) · 2026-10-22 · driver dei job reali e riepilogo di M10 (01-18)
+**Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · m10 con l'uguaglianza degli insiemi di `job_id` (gap-closure 1.6, D-10)
 """
 
 from __future__ import annotations
@@ -185,10 +193,13 @@ def outcome_cols(outcome: dict) -> tuple[str, str]:
 
 def summarize_dir(cls: str, n: int, d: Path, res_bytes: int):
     jobs_lines = [l for l in (read_text(d / "jobs.jsonl") or "").splitlines() if l.strip()]
-    inputs = {}
+    # `inputs`: i `job_id` di `jobs.jsonl` nell'ordine del file, duplicati compresi;
+    # `input_of`: la mappa `job_id → input` per le righe per job.
+    inputs, input_of = [], {}
     for l in jobs_lines:
         j = json.loads(l)
-        inputs[j["job_id"]] = j["input"]
+        inputs.append(j["job_id"])
+        input_of[j["job_id"]] = j["input"]
     reports, job_errors, summary = [], 0, None
     for l in (read_text(d / "reports.jsonl") or "").splitlines():
         l = l.strip()
@@ -233,7 +244,7 @@ def summarize_dir(cls: str, n: int, d: Path, res_bytes: int):
                 cls,
                 n,
                 r["job_id"],
-                inputs.get(r["job_id"], ""),
+                input_of.get(r["job_id"], ""),
                 status,
                 kind,
                 fmt(peak),
@@ -256,6 +267,15 @@ def summarize_dir(cls: str, n: int, d: Path, res_bytes: int):
     max_kb = mmax // 1024 if limited else None
     peak_kb = mpeak // 1024 if isinstance(mpeak, int) else None
     margin_kb = max_kb - peak_kb if max_kb is not None and peak_kb is not None else None
+    # Esiti contati come insieme (D-10): senza `len(inputs) > 0` il caso «zero job e zero
+    # rapporti» darebbe `set() == set()`, cioè vero.
+    job_ids = [r.get("job_id") for r in reports]
+    ids_ok = (
+        len(inputs) > 0
+        and len(inputs) == len(set(inputs))
+        and len(job_ids) == len(set(job_ids))
+        and set(job_ids) == set(inputs)
+    )
     m10 = (
         parent_alive
         and parent_exit == 0
@@ -264,7 +284,7 @@ def summarize_dir(cls: str, n: int, d: Path, res_bytes: int):
         and oom_delta == 0
         and job_errors == 0
         and leftovers_ok
-        and len(reports) > 0
+        and ids_ok
         and (cls != "benign" or ratio_ok)
     )
     batch_row = [

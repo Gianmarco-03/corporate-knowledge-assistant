@@ -31,7 +31,13 @@
 # Il sottocomando throughput di s03 rifiuta un CSV senza hw.json accanto: il carico copia
 # in /work/tmp quello versionato di s03 (lettura soltanto) e scrive solo in /work/tmp.
 #
+# Un carico uscito con codice diverso da 0 fa uscire lo script con 1, nominandolo, ma solo
+# dopo aver scritto CSV e campioni, che restano per l'analisi (gap-closure 1.6, D-10).
+# *Storia:* fino alla gap-closure 1.6 un carico fallito finiva solo nel log e lo script
+# usciva 0 (01-REVIEW §B.4).
+#
 # **Modifica:** Claude (gsd-executor 01-15) · 2026-10-25 · misura di convivenza VRAM
+# **Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · carichi_falliti ed exit 1 dopo CSV e campioni (gap-closure 1.6, D-10)
 
 set -euo pipefail
 
@@ -84,6 +90,17 @@ SERVICES=(tei-embed tei-rerank docling)
 
 log() { printf 'vram.sh: %s\n' "$*" >&2; }
 die() { local code=$1; shift; printf 'vram.sh: ERRORE: %s\n' "$*" >&2; exit "$code"; }
+
+# Dagli elementi `servizio=codice` stampa, separati da spazio, quelli con codice diverso da 0.
+# Nessun fallito: uscita vuota con stato 0, così `x=$(carichi_falliti …)` non termina lo
+# script sotto `set -e`.
+carichi_falliti() {
+  local s list=""
+  for s in "$@"; do
+    [[ ${s#*=} == 0 ]] || list+="${list:+ }$s"
+  done
+  [[ -z $list ]] || printf '%s\n' "$list"
+}
 
 [[ $DURATION_S =~ ^[0-9]+$ && $WARM_S =~ ^[0-9]+$ ]] || die 2 "VRAM_DURATION_S e VRAM_WARM_S interi"
 [[ $SCENARIO =~ ^[a-z0-9][a-z0-9.-]{0,40}$ ]] || die 2 "VRAM_SCENARIO non valido"
@@ -214,9 +231,8 @@ done
 if grep -Eqi 'out of memory|outofmemory|CUDA_ERROR_OUT_OF_MEMORY' "$RAWDIR"/*.log 2>/dev/null; then
   oom=true
 fi
-for s in "${status[@]}"; do
-  [[ ${s#*=} == 0 ]] || { log "carico ${s%%=*} uscito con ${s#*=}"; }
-done
+falliti=$(carichi_falliti "${status[@]}")
+[[ -z $falliti ]] || log "carichi usciti con codice diverso da 0: $falliti"
 
 if [[ ! -s $OUT ]]; then
   mkdir -p "$(dirname "$OUT")"
@@ -258,3 +274,4 @@ awk -v sc="$SCENARIO" '
   }
 ' "$WORK/samples" | sort >&2
 log "carichi: ${status[*]}; oom=$oom; righe in $OUT"
+[[ -z $falliti ]] || die 1 "carichi falliti: $falliti; CSV e campioni scritti per l'analisi"
