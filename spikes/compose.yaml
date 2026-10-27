@@ -214,12 +214,17 @@ services:
     labels:
       cka.run_id: "${CKA_RUN_ID:-none}"
     network_mode: none
-    # filesystem dell'immagine in sola lettura (gap-closure 1.6, D-09)
+    # filesystem dell'immagine in sola lettura (gap-closure 1.6, D-09). Unico percorso
+    # scrivibile: /tmp, chiesto da paddle all'import (tempfile.gettempdir: «No usable
+    # temporary directory found in ['/tmp', …]»), con uid/gid e modo del worker.
     read_only: true
+    tmpfs: ["/tmp:size=512m,uid=10001,gid=10001,mode=0700"]
     mem_limit: 2g
     memswap_limit: 2g
     cpus: 8
-    pids_limit: 4096
+    # pids.peak 32 nella sonda di 01-13 con limite provvisorio 4096: potenza di 2 >= 2 x picco,
+    # minimo 256 (01.6-03, spikes/results/runner-hardening.txt)
+    pids_limit: 256
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     user: "10001:10001"
@@ -234,10 +239,12 @@ services:
       cka.run_id: "${CKA_RUN_ID:-none}"
     user: "10001:10001"
     working_dir: /src
-    # tempra del worker (gap-closure 1.6, D-09)
+    # tempra del worker (gap-closure 1.6, D-09). pids_limit: pids.peak massimo 274 della suite
+    # completa di s02 (letture da 196 a 274, varia col parallelismo della compilazione);
+    # potenza di 2 >= 2 x picco, minimo 512 (01.6-03, spikes/results/runner-hardening.txt)
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    pids_limit: 4096
+    pids_limit: 1024
     environment:
       CKA_RUN_ID: "${CKA_RUN_ID:-none}"
       CARGO_TARGET_DIR: /target

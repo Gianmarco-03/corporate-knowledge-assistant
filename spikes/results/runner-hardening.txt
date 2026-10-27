@@ -30,3 +30,105 @@ base paddle: fs=rw pids_max=max
 # Prova 3: statico, fuori dalla sessione, su spikes/compose.yaml alla base.
 base tei: default_main=2 default_embed=Qwen/Qwen3-Embedding-0.6B
 base statico: runner_tempra=0 runner_paid_runner_init=0 paddle_read_only_pids_limit=0 session_paid_cmd=0 init_volumes_user_root=1
+
+## Dopo (GREEN)
+
+# Sessioni (tutte con session.sh with 01-6-03 --wait 3600; runner e paddle senza ricostruzione):
+# A 01-6-03-20261027t175135z-8166 (pids provvisorio 4096), A2 01-6-03-20261027t175418z-6413,
+# C 01-6-03-20261027t180659z-bebf, D 01-6-03-20261027t181810z-db7f, E 01-6-03-20261027t181943z-b542
+# (runner 512, paddle 256), F 01-6-03-20261027t182115z-8fcb (runner 1024, valore finale).
+immagine runner: 86a924ad5599 (non ricostruita)
+immagine paddle: ca5ac5a02797 (non ricostruita)
+
+# Passo 1, smoke (runner-smoke.sh, init-volumes su runner-init), sessione A:
+esito smoke: SMOKE: OK
+# Passo 2, sonde del Task 1 sul runner, sessione A (limite provvisorio):
+esito runner: capbnd=0000000000000000 nonewprivs=1 pids_max=4096
+esito runner chiavi: TYPESAFE_API_KEY assente ANTHROPIC_API_KEY assente
+# Passo 3, oneshot-paid; nomi con compgen -e | sort, differenza con comm, nessun valore stampato:
+esito runner-paid: capbnd=0000000000000000 nonewprivs=1 TYPESAFE_API_KEY presente ANTHROPIC_API_KEY presente
+esito differenza nomi: ANTHROPIC_API_KEY TYPESAFE_API_KEY
+esito differenza nomi inversa (solo nel runner): nessuno
+# Config risolta (eccezione della hard rule 2: config --no-interpolate --format json, node con
+# try/catch e messaggio fisso, JSON mai salvato). Sessione A: profiles=["runner","paid"], cioè
+# extends unisce le sequenze (stop del piano); correzione profiles: !override [paid], riletta
+# nella sessione C:
+esito config risolta runner-paid prima della correzione: profiles=["runner","paid"]
+esito config risolta runner-paid: profiles=["paid"]
+# Stessa lettura, solo strutture e nomi di chiave (sessione A): runner-paid eredita da runner
+# cap_drop [ALL], security_opt no-new-privileges, pids_limit, i quattro volumi, user 10001:10001,
+# chiavi = chiavi di runner (34) + ANTHROPIC_API_KEY, TYPESAFE_API_KEY (36); runner-init
+# cap_drop [ALL], cap_add [CHOWN, DAC_OVERRIDE, FOWNER], network_mode none, pull_policy never,
+# user 0:0, volumi /target /usr/local/cargo/registry /work/tmp, chiavi d'ambiente 0.
+esito config risolta strutture: runner-paid=eredita_tempra_e_volumi chiavi_extra=ANTHROPIC_API_KEY,TYPESAFE_API_KEY runner-init=cap_add_3 network_none env_0
+# Prova negativa di up (sessioni A e C), più il caso a due servizi; nessun container avviato:
+esito up rifiutato: runner-paid=2 runner-init=2
+esito up rifiutato due servizi: paddle+runner-paid=2 container_runner-paid_o_runner-init=0
+# Rifiuto prima di ogni chiamata a docker, con un docker finto in testa al PATH e HOME isolata
+# (TEST-5, TEST-6): argv registrati 0 per up runner-paid, up runner-init, up paddle runner-paid,
+# up runner-init paddle (exit 2); oneshot-paid e run-paid con run_id non valido, run_id non
+# proprietario e senza -- escono 2 senza argv; "-e X=1" del chiamante arriva dopo runner-paid.
+esito docker finto: up_rifiuti=4/4 argv=0 paid_controlli=5/5 opzione_chiamante_dopo_servizio=si
+
+# Passo 4, suite completa di s02 con il picco dei pid (hard rule 4). Sessione A: 13 binari,
+# rossi 4 per l'ambiente della worktree, non per la tempra: PDFium assente in spikes/target
+# (cartella ignorata, presente solo nel checkout principale) e binari di ocr con test di un'altra
+# worktree nel volume condiviso cargo-target (impronte di cargo più recenti dei sorgenti di
+# questa). Correzione: PDFium copiato dal checkout principale (sha256 del tgz uguale a
+# docker/worker.Dockerfile) e touch dei .rs tracciati prima della suite (contenuto invariato).
+# Picchi letti nelle sessioni: A 196, A2 223 (compilazione da zero in un CARGO_TARGET_DIR
+# separato, poi scartato perché i test esigono /target), C 235, E 274, F 217.
+esito test s02: exit=0 compiling=si falliti=0
+pids_peak runner: 274
+pids_limit runner: provvisorio=4096 finale=1024
+# Valore: potenza di 2 >= 2 x 274 = 548, minimo 512. Nella sessione E, col 512 calcolato dal
+# picco di C (235), il picco 274 superava la metà del limite: valore portato a 1024 e passi
+# 1, 2 e 4 ripetuti nella sessione F.
+esito ripetizione col valore finale: smoke=SMOKE: OK capbnd=0000000000000000 nonewprivs=1 pids_max=1024 chiavi_runner=assenti test_s02=exit=0 falliti=0 pids_peak=217
+
+# Passo 5, paddle (session.sh up + exec), sonda di 01-13. Sessione C: v6_resolve.py esce 1 con
+# «No usable temporary directory found in ['/tmp', '/var/tmp', '/usr/tmp', '/opt/paddle-home']»;
+# tmpfs aggiunto sul solo /tmp, uid=10001, gid=10001, mode=0700, size=512m (hard rule 6).
+# Sessioni D ed E: / montato ro, /tmp tmpfs, /opt/paddle-home non scrivibile; manifest
+# sha256sum -c 42 righe, 0 FAILED; resolved-session.json scritto in /results/raw/paddle/<run_id>
+# (non versionato); ocr paddle-check con --selection, --resolved, --session, --manifest-image e
+# --manifest-committed s02-parser/results/ocr/paddle-weights.sha256 esce 0 e stampa
+# --ocr_version PP-OCRv6 --lang it.
+esito paddle: fs=ro manifest=ok paddle_check=exit=0
+pids_peak paddle: 32
+pids_limit paddle: finale=256
+esito paddle col valore finale: fs=ro tmp=tmpfs manifest=ok paddle_check=exit=0 pids_max=256 pids_peak=32
+
+# Passo 6, TEI. Revisioni attese ricavate con grep dai documenti, non dal file segreti:
+# ADR-0007 (bge-m3) e RISULTATI-rerank.md §Setup «Pesi del reranker».
+esito tei-rerank: model_id=BAAI/bge-reranker-v2-m3 model_sha16=953dc6f6f85a1b2d atteso16=953dc6f6f85a1b2d uguali=si
+# tei-embed: il container esce subito con codice 1 (sessioni C e D). Diagnosi per confronto
+# dentro un job del runner, senza stampare valori: EMBED_REVISION ai primi 16 caratteri uguale
+# ad ADR-0007; EMBED_MODEL non vuota e uguale al vecchio default Qwen/Qwen3-Embedding-0.6B.
+# Il file segreti vince sul default di compose, quindi TEI parte col modello Qwen e la
+# revisione di bge-m3, che non esiste per quel modello. Serve EMBED_MODEL=BAAI/bge-m3 nel file
+# segreti (o la chiave tolta): lo scrive l'orchestratore, non l'esecutore (D-13). BLOCCO.
+esito tei-embed: BLOCCATO model_id_atteso=BAAI/bge-m3 atteso16=5617a9f61b028005 revisione16_file_vs_adr=uguale embed_model_file=vecchio_default_qwen container=Exited(1)
+
+# Passo 7, prova negativa: file segreti sintetico nella cartella del driver, chiavi di
+# .env.example con i segreti vuoti (controllato prima: POSTGRES_PASSWORD, DATABASE_URL,
+# GARAGE_*, TYPESAFE_API_KEY, ANTHROPIC_API_KEY vuote) e la sola revisione in prova assente.
+# Messaggio di compose: «required variable EMBED_REVISION is missing a value: EMBED_REVISION
+# obbligatoria: revisione di ADR-0007 nel file segreti»; nessuna prenotazione occupata, nessun
+# «Cannot connect».
+esito negativa: exit=1 messaggio_nomina_EMBED_REVISION=si
+PRENOTAZIONE: nessuna
+esito negativa RERANK_REVISION: exit=1 messaggio_nomina_RERANK_REVISION=si
+PRENOTAZIONE: nessuna
+
+## Pulizia
+
+# Cartelle dei driver (mktemp -d, fuori dal repo) e file segreti sintetici rimossi; output di
+# paddle in s02-parser/results/raw/paddle/<run_id> (non versionati) rimossi; cartella di prova
+# /target/wt-01-6-03 tolta dal volume cargo-target (sessione 01-6-03-20261027t182251z-7b4e).
+pulizia: driver=rimossi sintetici=rimossi raw_paddle=rimossi target_separato=rimosso
+# Nessuna prenotazione di 01-6-03 attiva. Al momento della lettura la prenotazione era di un
+# altro piano (01-6-05, worktree propria), che questa pulizia non tocca.
+PRENOTAZIONE: nessuna di 01-6-03
+# docker ps -a --filter label=cka.run_id, container con run_id 01-6-03-*:
+(fine elenco)
