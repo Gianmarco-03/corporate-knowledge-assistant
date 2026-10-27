@@ -34,3 +34,44 @@ motivo: fill_manifest ritorna None (attesi 1, 0, 1); write_docx con timestamp co
 $ bash tools/session.sh oneshot "$CKA_RUN_ID" -- bash -c "ls -d /work/tmp/01-6-05-* 2>/dev/null | wc -l"
 0
 git status --porcelain spikes/data/hostile: vuoto
+
+## Task 2: ttq-merge, run_ttq.sh e vram.sh contano gli esiti
+
+**Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · RED dell'helper, GREEN dei driver di TTQ e VRAM (D-10)
+# I test dell'helper puro (passo 0) li ha scritti l'esecutore, perché il test-write li ha lasciati a questo passo:
+# test10_check_ok_reports_{accepts_expected_set,rejects_missing_tess,rejects_duplicate,rejects_unexpected_id,
+# rejects_empty,render_without_tesseract}, più tess_uses_page_number e digital_needs_only_extract (TEST-4) e
+# test10_missing_job_id_is_rejected (TEST-3, verde anche sulla base: job_id assente letto come "" e rifiutato dallo starts_with).
+# rejects_unexpected_id contiene il caso R1-extract nella run R (TEST-3), verificato rosso sulla base dal test-write.
+
+run_id RED helper = 01-6-05-20261027t175332z-5e25
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast --bin ocr ttq'
+error[E0425]: cannot find function `check_ok_reports` in this scope   (15 occorrenze)
+error: could not compile `s02-parser` (bin "ocr" test) due to 15 previous errors
+[exit 101]
+RED ttq helper: compila=no simbolo=check_ok_reports
+
+run_id GREEN = 01-6-05-20261027t180016z-343a
+$ bash tools/session.sh with 01-6-05 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast --bin ocr ttq; …'
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 45 filtered out
+GREEN ttq: falliti=0 passati=23
+$ … cargo test -p s02-parser --locked --offline --no-fail-fast
+13 binari di test, tutti «test result: ok»: 400 passati, 0 falliti, 8 ignorati
+esito test s02: exit=0 falliti=0
+$ … cargo test -p s04-jev --locked --offline --no-fail-fast --bin rerank   (test di forma di vram.sh)
+test result: ok. 13 passed; 0 failed; 11 ignored
+esito test s04 rerank: exit=0 falliti=0
+
+# Gate Rust sull'host, da spikes/: il runner non ha cargo-fmt né cargo-clippy per la toolchain
+# (decisione del coordinatore, deviazione di livello a).
+$ cargo fmt --all -- --check            → exit 0
+$ cargo clippy --workspace --all-targets --locked --offline -- -D warnings   → exit 0
+esito gate rust: fmt=0 clippy=0 (provenienza: host Windows, non runner)
+
+# Funzioni shell estratte con sed in mktemp -d, caricate con source sotto set -euo pipefail, sull'host.
+esito count_ok_reports: casi=2/2 (piano: 3 ok + 1 job_error → 3; file vuoto → 0) extra=3/3 (solo failed → 0; ok con job_error nella riga → 0; file assente → 0)
+esito carichi_falliti: casi=2/2 (piano: tei-embed=0 tei-rerank=137 docling=0 → tei-rerank=137; tutti a 0 → vuoto) extra=1/1 (due falliti → entrambi nominati)
+shell ancora viva dopo x=$(carichi_falliti …) con uscita vuota: si
+statico run_ttq.sh: grep -c 'reports.jsonl" || true' = 0; controllo count_ok_reports (riga 231) dopo il controllo esistente (229) e prima di step tesseract (233); bash -n = 0
+statico vram.sh: die 1 "carichi falliti" (riga 277) dopo la scrittura del CSV (266), dei campioni (268) e dell'ultimo log (276); bash -n = 0
+# Nessuna run di run_ttq.sh né di vram.sh (D-12).

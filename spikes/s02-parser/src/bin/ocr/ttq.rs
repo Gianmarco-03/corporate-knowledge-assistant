@@ -6,7 +6,15 @@
 //! pagine) si sommano nei millisecondi e si uniscono nelle pagine; una pagina ripetuta nello
 //! stesso passo è un errore.
 //!
+//! La lettura della cartella esige `reports.jsonl` e conta i rapporti ok come insieme di
+//! `job_id` (`check_ok_reports`): una run con rapporti assenti, vuoti, mancanti, duplicati o
+//! estranei si rifiuta.
+//!
+//! *Storia:* fino alla gap-closure 1.6 `reports.jsonl` era facoltativo e i rapporti non si
+//! contavano, quindi una run senza rapporti passava come riuscita (01-REVIEW §B.4, D-10).
+//!
 //! **Modifica:** Claude (gsd-executor 01-13) · 2026-10-24 · corpo di `merge` e lettura della cartella della run (Task 2)
+//! **Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · `reports.jsonl` obbligatorio e `check_ok_reports` (gap-closure 1.6, D-10)
 #![allow(dead_code)]
 
 /// Header fisso di `ttq_parse.csv`.
@@ -125,8 +133,10 @@ fn parse_pages(s: &str) -> Result<Vec<u32>, String> {
 /// Legge la cartella dei log di una run (`run_ttq.sh`): `meta.tsv` con righe `chiave<TAB>valore`
 /// (`run_id`, `doc_id`, `doc_sha256`, `pages`, `run`, `warm`, `docling_device`, `t_start_ns`,
 /// `t_end_ns`) e `steps.tsv` con righe `passo<TAB>run_id<TAB>doc_sha256<TAB>pagine<TAB>t0_ns<TAB>t1_ns`
-/// (timestamp esterni `date +%s%N`). Ogni `RunReport` salvato in `reports.jsonl` deve avere
-/// `job_id` che inizia con il `run_id` e `outcome.status` = `ok`.
+/// (timestamp esterni `date +%s%N`). `reports.jsonl` è obbligatorio; ogni `RunReport` salvato
+/// (righe `batch_summary` escluse) deve avere `job_id` che inizia con il `run_id` e
+/// `outcome.status` = `ok`, e gli ok devono essere esattamente quelli attesi
+/// ([`check_ok_reports`]).
 pub(crate) fn read_run_dir(dir: &std::path::Path) -> Result<(RunMeta, Vec<Component>), String> {
     use std::collections::BTreeMap;
     let read = |n: &str| {
@@ -176,23 +186,90 @@ pub(crate) fn read_run_dir(dir: &std::path::Path) -> Result<(RunMeta, Vec<Compon
             ms: (b - a) / 1_000_000,
         });
     }
-    if let Ok(reports) = read("reports.jsonl") {
-        for l in reports.lines().filter(|l| !l.trim().is_empty()) {
-            let v: serde_json::Value =
-                serde_json::from_str(l).map_err(|e| format!("reports.jsonl: {e}"))?;
-            let id = v["job_id"].as_str().unwrap_or_default();
-            if v["status"].as_str() == Some("batch_summary") {
-                continue;
-            }
-            if !id.starts_with(&meta.run_id) {
-                return Err(format!("RunReport di un'altra run: {id}"));
-            }
-            if v["outcome"]["status"].as_str() != Some("ok") {
-                return Err(format!("job {id} non ok: {}", v["outcome"]));
-            }
+    // `reports.jsonl` è obbligatorio: un file assente è un errore, non una run senza rapporti.
+    let reports = read("reports.jsonl")?;
+    let mut ok_ids = Vec::new();
+    for l in reports.lines().filter(|l| !l.trim().is_empty()) {
+        let v: serde_json::Value =
+            serde_json::from_str(l).map_err(|e| format!("reports.jsonl: {e}"))?;
+        if v["status"].as_str() == Some("batch_summary") {
+            continue;
+        }
+        let Some(id) = v["job_id"].as_str() else {
+            return Err(format!("reports.jsonl: rapporto senza job_id: {l}"));
+        };
+        if !id.starts_with(&meta.run_id) {
+            return Err(format!("RunReport di un'altra run: {id}"));
+        }
+        if v["status"].as_str() == Some("job_error")
+            || v["outcome"]["status"].as_str() != Some("ok")
+        {
+            return Err(format!("job {id} non ok: {}", v["outcome"]));
+        }
+        ok_ids.push(id.to_owned());
+    }
+    check_ok_reports(&meta.run_id, &comps, &ok_ids)?;
+    Ok((meta, comps))
+}
+
+/// Confronta i `job_id` dei rapporti ok (nell'ordine del file) con l'insieme atteso dai
+/// componenti della run: `<run_id>-extract`, più `<run_id>-render` se c'è il passo `render`,
+/// più `<run_id>-tess-<p>` per ogni pagina `p` del passo `tesseract`. `docling` non ha
+/// rapporti. Un duplicato, un mancante o un id in più sono errori: gli esiti si contano come
+/// insieme, non come numero (gap-closure 1.6, D-10). Nessun file system: l'I/O resta in
+/// [`read_run_dir`].
+pub(crate) fn check_ok_reports(
+    run_id: &str,
+    components: &[Component],
+    ok_job_ids: &[String],
+) -> Result<(), String> {
+    use std::collections::BTreeSet;
+    if ok_job_ids.is_empty() {
+        return Err("reports.jsonl vuoto: nessun rapporto ok".into());
+    }
+    let mut found = BTreeSet::new();
+    for id in ok_job_ids {
+        if !found.insert(id.as_str()) {
+            return Err(format!("rapporto ok duplicato: {id}"));
         }
     }
-    Ok((meta, comps))
+    let mut expected = BTreeSet::new();
+    expected.insert(format!("{run_id}-extract"));
+    for c in components {
+        match c.step {
+            Step::Render => {
+                expected.insert(format!("{run_id}-render"));
+            }
+            Step::Tesseract => {
+                for p in &c.pages {
+                    expected.insert(format!("{run_id}-tess-{p}"));
+                }
+            }
+            Step::Extract | Step::Docling => {}
+        }
+    }
+    let missing: Vec<&str> = expected
+        .iter()
+        .map(String::as_str)
+        .filter(|id| !found.contains(id))
+        .take(5)
+        .collect();
+    let extra: Vec<&str> = found
+        .iter()
+        .copied()
+        .filter(|id| !expected.contains(*id))
+        .take(5)
+        .collect();
+    if missing.is_empty() && extra.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "rapporti ok attesi {}, trovati {}; mancanti (al più 5): [{}]; in eccesso (al più 5): [{}]",
+        expected.len(),
+        found.len(),
+        missing.join(", "),
+        extra.join(", ")
+    ))
 }
 
 // ---- euristica delle pagine-tabella di 01-08 ------------------------------------------------
@@ -505,6 +582,19 @@ mod tests {
     }
 
     #[test]
+    fn test10_missing_job_id_is_rejected() {
+        let fx = RunDirFixture::new(&ok_components());
+        fx.write_reports_raw(&format!(
+            "{}{{\"outcome\":{{\"status\":\"ok\"}}}}\n",
+            ok_reports(&FULL)
+        ));
+        assert!(
+            read_run_dir(fx.path()).is_err(),
+            "rapporto ok senza job_id accettato"
+        );
+    }
+
+    #[test]
     fn test10_full_reports_are_accepted() {
         let fx = RunDirFixture::new(&ok_components());
         fx.write_ok_reports(&FULL);
@@ -552,5 +642,129 @@ mod tests {
             name.starts_with(&format!("s02-ttq-{}-", std::process::id())),
             "nome della fixture: {name}"
         );
+    }
+
+    // ---- check_ok_reports, helper puro (Task 2 passo 0, D-10) ----------------------------
+    //
+    // **Modifica:** Claude (gsd-executor 01.6-05) · 2026-10-27 · test dell'helper puro con
+    // vettori in memoria, scritti prima del GREEN (il test-write li ha lasciati a questo passo)
+
+    /// `job_id` `<run_id di meta()>-<suffisso>`.
+    fn ids(suffixes: &[&str]) -> Vec<String> {
+        let rid = meta().run_id;
+        suffixes.iter().map(|s| format!("{rid}-{s}")).collect()
+    }
+
+    #[test]
+    fn test10_check_ok_reports_accepts_expected_set() {
+        let rid = meta().run_id;
+        check_ok_reports(&rid, &ok_components(), &ids(&FULL)).unwrap();
+        // L'ordine del file non conta.
+        check_ok_reports(
+            &rid,
+            &ok_components(),
+            &ids(&["tess-5", "render", "extract", "tess-4"]),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test10_check_ok_reports_rejects_missing_tess() {
+        let e = check_ok_reports(
+            &meta().run_id,
+            &ok_components(),
+            &ids(&["extract", "render", "tess-4"]),
+        )
+        .unwrap_err();
+        assert!(e.contains("rapporti ok attesi 4, trovati 3"), "errore: {e}");
+        assert!(e.contains("tess-5"), "il mancante non è nominato: {e}");
+    }
+
+    #[test]
+    fn test10_check_ok_reports_rejects_duplicate() {
+        let rid = meta().run_id;
+        let e = check_ok_reports(
+            &rid,
+            &ok_components(),
+            &ids(&["extract", "render", "tess-4", "tess-4", "tess-5"]),
+        )
+        .unwrap_err();
+        assert!(e.contains("duplicato"), "errore: {e}");
+        // Un duplicato che compensa una pagina mancante: il numero torna, l'insieme no.
+        assert!(
+            check_ok_reports(
+                &rid,
+                &ok_components(),
+                &ids(&["extract", "render", "tess-4", "tess-4"]),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn test10_check_ok_reports_rejects_unexpected_id() {
+        // Prefisso di un'altra run: `R1-extract` nella run `R`.
+        let ids_r: Vec<String> = ["R1-extract", "R-render", "R-tess-4", "R-tess-5"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let e = check_ok_reports("R", &ok_components(), &ids_r).unwrap_err();
+        assert!(e.contains("R1-extract"), "l'eccesso non è nominato: {e}");
+        assert!(e.contains("R-extract"), "il mancante non è nominato: {e}");
+        // Pagina tess non elencata, in più all'insieme atteso.
+        let e = check_ok_reports(
+            &meta().run_id,
+            &ok_components(),
+            &ids(&["extract", "render", "tess-4", "tess-5", "tess-9"]),
+        )
+        .unwrap_err();
+        assert!(e.contains("tess-9"), "l'eccesso non è nominato: {e}");
+        // Al più 5 id nominati per lista (in ordine lessicografico).
+        let many: Vec<String> = (10..30).map(|p| format!("x-{p}")).collect();
+        let e = check_ok_reports(&meta().run_id, &ok_components(), &many).unwrap_err();
+        assert!(e.contains("x-14") && !e.contains("x-15"), "errore: {e}");
+    }
+
+    #[test]
+    fn test10_check_ok_reports_rejects_empty() {
+        let e = check_ok_reports(&meta().run_id, &ok_components(), &[]).unwrap_err();
+        assert!(e.contains("reports.jsonl vuoto"), "errore: {e}");
+    }
+
+    #[test]
+    fn test10_check_ok_reports_render_without_tesseract() {
+        let rid = meta().run_id;
+        let v = vec![
+            c(Step::Extract, &[1, 2, 3, 4, 5], 700),
+            c(Step::Render, &[4, 5], 300),
+        ];
+        check_ok_reports(&rid, &v, &ids(&["extract", "render"])).unwrap();
+        assert!(check_ok_reports(&rid, &v, &ids(&["extract"])).is_err());
+    }
+
+    #[test]
+    fn test10_check_ok_reports_tess_uses_page_number() {
+        let rid = meta().run_id;
+        let v = vec![
+            c(Step::Extract, &[1, 2, 3, 4, 5], 700),
+            c(Step::Render, &[3, 5], 300),
+            c(Step::Tesseract, &[3, 5], 1200),
+        ];
+        check_ok_reports(&rid, &v, &ids(&["extract", "render", "tess-3", "tess-5"])).unwrap();
+        assert!(
+            check_ok_reports(&rid, &v, &ids(&["extract", "render", "tess-1", "tess-2"])).is_err(),
+            "tess numerati per posizione accettati"
+        );
+    }
+
+    #[test]
+    fn test10_check_ok_reports_digital_needs_only_extract() {
+        let rid = meta().run_id;
+        let v = vec![
+            c(Step::Extract, &[1, 2, 3, 4, 5], 700),
+            c(Step::Docling, &[2, 3], 900),
+        ];
+        check_ok_reports(&rid, &v, &ids(&["extract"])).unwrap();
+        assert!(check_ok_reports(&rid, &v, &ids(&["extract", "render"])).is_err());
     }
 }
