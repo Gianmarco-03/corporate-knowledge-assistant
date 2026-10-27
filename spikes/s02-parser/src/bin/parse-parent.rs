@@ -563,12 +563,41 @@ fn is_filter_rejection(kind: Kind, detail: &str) -> bool {
 }
 
 // Modifica: Claude (test-write 01.6-08) · 2026-10-27 · firma con todo!() di calibration_limits, per i test rossi (gap-closure 1.6, D-11)
+// Modifica: Claude (gsd-executor 01.6-08) · 2026-10-27 · calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (gap-closure 1.6, D-11)
 /// Limiti di un job di calibrazione con `descendants` discendenti in un budget di capacità
-/// `capacity_bytes` (contratto di 01.6-08, da implementare).
-#[cfg_attr(not(test), allow(dead_code))]
+/// `capacity_bytes`, con `q = CALIBRATION_QUOTA_BYTES`:
+///
+/// - `d = 0`: `mem = C − q`, senza arrotondamento (identico alla `cal` unica di prima);
+/// - `d ≥ 1`: `mem = (C − q) / (1 + d)`, arrotondato per difetto al MiB.
+///
+/// `address_space_bytes = memory_reservation_bytes = mem`. Il perché: `Budget::reservation_bytes`
+/// prenota `mem × (1 + d) + q` (formula di M10, invariata), che con `mem = C − q` e `d ≥ 1`
+/// superava `C` e dava `BudgetExceeded` a ogni op con discendenti (`ocr_tesseract`). Dividendo
+/// `mem` per `1 + d` la prenotazione resta ≤ C senza allargare il budget, e il tetto del
+/// singolo processo non supera quello di `d = 0`. Con `C < q` non esiste un limite sensato:
+/// `Err` con capacità e quota, invece di un `saturating_sub` che darebbe `RLIMIT_AS` 0.
 fn calibration_limits(capacity_bytes: u64, descendants: u32) -> Result<Limits, String> {
-    let _ = (capacity_bytes, descendants);
-    todo!("01.6-08: calibration_limits")
+    let q = CALIBRATION_QUOTA_BYTES;
+    if capacity_bytes < q {
+        return Err(format!(
+            "capacità del budget {capacity_bytes} byte sotto la quota di calibrazione {q} byte"
+        ));
+    }
+    let free = capacity_bytes - q;
+    let mem = if descendants == 0 {
+        free
+    } else {
+        free / (1 + u64::from(descendants)) / MIB * MIB
+    };
+    Ok(Limits {
+        address_space_bytes: mem,
+        memory_reservation_bytes: mem,
+        cpu_seconds: FIXED_CPU_SECONDS,
+        wall_timeout: FIXED_WALL_TIMEOUT,
+        file_size_bytes: q,
+        max_open_files: FIXED_MAX_OPEN_FILES,
+        out_quota_bytes: q,
+    })
 }
 
 async fn cmd_calibrate(
@@ -606,18 +635,11 @@ async fn cmd_calibrate(
     }
 
     let budget = budget()?;
-    let cal_mem = budget
-        .capacity_bytes()
-        .saturating_sub(CALIBRATION_QUOTA_BYTES);
-    let cal = Limits {
-        address_space_bytes: cal_mem,
-        memory_reservation_bytes: cal_mem,
-        cpu_seconds: FIXED_CPU_SECONDS,
-        wall_timeout: FIXED_WALL_TIMEOUT,
-        file_size_bytes: CALIBRATION_QUOTA_BYTES,
-        max_open_files: FIXED_MAX_OPEN_FILES,
-        out_quota_bytes: CALIBRATION_QUOTA_BYTES,
-    };
+    // capacità sotto la quota: rifiuto prima di ogni prenotazione e di ogni figlio (01.6-08)
+    if let Err(msg) = calibration_limits(budget.capacity_bytes(), 0) {
+        eprintln!("calibrate: {msg}");
+        return Ok(Exit(2));
+    }
     let csv_path = csv.unwrap_or_else(|| {
         let name = if op == "parse" {
             "calibration.csv".to_owned()
@@ -645,6 +667,14 @@ async fn cmd_calibrate(
             Ok(s) => s,
             Err((jid, e)) => {
                 print_job_error(jid.as_deref(), &e);
+                return Ok(Exit(2));
+            }
+        };
+        // limiti per job: dipendono dai discendenti dell'op (01.6-08, D-11)
+        let cal = match calibration_limits(budget.capacity_bytes(), spec.descendants) {
+            Ok(l) => l,
+            Err(msg) => {
+                eprintln!("calibrate: {msg}");
                 return Ok(Exit(2));
             }
         };
@@ -1226,12 +1256,22 @@ fn overhead_row(mode: &str, n: usize, run: u32, o: &RepOutcome) -> Vec<String> {
 }
 
 // Modifica: Claude (test-write 01.6-08) · 2026-10-27 · firma con todo!() di kind_status, per i test rossi (gap-closure 1.6, D-11)
-/// Nome snake_case di un `Kind` negli stati di `overhead` (contratto di 01.6-08, da
-/// implementare).
-#[cfg_attr(not(test), allow(dead_code))]
+// Modifica: Claude (gsd-executor 01.6-08) · 2026-10-27 · calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (gap-closure 1.6, D-11)
+/// Nome snake_case di un `Kind` negli stati di `overhead`, nello stesso stile minuscolo di
+/// `in_process_status`. `Kind::as_str` resta PascalCase: è il contratto del protocollo e di
+/// `hostile.csv`. `match` esaustivo senza `_`: una variante nuova non compila finché non ha
+/// un nome qui.
 fn kind_status(kind: Kind) -> &'static str {
-    let _ = kind;
-    todo!("01.6-08: kind_status")
+    match kind {
+        Kind::Encrypted => "encrypted",
+        Kind::DecompressionLimit => "decompression_limit",
+        Kind::Timeout => "timeout",
+        Kind::ResourceLimit => "resource_limit",
+        Kind::OutputLimit => "output_limit",
+        Kind::Crashed => "crashed",
+        Kind::Corrupt => "corrupt",
+        Kind::Unsupported => "unsupported",
+    }
 }
 
 /// `status` di una ripetizione `child-per-doc`: `None` se tutti i job sono riusciti,
@@ -1240,7 +1280,7 @@ fn child_per_doc_error(results: &[(String, anyhow::Result<RunReport>)]) -> Optio
     results.iter().find_map(|(_, r)| match r {
         Ok(rep) => match &rep.outcome {
             ChildOutcome::Ok { .. } => None,
-            ChildOutcome::Failed { kind, .. } => Some(format!("error:{}", kind.as_str())),
+            ChildOutcome::Failed { kind, .. } => Some(format!("error:{}", kind_status(*kind))),
             ChildOutcome::Quarantined { .. } => Some("error:quarantined".to_owned()),
         },
         Err(e) if job_error_of(e).is_some() => Some("error:job_error".to_owned()),

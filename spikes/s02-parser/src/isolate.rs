@@ -525,14 +525,26 @@ mod imp {
         JobError::new(JobErrorCode::PathNotAllowed, detail).into()
     }
 
-    /// Nessun componente di `p`, dalla radice, è un symlink.
+    /// Nessun componente di `p`, dalla radice, è un symlink. Ogni rifiuto è un
+    /// `PathNotAllowed`, con tre dettagli distinti:
+    ///
+    /// - `symlink`: un componente esiste ed è un symlink;
+    /// - `missing_component`: un componente non esiste (`lstat` dà `NotFound`);
+    /// - `lstat`: `lstat` fallisce per un altro motivo (permessi, I/O).
+    ///
+    /// L'esito è quello di prima (il percorso si rifiuta in tutti e tre i casi); cambia solo
+    /// la diagnosi, che prima chiamava «symlink» anche un componente assente.
     // Modifica: Claude (test-write 01.6-08) · 2026-10-27 · visibilità pub(super) per il test di missing_component nel mod tests (gap-closure 1.6, D-11)
+    // Modifica: Claude (gsd-executor 01.6-08) · 2026-10-27 · calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (gap-closure 1.6, D-11)
     pub(super) fn no_symlink_components(p: &Path) -> anyhow::Result<()> {
         for c in ancestors_from_root(p) {
             match std::fs::symlink_metadata(&c) {
                 Ok(m) if m.file_type().is_symlink() => return Err(path_err("symlink")),
                 Ok(_) => {}
-                Err(_) => return Err(path_err("symlink")),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    return Err(path_err("missing_component"));
+                }
+                Err(_) => return Err(path_err("lstat")),
             }
         }
         Ok(())

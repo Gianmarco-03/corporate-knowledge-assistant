@@ -27,3 +27,17 @@ Note del RED:
 - Verde atteso: `isolate::tests::no_symlink_components_still_reports_symlink`, guardia del symlink vero (come `tests/isolation.rs:692`, non modificato).
 - Rossi d'ambiente, estranei al piano: `pdf::tests::benign_pdf_gives_one_json_per_page_in_pdf_points_bottom_left`, `pdf::tests::rotation_is_reported_in_degrees` (bin `extract`), `overhead_in_process_errors_keep_all_rows` (`tests/drivers.rs`), `parse_child_data_schema` (`tests/isolation.rs`). Tutti e quattro per «PDFium assente in ["/opt/pdfium/lib", "/opt/pdfium/lib", "/src/target/pdfium/lib"]»: il worktree non ha `spikes/target/pdfium` (cartella ignorata da git, presente nella copia principale). Non dipendono dai test di questo piano.
 - Per poter chiamare `no_symlink_components` dal `mod tests` di `isolate.rs`, la funzione passa da `fn` a `pub(super) fn` dentro `mod imp`; il corpo non cambia.
+
+## GREEN dell'esecutore (Task 1, passo 2)
+
+**Modifica:** Claude (gsd-executor 01.6-08) · 2026-10-27 · GREEN, gate Rust e controllo with_capacity
+
+run_id del GREEN: 01-6-08-20261027t191013z-7e51
+GREEN test: exit=0 falliti=0
+esito gate rust: fmt=0 clippy=0
+esito with_capacity nuovi: 0
+
+Note del GREEN:
+- Suite con il comando della hard rule 2, dopo `touch` dei `.rs` di `s02-parser`; il log contiene `Compiling s02-parser`. Conteggio: 409 passati, 0 falliti, 8 ignorati (base 400 più i 9 nuovi del test-write). I 4 rossi d'ambiente del RED sono verdi: `spikes/target/pdfium` copiato nel worktree dal checkout principale (cartella ignorata da git).
+- Gate Rust sull'host da `spikes/` (il runner non ha rustfmt né clippy): `cargo fmt --all -- --check` exit 0, `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exit 0. Clippy sull'host non analizza il codice `cfg(linux)` dei test.
+- with_capacity: lo scanner del worktree conosce l'id `upload-in-memory-capacity-unverified`; `security_scan.py --json --fail-on HIGH` exit 0 su `parse-parent.rs` (7 rilievi, nessuno con quella `rule`) e su `isolate.rs` (0 rilievi). Il SUMMARY di 01.6-01 non elenca MEDIUM di quell'id per questi due file, e qui non ce ne sono.
