@@ -41,3 +41,27 @@ Note del GREEN:
 - Suite con il comando della hard rule 2, dopo `touch` dei `.rs` di `s02-parser`; il log contiene `Compiling s02-parser`. Conteggio: 409 passati, 0 falliti, 8 ignorati (base 400 più i 9 nuovi del test-write). I 4 rossi d'ambiente del RED sono verdi: `spikes/target/pdfium` copiato nel worktree dal checkout principale (cartella ignorata da git).
 - Gate Rust sull'host da `spikes/` (il runner non ha rustfmt né clippy): `cargo fmt --all -- --check` exit 0, `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exit 0. Clippy sull'host non analizza il codice `cfg(linux)` dei test.
 - with_capacity: lo scanner del worktree conosce l'id `upload-in-memory-capacity-unverified`; `security_scan.py --json --fail-on HIGH` exit 0 su `parse-parent.rs` (7 rilievi, nessuno con quella `rule`) e su `isolate.rs` (0 rilievi). Il SUMMARY di 01.6-01 non elenca MEDIUM di quell'id per questi due file, e qui non ce ne sono.
+
+## Prova di calibrate nel worker (Task 2)
+
+**Modifica:** Claude (gsd-executor 01.6-08) · 2026-10-27 · prova di calibrate su ocr_tesseract e ocr_render, controlli D-12
+
+run_id della prova: 01-6-08-20261027t191437z-a890
+immagine worker: 3fc53348ed18
+pagine di prova: 3 png
+esito calibrate ocr_tesseract: exit=0 ok=3/3 budget_exceeded=0
+esito calibrate ocr_render: exit=0 ok=1/1
+pulizia: results/raw/01-6-08 rimossa
+esito d12: diff vuoto
+PRENOTAZIONE: nessuna
+container con etichetta cka.run_id:
+(fine elenco)
+
+Note della prova:
+- Build del worker e prova nella stessa prenotazione (hard rule 3): `docker compose --env-file <spikes.env> -f spikes/compose.yaml build worker` (exit 0), poi `session.sh up` del worker. L'id dell'immagine costruita è uguale a quello del container avviato (`docker inspect --format '{{.Image}}'`, 12 caratteri: `3fc53348ed18`).
+- Pagine di prova: `qpdf --deterministic-id --empty --pages` delle pagine 1-3 del documento IT da 25 pagine di 01-13 (`der-it-01-relazione-annuale-2025-p1-25.pdf`, copiato nel worktree dal checkout principale perché `data/**/raw/` è ignorato da git), poi job `ocr_render` a 300 DPI con `parse-parent run --job` (1 rapporto `ok`). Tre PNG con magic `\x89PNG`. L'`out_dir` del render contiene anche 3 sidecar non PNG: come in 01-13 la calibrazione gira su una copia dei soli PNG (`/results/raw/01-6-08/png`).
+- `calibrate --op ocr_tesseract --inputs /results/raw/01-6-08/png --out /results/raw/01-6-08/limits.json --csv /results/raw/01-6-08/calibration.csv --params '{}'`: exit 0, 3 rapporti `ok` su 3 contati su stdout e stderr insieme, 3 righe nel CSV di calibrazione, `BudgetExceeded` 0 volte. `--out` punta a una copia di `results/ocr/limits-ocr_tesseract.json`; lo sha256 del file versionato è uguale prima e dopo (`bf57df8208936d03`). Il `hw.json` di `results/ocr` è copiato accanto ai CSV temporanei, perché il writer CSV lo esige.
+- Controllo d = 0: `calibrate --op ocr_render` su `src.pdf` con `--params '{"dpi":300}'`, `--out` e `--csv` nella cartella temporanea: exit 0, 1 `ok` su 1. Il render di calibrazione scrive nell'area fissa `/results/raw/cal-ocr-render/<job_id>` di `calibrate`, rimossa con la cartella temporanea.
+- I valori calcolati dalla prova non si confrontano con quelli ratificati e non si adottano (hard rule 4): le uscite temporanee sono rimosse dal runner prima di `session.sh stop`.
+- `git diff --quiet $BASE -- spikes/s02-parser/results spikes/data/corpus/oracles/*.json` vuoto; anche `spikes/results/*.csv` invariati.
+- Primo giro scartato (run 01-6-08-20261027t191247z-c938, immagine d2e5ca669cd9): il job di render aveva un `out_dir` fuori forma (`out_dir_form`, l'ultimo componente deve essere il `job_id`) e il CSV di calibrazione mancava di `hw.json`. Nessun `calibrate` su `ocr_tesseract` è partito, la cartella temporanea è stata rimossa. Il secondo giro ha ricostruito l'immagine nella propria prenotazione.
