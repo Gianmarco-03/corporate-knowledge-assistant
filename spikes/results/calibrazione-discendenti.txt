@@ -1,0 +1,29 @@
+**Modifica:** Claude (test-write 01.6-08) · 2026-10-27 · evidenza di calibrate con discendenti, stati di overhead snake_case e missing_component (D-11): precondizioni e RED del test-write
+
+# s02 — calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (piano 01.6-08)
+
+git_rev base: a117b9e9fe22837016ed12210719413bc9bc70a9
+run_id del RED: 01-6-08-20261027t190515z-0a95
+
+## Precondizioni
+
+precondizione overhead maiuscole: 0
+precondizione symlink da componente assente: 0
+
+Note delle precondizioni:
+- `grep -c 'error:[A-Z]' spikes/s02-parser/results/isolation/overhead.csv` vale 0: il cambio di maiuscole non rende il CSV incoerente col codice.
+- `grep -rn '"symlink"\|,symlink' spikes/*/results spikes/results` non dà righe: nessun CSV registra `symlink`, quindi nemmeno per un percorso mancante.
+
+## RED del test-write (Task 1, passo 1)
+
+RED test: falliti=9 nomi=tests::calibration_limits_without_descendants_is_unchanged,tests::calibration_limits_rejects_capacity_below_quota,tests::calibration_limits_with_descendants_fits_budget,tests::calibration_limits_one_descendant_matches_runs_profile,tests::calibration_limits_rounds_down_to_mib,tests::kind_status_is_snake_case_for_all_kinds,tests::child_per_doc_error_table,isolate::tests::no_symlink_components_reports_missing_component,isolate::tests::no_symlink_components_reports_lstat
+
+Note del RED:
+- Comando: da `spikes/`, `bash tools/session.sh with 01-6-08 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast'`, dopo `touch` dei `.rs` di `s02-parser` (volume `/target` condiviso fra worktree). Il log contiene `Compiling s02-parser v0.0.0 (/src/s02-parser)`.
+- Conteggio della suite: 409 test eseguiti (396 passati, 13 falliti), 8 ignorati. La base ne esegue 400; i 9 nuovi test del test-write portano a 409.
+- I cinque test di `calibration_limits` e `kind_status_is_snake_case_for_all_kinds` sono rossi per `todo!()`: le firme `calibration_limits(capacity_bytes: u64, descendants: u32) -> Result<Limits, String>` e `kind_status(kind: Kind) -> &'static str` esistono solo perché i test compilino. `calibration_limits_without_descendants_is_unchanged` diventa verde solo dopo l'implementazione: sulla base è rosso per `todo!()`.
+- `child_per_doc_error_table` è rosso sull'attesa aggiornata: `left: Some("error:Corrupt")`, `right: Some("error:corrupt")`.
+- `no_symlink_components_reports_missing_component` è rosso: `left: "symlink"`, `right: "missing_component"`. `no_symlink_components_reports_lstat` è rosso: `left: "symlink"`, `right: "lstat"` (il runner non gira da uid 0, il test non si salta).
+- Verde atteso: `isolate::tests::no_symlink_components_still_reports_symlink`, guardia del symlink vero (come `tests/isolation.rs:692`, non modificato).
+- Rossi d'ambiente, estranei al piano: `pdf::tests::benign_pdf_gives_one_json_per_page_in_pdf_points_bottom_left`, `pdf::tests::rotation_is_reported_in_degrees` (bin `extract`), `overhead_in_process_errors_keep_all_rows` (`tests/drivers.rs`), `parse_child_data_schema` (`tests/isolation.rs`). Tutti e quattro per «PDFium assente in ["/opt/pdfium/lib", "/opt/pdfium/lib", "/src/target/pdfium/lib"]»: il worktree non ha `spikes/target/pdfium` (cartella ignorata da git, presente nella copia principale). Non dipendono dai test di questo piano.
+- Per poter chiamare `no_symlink_components` dal `mod tests` di `isolate.rs`, la funzione passa da `fn` a `pub(super) fn` dentro `mod imp`; il corpo non cambia.
