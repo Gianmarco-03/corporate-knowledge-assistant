@@ -64,3 +64,10 @@ comando: copia di spikes/s02-parser/results/isolation/hostile.csv di HEAD in <dr
 esito istantanea csv: exit=0 file=1
 TEST-13: scanner del GREEN con --fail-on HIGH su skills/security-scanner/tests: exit=0
 esito senza argomenti: exit=2 (security-no-paths)
+
+## Pulizia
+
+**Modifica:** Claude (gsd-executor 01.6-02) · 2026-10-29 · pulizia del driver
+
+cartella del driver (mktemp -d fuori dal repo: albero di base e dopo, JSON, copia dello scanner di base, istantanea csv) rimossa a fine Task 3
+driver rimosso: si
