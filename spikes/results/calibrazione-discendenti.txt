@@ -1,0 +1,82 @@
+**Modifica:** Claude (test-write 01.6-08) · 2026-10-27 · evidenza di calibrate con discendenti, stati di overhead snake_case e missing_component (D-11): precondizioni e RED del test-write
+
+# s02 — calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (piano 01.6-08)
+
+git_rev base: a117b9e9fe22837016ed12210719413bc9bc70a9
+run_id del RED: 01-6-08-20261027t190515z-0a95
+
+## Precondizioni
+
+precondizione overhead maiuscole: 0
+precondizione symlink da componente assente: 0
+
+Note delle precondizioni:
+- `grep -c 'error:[A-Z]' spikes/s02-parser/results/isolation/overhead.csv` vale 0: il cambio di maiuscole non rende il CSV incoerente col codice.
+- `grep -rn '"symlink"\|,symlink' spikes/*/results spikes/results` non dà righe: nessun CSV registra `symlink`, quindi nemmeno per un percorso mancante.
+
+## RED del test-write (Task 1, passo 1)
+
+RED test: falliti=9 nomi=tests::calibration_limits_without_descendants_is_unchanged,tests::calibration_limits_rejects_capacity_below_quota,tests::calibration_limits_with_descendants_fits_budget,tests::calibration_limits_one_descendant_matches_runs_profile,tests::calibration_limits_rounds_down_to_mib,tests::kind_status_is_snake_case_for_all_kinds,tests::child_per_doc_error_table,isolate::tests::no_symlink_components_reports_missing_component,isolate::tests::no_symlink_components_reports_lstat
+
+Note del RED:
+- Comando: da `spikes/`, `bash tools/session.sh with 01-6-08 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- cargo test -p s02-parser --locked --offline --no-fail-fast'`, dopo `touch` dei `.rs` di `s02-parser` (volume `/target` condiviso fra worktree). Il log contiene `Compiling s02-parser v0.0.0 (/src/s02-parser)`.
+- Conteggio della suite: 409 test eseguiti (396 passati, 13 falliti), 8 ignorati. La base ne esegue 400; i 9 nuovi test del test-write portano a 409.
+- I cinque test di `calibration_limits` e `kind_status_is_snake_case_for_all_kinds` sono rossi per `todo!()`: le firme `calibration_limits(capacity_bytes: u64, descendants: u32) -> Result<Limits, String>` e `kind_status(kind: Kind) -> &'static str` esistono solo perché i test compilino. `calibration_limits_without_descendants_is_unchanged` diventa verde solo dopo l'implementazione: sulla base è rosso per `todo!()`.
+- `child_per_doc_error_table` è rosso sull'attesa aggiornata: `left: Some("error:Corrupt")`, `right: Some("error:corrupt")`.
+- `no_symlink_components_reports_missing_component` è rosso: `left: "symlink"`, `right: "missing_component"`. `no_symlink_components_reports_lstat` è rosso: `left: "symlink"`, `right: "lstat"` (il runner non gira da uid 0, il test non si salta).
+- Verde atteso: `isolate::tests::no_symlink_components_still_reports_symlink`, guardia del symlink vero (come `tests/isolation.rs:692`, non modificato).
+- Rossi d'ambiente, estranei al piano: `pdf::tests::benign_pdf_gives_one_json_per_page_in_pdf_points_bottom_left`, `pdf::tests::rotation_is_reported_in_degrees` (bin `extract`), `overhead_in_process_errors_keep_all_rows` (`tests/drivers.rs`), `parse_child_data_schema` (`tests/isolation.rs`). Tutti e quattro per «PDFium assente in ["/opt/pdfium/lib", "/opt/pdfium/lib", "/src/target/pdfium/lib"]»: il worktree non ha `spikes/target/pdfium` (cartella ignorata da git, presente nella copia principale). Non dipendono dai test di questo piano.
+- Per poter chiamare `no_symlink_components` dal `mod tests` di `isolate.rs`, la funzione passa da `fn` a `pub(super) fn` dentro `mod imp`; il corpo non cambia.
+
+## GREEN dell'esecutore (Task 1, passo 2)
+
+**Modifica:** Claude (gsd-executor 01.6-08) · 2026-10-27 · GREEN, gate Rust e controllo with_capacity
+
+run_id del GREEN: 01-6-08-20261027t191013z-7e51
+GREEN test: exit=0 falliti=0
+esito gate rust: fmt=0 clippy=0
+esito with_capacity nuovi: 0
+
+Note del GREEN:
+- Suite con il comando della hard rule 2, dopo `touch` dei `.rs` di `s02-parser`; il log contiene `Compiling s02-parser`. Conteggio: 409 passati, 0 falliti, 8 ignorati (base 400 più i 9 nuovi del test-write). I 4 rossi d'ambiente del RED sono verdi: `spikes/target/pdfium` copiato nel worktree dal checkout principale (cartella ignorata da git).
+- Gate Rust sull'host da `spikes/` (il runner non ha rustfmt né clippy): `cargo fmt --all -- --check` exit 0, `cargo clippy --workspace --all-targets --locked --offline -- -D warnings` exit 0. Clippy sull'host non analizza il codice `cfg(linux)` dei test.
+- with_capacity: lo scanner del worktree conosce l'id `upload-in-memory-capacity-unverified`; `security_scan.py --json --fail-on HIGH` exit 0 su `parse-parent.rs` (7 rilievi, nessuno con quella `rule`) e su `isolate.rs` (0 rilievi). Il SUMMARY di 01.6-01 non elenca MEDIUM di quell'id per questi due file, e qui non ce ne sono.
+
+## Prova di calibrate nel worker (Task 2)
+
+**Modifica:** Claude (gsd-executor 01.6-08) · 2026-10-27 · prova di calibrate su ocr_tesseract e ocr_render, controlli D-12
+
+run_id della prova: 01-6-08-20261027t191437z-a890
+immagine worker: 3fc53348ed18
+pagine di prova: 3 png
+esito calibrate ocr_tesseract: exit=0 ok=3/3 budget_exceeded=0
+esito calibrate ocr_render: exit=0 ok=1/1
+pulizia: results/raw/01-6-08 rimossa
+esito d12: diff vuoto
+PRENOTAZIONE: nessuna
+container con etichetta cka.run_id:
+(fine elenco)
+
+Note della prova:
+- Build del worker e prova nella stessa prenotazione (hard rule 3): `docker compose --env-file <spikes.env> -f spikes/compose.yaml build worker` (exit 0), poi `session.sh up` del worker. L'id dell'immagine costruita è uguale a quello del container avviato (`docker inspect --format '{{.Image}}'`, 12 caratteri: `3fc53348ed18`).
+- Pagine di prova: `qpdf --deterministic-id --empty --pages` delle pagine 1-3 del documento IT da 25 pagine di 01-13 (`der-it-01-relazione-annuale-2025-p1-25.pdf`, copiato nel worktree dal checkout principale perché `data/**/raw/` è ignorato da git), poi job `ocr_render` a 300 DPI con `parse-parent run --job` (1 rapporto `ok`). Tre PNG con magic `\x89PNG`. L'`out_dir` del render contiene anche 3 sidecar non PNG: come in 01-13 la calibrazione gira su una copia dei soli PNG (`/results/raw/01-6-08/png`).
+- `calibrate --op ocr_tesseract --inputs /results/raw/01-6-08/png --out /results/raw/01-6-08/limits.json --csv /results/raw/01-6-08/calibration.csv --params '{}'`: exit 0, 3 rapporti `ok` su 3 contati su stdout e stderr insieme, 3 righe nel CSV di calibrazione, `BudgetExceeded` 0 volte. `--out` punta a una copia di `results/ocr/limits-ocr_tesseract.json`; lo sha256 del file versionato è uguale prima e dopo (`bf57df8208936d03`). Il `hw.json` di `results/ocr` è copiato accanto ai CSV temporanei, perché il writer CSV lo esige.
+- Controllo d = 0: `calibrate --op ocr_render` su `src.pdf` con `--params '{"dpi":300}'`, `--out` e `--csv` nella cartella temporanea: exit 0, 1 `ok` su 1. Il render di calibrazione scrive nell'area fissa `/results/raw/cal-ocr-render/<job_id>` di `calibrate`, rimossa con la cartella temporanea.
+- I valori calcolati dalla prova non si confrontano con quelli ratificati e non si adottano (hard rule 4): le uscite temporanee sono rimosse dal runner prima di `session.sh stop`.
+- `git diff --quiet $BASE -- spikes/s02-parser/results spikes/data/corpus/oracles/*.json` vuoto; anche `spikes/results/*.csv` invariati.
+- Primo giro scartato (run 01-6-08-20261027t191247z-c938, immagine d2e5ca669cd9): il job di render aveva un `out_dir` fuori forma (`out_dir_form`, l'ultimo componente deve essere il `job_id`) e il CSV di calibrazione mancava di `hw.json`. Nessun `calibrate` su `ocr_tesseract` è partito, la cartella temporanea è stata rimossa. Il secondo giro ha ricostruito l'immagine nella propria prenotazione.
+
+## Convenzione di section_path in ORACOLI.md (Task 3)
+
+**Modifica:** Claude (gsd-executor 01.6-08) · 2026-10-27 · conteggio dei section_path e correzione della convenzione (D-13)
+
+section_path: da_h1=0 da_h2=44 altro=0
+section_path source_ref: da_h1=0 da_h2=35 altro=0
+oracoli: convenzione section_path corretta con Storia
+deroga double-check: si motivo=JSON degli oracoli invariato; oracoli degli spike, non evaluation corpus (D-13)
+esito json oracoli: invariato
+
+Note del Task 3:
+- Conteggio di sola lettura con uno script `sh scripts/py.sh -I` in una cartella `mktemp -d` fuori dal repo, poi rimossa. Per ogni `section_path` non nullo di `queries.json` (44 negli `expected_passages`, 35 nei `source_ref`) si legge il Markdown `synthetic/<document_id>.md`, se ne estraggono l'unico H1 (`# `) e gli H2 (`## `), e si confronta il primo elemento del percorso (separatore ` > `) con l'H1 reale e con gli H2 reali, non con un'euristica. 9 documenti letti, ciascuno con un solo H1.
+- sha256 di `queries.json` uguale prima e dopo il conteggio (`971e61b4fe6c38cd`); `git diff --quiet $BASE` su `queries.json` e `parser-it.json` vuoto.
+- In `ORACOLI.md` cambia la sola riga 39 (aggiunta della frase sull'H1); sotto, il paragrafo *Storia* riporta alla lettera la convenzione precedente, e la riga **Modifica:** firma la deroga al `double-check` decisa dall'utente (D-13).

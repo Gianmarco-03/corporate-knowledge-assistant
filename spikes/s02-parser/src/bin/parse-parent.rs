@@ -562,6 +562,44 @@ fn is_filter_rejection(kind: Kind, detail: &str) -> bool {
             && (detail.starts_with("filter_chain") || detail.starts_with("image")))
 }
 
+// Modifica: Claude (test-write 01.6-08) · 2026-10-27 · firma con todo!() di calibration_limits, per i test rossi (gap-closure 1.6, D-11)
+// Modifica: Claude (gsd-executor 01.6-08) · 2026-10-27 · calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (gap-closure 1.6, D-11)
+/// Limiti di un job di calibrazione con `descendants` discendenti in un budget di capacità
+/// `capacity_bytes`, con `q = CALIBRATION_QUOTA_BYTES`:
+///
+/// - `d = 0`: `mem = C − q`, senza arrotondamento (identico alla `cal` unica di prima);
+/// - `d ≥ 1`: `mem = (C − q) / (1 + d)`, arrotondato per difetto al MiB.
+///
+/// `address_space_bytes = memory_reservation_bytes = mem`. Il perché: `Budget::reservation_bytes`
+/// prenota `mem × (1 + d) + q` (formula di M10, invariata), che con `mem = C − q` e `d ≥ 1`
+/// superava `C` e dava `BudgetExceeded` a ogni op con discendenti (`ocr_tesseract`). Dividendo
+/// `mem` per `1 + d` la prenotazione resta ≤ C senza allargare il budget, e il tetto del
+/// singolo processo non supera quello di `d = 0`. Con `C < q` non esiste un limite sensato:
+/// `Err` con capacità e quota, invece di un `saturating_sub` che darebbe `RLIMIT_AS` 0.
+fn calibration_limits(capacity_bytes: u64, descendants: u32) -> Result<Limits, String> {
+    let q = CALIBRATION_QUOTA_BYTES;
+    if capacity_bytes < q {
+        return Err(format!(
+            "capacità del budget {capacity_bytes} byte sotto la quota di calibrazione {q} byte"
+        ));
+    }
+    let free = capacity_bytes - q;
+    let mem = if descendants == 0 {
+        free
+    } else {
+        free / (1 + u64::from(descendants)) / MIB * MIB
+    };
+    Ok(Limits {
+        address_space_bytes: mem,
+        memory_reservation_bytes: mem,
+        cpu_seconds: FIXED_CPU_SECONDS,
+        wall_timeout: FIXED_WALL_TIMEOUT,
+        file_size_bytes: q,
+        max_open_files: FIXED_MAX_OPEN_FILES,
+        out_quota_bytes: q,
+    })
+}
+
 async fn cmd_calibrate(
     op: &str,
     inputs: &Path,
@@ -597,18 +635,11 @@ async fn cmd_calibrate(
     }
 
     let budget = budget()?;
-    let cal_mem = budget
-        .capacity_bytes()
-        .saturating_sub(CALIBRATION_QUOTA_BYTES);
-    let cal = Limits {
-        address_space_bytes: cal_mem,
-        memory_reservation_bytes: cal_mem,
-        cpu_seconds: FIXED_CPU_SECONDS,
-        wall_timeout: FIXED_WALL_TIMEOUT,
-        file_size_bytes: CALIBRATION_QUOTA_BYTES,
-        max_open_files: FIXED_MAX_OPEN_FILES,
-        out_quota_bytes: CALIBRATION_QUOTA_BYTES,
-    };
+    // capacità sotto la quota: rifiuto prima di ogni prenotazione e di ogni figlio (01.6-08)
+    if let Err(msg) = calibration_limits(budget.capacity_bytes(), 0) {
+        eprintln!("calibrate: {msg}");
+        return Ok(Exit(2));
+    }
     let csv_path = csv.unwrap_or_else(|| {
         let name = if op == "parse" {
             "calibration.csv".to_owned()
@@ -636,6 +667,14 @@ async fn cmd_calibrate(
             Ok(s) => s,
             Err((jid, e)) => {
                 print_job_error(jid.as_deref(), &e);
+                return Ok(Exit(2));
+            }
+        };
+        // limiti per job: dipendono dai discendenti dell'op (01.6-08, D-11)
+        let cal = match calibration_limits(budget.capacity_bytes(), spec.descendants) {
+            Ok(l) => l,
+            Err(msg) => {
+                eprintln!("calibrate: {msg}");
                 return Ok(Exit(2));
             }
         };
@@ -1216,13 +1255,32 @@ fn overhead_row(mode: &str, n: usize, run: u32, o: &RepOutcome) -> Vec<String> {
     ]
 }
 
+// Modifica: Claude (test-write 01.6-08) · 2026-10-27 · firma con todo!() di kind_status, per i test rossi (gap-closure 1.6, D-11)
+// Modifica: Claude (gsd-executor 01.6-08) · 2026-10-27 · calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (gap-closure 1.6, D-11)
+/// Nome snake_case di un `Kind` negli stati di `overhead`, nello stesso stile minuscolo di
+/// `in_process_status`. `Kind::as_str` resta PascalCase: è il contratto del protocollo e di
+/// `hostile.csv`. `match` esaustivo senza `_`: una variante nuova non compila finché non ha
+/// un nome qui.
+fn kind_status(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Encrypted => "encrypted",
+        Kind::DecompressionLimit => "decompression_limit",
+        Kind::Timeout => "timeout",
+        Kind::ResourceLimit => "resource_limit",
+        Kind::OutputLimit => "output_limit",
+        Kind::Crashed => "crashed",
+        Kind::Corrupt => "corrupt",
+        Kind::Unsupported => "unsupported",
+    }
+}
+
 /// `status` di una ripetizione `child-per-doc`: `None` se tutti i job sono riusciti,
 /// altrimenti quello del primo job non riuscito nell'ordine dei risultati.
 fn child_per_doc_error(results: &[(String, anyhow::Result<RunReport>)]) -> Option<String> {
     results.iter().find_map(|(_, r)| match r {
         Ok(rep) => match &rep.outcome {
             ChildOutcome::Ok { .. } => None,
-            ChildOutcome::Failed { kind, .. } => Some(format!("error:{}", kind.as_str())),
+            ChildOutcome::Failed { kind, .. } => Some(format!("error:{}", kind_status(*kind))),
             ChildOutcome::Quarantined { .. } => Some("error:quarantined".to_owned()),
         },
         Err(e) if job_error_of(e).is_some() => Some("error:job_error".to_owned()),
@@ -1730,7 +1788,7 @@ mod tests {
                 report(failed(Kind::Corrupt)),
                 report(ok())
             ])),
-            Some("error:Corrupt".to_owned())
+            Some("error:corrupt".to_owned())
         );
         assert_eq!(
             child_per_doc_error(&results(vec![
@@ -1758,7 +1816,219 @@ mod tests {
                 Err(anyhow::anyhow!("x")),
                 report(quarantined(&["javascript"]))
             ])),
-            Some("error:Timeout".to_owned())
+            Some("error:timeout".to_owned())
+        );
+        // tabella completa: ogni `Kind` finisce nello stato in snake_case (01.6-08, D-11)
+        for k in ALL_KINDS {
+            assert_eq!(
+                child_per_doc_error(&results(vec![report(ok()), report(failed(k))])),
+                Some(format!("error:{}", expected_snake(k))),
+                "stato di child-per-doc per {k:?}"
+            );
+        }
+    }
+
+    // Modifica: Claude (test-write 01.6-08) · 2026-10-27 · test rossi di calibration_limits, kind_status (gap-closure 1.6, D-11; TEST-1..TEST-4, TEST-6 di 01.6-08-TEST-DESIGN.md)
+
+    /// Le 8 varianti di `Kind`, nell'ordine di `protocol.rs`.
+    const ALL_KINDS: [Kind; 8] = [
+        Kind::Encrypted,
+        Kind::DecompressionLimit,
+        Kind::Timeout,
+        Kind::ResourceLimit,
+        Kind::OutputLimit,
+        Kind::Crashed,
+        Kind::Corrupt,
+        Kind::Unsupported,
+    ];
+
+    /// Attesa snake_case per variante: `match` esaustivo, così una variante nuova non compila
+    /// finché la tabella non la nomina.
+    fn expected_snake(k: Kind) -> &'static str {
+        match k {
+            Kind::Encrypted => "encrypted",
+            Kind::DecompressionLimit => "decompression_limit",
+            Kind::Timeout => "timeout",
+            Kind::ResourceLimit => "resource_limit",
+            Kind::OutputLimit => "output_limit",
+            Kind::Crashed => "crashed",
+            Kind::Corrupt => "corrupt",
+            Kind::Unsupported => "unsupported",
+        }
+    }
+
+    /// `^[a-z]+(_[a-z]+)*$`, senza dipendenze.
+    fn is_snake_case(s: &str) -> bool {
+        !s.is_empty()
+            && !s.starts_with('_')
+            && !s.ends_with('_')
+            && !s.contains("__")
+            && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+    }
+
+    /// TEST-6: `kind_status` in snake_case per le 8 varianti, `Kind::as_str` invariato.
+    #[test]
+    fn kind_status_is_snake_case_for_all_kinds() {
+        let mut seen = BTreeSet::new();
+        for k in ALL_KINDS {
+            let got = kind_status(k);
+            assert_eq!(got, expected_snake(k), "kind_status({k:?})");
+            assert!(is_snake_case(got), "{got:?} non è snake_case");
+            assert!(seen.insert(got), "{got:?} ripetuto");
+        }
+        // il contratto del protocollo resta PascalCase (hard rule 6)
+        assert_eq!(Kind::Corrupt.as_str(), "Corrupt");
+        assert_eq!(Kind::DecompressionLimit.as_str(), "DecompressionLimit");
+    }
+
+    const C_1792: u64 = 1792 * MIB;
+
+    /// I campi che `calibrate` non fa dipendere dalla memoria, uguali a quelli di BASE.
+    fn assert_fixed_fields(l: &Limits) {
+        assert_eq!(l.cpu_seconds, FIXED_CPU_SECONDS);
+        assert_eq!(l.wall_timeout, FIXED_WALL_TIMEOUT);
+        assert_eq!(l.file_size_bytes, CALIBRATION_QUOTA_BYTES);
+        assert_eq!(l.max_open_files, FIXED_MAX_OPEN_FILES);
+        assert_eq!(l.out_quota_bytes, CALIBRATION_QUOTA_BYTES);
+    }
+
+    /// TEST-1: con d = 0 i limiti sono quelli che `cmd_calibrate` costruiva a BASE, campo per
+    /// campo, anche con una capacità non multipla di MiB (nessun arrotondamento).
+    #[test]
+    fn calibration_limits_without_descendants_is_unchanged() {
+        let q = CALIBRATION_QUOTA_BYTES;
+        for c in [C_1792, C_1792 + 123] {
+            let got = calibration_limits(c, 0).expect("capacità sopra la quota");
+            let base = Limits {
+                address_space_bytes: c - q,
+                memory_reservation_bytes: c - q,
+                cpu_seconds: FIXED_CPU_SECONDS,
+                wall_timeout: FIXED_WALL_TIMEOUT,
+                file_size_bytes: q,
+                max_open_files: FIXED_MAX_OPEN_FILES,
+                out_quota_bytes: q,
+            };
+            assert_eq!(got, base, "C = {c}");
+        }
+        assert_eq!(
+            calibration_limits(C_1792, 0)
+                .unwrap()
+                .memory_reservation_bytes,
+            1536 * MIB
+        );
+    }
+
+    /// TEST-4 (parte C < q): sotto la quota `calibration_limits` rifiuta, con un messaggio che
+    /// nomina capacità e quota, invece di dare un limite 0.
+    #[test]
+    fn calibration_limits_rejects_capacity_below_quota() {
+        let q = CALIBRATION_QUOTA_BYTES;
+        for c in [q - 1, 0] {
+            for d in [0, 1] {
+                let e = calibration_limits(c, d).expect_err("capacità sotto la quota");
+                let lower = e.to_lowercase();
+                assert!(lower.contains("capacit"), "messaggio senza capacità: {e:?}");
+                assert!(lower.contains("quota"), "messaggio senza quota: {e:?}");
+            }
+        }
+    }
+
+    /// Radici temporanee per `prepare_job` (`S02_BIN_DIR`, `S02_WORK_ROOT`, `S02_RESULTS_RAW`),
+    /// rimosse anche se il test fallisce.
+    struct PrepareRoots(PathBuf);
+
+    impl Drop for PrepareRoots {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Spec reale di `prepare_job` per un job `ocr_tesseract` con `out_dir: null`.
+    fn ocr_tesseract_spec() -> (PrepareRoots, ChildSpec) {
+        let tmp = std::env::temp_dir()
+            .canonicalize()
+            .expect("temp_dir canonico");
+        let base = tmp.join(format!("s02-pp-cal-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let guard = PrepareRoots(base.clone());
+        for d in ["bin", "jobs", "raw"] {
+            std::fs::create_dir_all(base.join(d)).expect("cartella delle radici");
+        }
+        std::fs::write(base.join("bin").join("ocr"), b"").expect("bin ocr finto");
+        let input = base.join("raw").join("page.png");
+        std::fs::write(&input, b"\x89PNG\r\n\x1a\n").expect("input");
+        // SAFETY: le variabili le legge solo `job::resolve`; nessun altro test di questo
+        // modulo chiama `prepare_job` né legge queste variabili, e nessun codice non Rust
+        // legge l'ambiente in parallelo.
+        unsafe {
+            std::env::set_var("S02_BIN_DIR", base.join("bin"));
+            std::env::set_var("S02_WORK_ROOT", base.join("jobs"));
+            std::env::set_var("S02_RESULTS_RAW", base.join("raw"));
+        }
+        let bytes = serde_json::to_vec(&json!({
+            "job_id": "tw-cal-desc",
+            "op": "ocr_tesseract",
+            "input": input.to_string_lossy(),
+            "out_dir": null,
+            "params": {},
+        }))
+        .unwrap();
+        let spec = prepare_job(&bytes).unwrap_or_else(|(_, e)| panic!("prepare_job: {e:?}"));
+        (guard, spec)
+    }
+
+    /// TEST-2: con d ≥ 1 la prenotazione di `Budget::reservation_bytes` sta in C, il tetto del
+    /// singolo processo non supera quello di BASE e la divisione non è più stretta del MiB.
+    #[test]
+    fn calibration_limits_with_descendants_fits_budget() {
+        let q = CALIBRATION_QUOTA_BYTES;
+        let (_roots, mut spec) = ocr_tesseract_spec();
+        assert!(
+            spec.descendants >= 1,
+            "ocr_tesseract senza discendenti: test vacuo ({})",
+            spec.descendants
+        );
+        for d in 1..=3u32 {
+            spec.descendants = d;
+            let l = calibration_limits(C_1792, d).expect("capacità sopra la quota");
+            let r = Budget::reservation_bytes(&spec, &l);
+            assert!(r <= C_1792, "d = {d}: prenotazione {r} > capacità {C_1792}");
+            assert!(
+                r > C_1792 - u64::from(1 + d) * MIB,
+                "d = {d}: prenotazione {r} più stretta del necessario"
+            );
+            assert!(l.memory_reservation_bytes <= C_1792 - q, "d = {d}");
+            assert!(l.address_space_bytes <= C_1792 - q, "d = {d}");
+            assert_eq!(l.memory_reservation_bytes % MIB, 0, "d = {d}: non al MiB");
+            assert_eq!(l.address_space_bytes, l.memory_reservation_bytes, "d = {d}");
+            assert_fixed_fields(&l);
+        }
+    }
+
+    /// TEST-3: C = 1792 MiB e un discendente danno 768 MiB, il profilo di
+    /// `RISULTATI-ocr.md:76`.
+    #[test]
+    fn calibration_limits_one_descendant_matches_runs_profile() {
+        let l = calibration_limits(C_1792, 1).expect("capacità sopra la quota");
+        assert_eq!(l.memory_reservation_bytes, 768 * MIB);
+        assert_eq!(l.address_space_bytes, 768 * MIB);
+        assert_fixed_fields(&l);
+    }
+
+    /// TEST-4 (arrotondamento): con d ≥ 1 e C non multipla di MiB il limite è arrotondato per
+    /// difetto al MiB.
+    #[test]
+    fn calibration_limits_rounds_down_to_mib() {
+        let q = CALIBRATION_QUOTA_BYTES;
+        let c = C_1792 + 12345;
+        let l = calibration_limits(c, 1).expect("capacità sopra la quota");
+        assert_eq!(l.memory_reservation_bytes % MIB, 0);
+        assert!(l.memory_reservation_bytes <= (c - q) / 2);
+        assert_eq!(l.memory_reservation_bytes, 768 * MIB);
+        // con d = 0 lo stesso C resta esatto (TEST-1)
+        assert_eq!(
+            calibration_limits(c, 0).unwrap().memory_reservation_bytes,
+            c - q
         );
     }
 }

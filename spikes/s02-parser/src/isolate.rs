@@ -525,13 +525,26 @@ mod imp {
         JobError::new(JobErrorCode::PathNotAllowed, detail).into()
     }
 
-    /// Nessun componente di `p`, dalla radice, è un symlink.
-    fn no_symlink_components(p: &Path) -> anyhow::Result<()> {
+    /// Nessun componente di `p`, dalla radice, è un symlink. Ogni rifiuto è un
+    /// `PathNotAllowed`, con tre dettagli distinti:
+    ///
+    /// - `symlink`: un componente esiste ed è un symlink;
+    /// - `missing_component`: un componente non esiste (`lstat` dà `NotFound`);
+    /// - `lstat`: `lstat` fallisce per un altro motivo (permessi, I/O).
+    ///
+    /// L'esito è quello di prima (il percorso si rifiuta in tutti e tre i casi); cambia solo
+    /// la diagnosi, che prima chiamava «symlink» anche un componente assente.
+    // Modifica: Claude (test-write 01.6-08) · 2026-10-27 · visibilità pub(super) per il test di missing_component nel mod tests (gap-closure 1.6, D-11)
+    // Modifica: Claude (gsd-executor 01.6-08) · 2026-10-27 · calibrate per job con discendenti, stati di overhead snake_case, dettaglio missing_component (gap-closure 1.6, D-11)
+    pub(super) fn no_symlink_components(p: &Path) -> anyhow::Result<()> {
         for c in ancestors_from_root(p) {
             match std::fs::symlink_metadata(&c) {
                 Ok(m) if m.file_type().is_symlink() => return Err(path_err("symlink")),
                 Ok(_) => {}
-                Err(_) => return Err(path_err("symlink")),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    return Err(path_err("missing_component"));
+                }
+                Err(_) => return Err(path_err("lstat")),
             }
         }
         Ok(())
@@ -1056,5 +1069,103 @@ mod tests {
     fn sigsegv_is_crashed() {
         let got = classify(obs(None, None, None), Some(11), 0, b"");
         assert_eq!(failed(&got).0, Kind::Crashed);
+    }
+
+    // Modifica: Claude (test-write 01.6-08) · 2026-10-27 · test rossi di missing_component e lstat (gap-closure 1.6, D-11; TEST-7 di 01.6-08-TEST-DESIGN.md)
+
+    /// Cartella temporanea rimossa anche se il test fallisce; i permessi si ripristinano prima.
+    #[cfg(unix)]
+    struct TempTree(std::path::PathBuf);
+
+    #[cfg(unix)]
+    impl TempTree {
+        fn new(tag: &str) -> TempTree {
+            let tmp = std::env::temp_dir()
+                .canonicalize()
+                .expect("temp_dir canonico");
+            let p = tmp.join(format!("s02-isolate-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&p);
+            TempTree(p)
+        }
+    }
+
+    #[cfg(unix)]
+    impl Drop for TempTree {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let mut stack = vec![self.0.clone()];
+            while let Some(d) = stack.pop() {
+                let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o755));
+                if let Ok(rd) = std::fs::read_dir(&d) {
+                    for e in rd.flatten() {
+                        if e.file_type().is_ok_and(|t| t.is_dir()) {
+                            stack.push(e.path());
+                        }
+                    }
+                }
+            }
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Dettaglio del `PathNotAllowed` restituito da `no_symlink_components`.
+    #[cfg(unix)]
+    fn path_detail(p: &std::path::Path) -> String {
+        let e = imp::no_symlink_components(p).expect_err("atteso un rifiuto");
+        let je = e
+            .downcast_ref::<JobError>()
+            .unwrap_or_else(|| panic!("atteso JobError, ottenuto {e:?}"));
+        assert_eq!(je.code, JobErrorCode::PathNotAllowed, "{je:?}");
+        je.detail.clone()
+    }
+
+    /// Un componente assente (intermedio o ultimo) dà `missing_component`, non `symlink`; la
+    /// funzione rifiuta ancora: cambia il dettaglio, non l'esito.
+    #[cfg(unix)]
+    #[test]
+    fn no_symlink_components_reports_missing_component() {
+        // componente intermedio assente
+        let mid = TempTree::new("missing-mid");
+        assert_eq!(path_detail(&mid.0.join("a").join("b")), "missing_component");
+
+        // solo l'ultimo componente assente
+        let last = TempTree::new("missing-last");
+        std::fs::create_dir_all(&last.0).expect("cartella");
+        assert_eq!(path_detail(&last.0.join("absent")), "missing_component");
+
+        // un percorso esistente senza symlink passa
+        imp::no_symlink_components(&last.0).expect("percorso esistente ammesso");
+    }
+
+    /// Un symlink vero dà ancora `symlink` (come `tests/isolation.rs:692`).
+    #[cfg(unix)]
+    #[test]
+    fn no_symlink_components_still_reports_symlink() {
+        let t = TempTree::new("symlink");
+        std::fs::create_dir_all(t.0.join("real")).expect("cartella");
+        std::os::unix::fs::symlink(t.0.join("real"), t.0.join("link")).expect("symlink");
+        assert_eq!(path_detail(&t.0.join("link").join("x")), "symlink");
+    }
+
+    /// Un `lstat` che fallisce per un motivo diverso da `NotFound` (permessi) dà `lstat`.
+    /// Da root i permessi non fermano `lstat`: il test si salta con un messaggio.
+    #[cfg(unix)]
+    #[test]
+    fn no_symlink_components_reports_lstat() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        // uid effettivo dal proprietario di /proc/self (Linux), senza la feature `user` di nix
+        let euid = std::fs::metadata("/proc/self")
+            .map(|m| m.uid())
+            .unwrap_or(0);
+        if euid == 0 {
+            eprintln!("no_symlink_components_reports_lstat: saltato da uid 0");
+            return;
+        }
+        let t = TempTree::new("lstat");
+        let locked = t.0.join("locked");
+        std::fs::create_dir_all(&locked).expect("cartella");
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000))
+            .expect("chmod 000");
+        assert_eq!(path_detail(&locked.join("x")), "lstat");
     }
 }
