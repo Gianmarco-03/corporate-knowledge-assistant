@@ -1368,5 +1368,135 @@ class D07NotRun(Scanner0162):
         self.assertEqual(proc.returncode, 2, proc.stdout[:300] + proc.stderr[-300:])
 
 
+
+# ---- D-02, precisazioni dell'utente del 2026-10-29 ---------------------------
+# (A) nei file Python `env-secret-literal` conta un valore come letterale solo se
+#     fra virgolette; gli altri tipi di file non cambiano.
+# (B) in tutte le regole dei segreti un valore fatto solo di un numero con
+#     un'unita' di misura (durata, dimensione, percentuale) non e' un segreto.
+
+
+def num_unit(unit, int_part="2", frac=None):
+    """Numero decimale seguito da un'unita', composto a runtime."""
+    return "".join((int_part, ".", frac if frac is not None else digits(6), unit))
+
+
+def py_assign(name, expr):
+    return "".join((name, " = ", expr, "\n"))
+
+
+def kv_quoted(name, value):
+    return "".join((name, "=", '"', value, '"', "\n"))
+
+
+class D02PythonQuotedOnly(Scanner0162):
+
+    # ---- rossi attesi sul GREEN del 2026-10-29 ----
+
+    def test_py_tuple_value_is_not_env_literal(self):
+        expr = "".join(("(", '"alfa"', ", ", '"beta"', ")"))
+        self.assertOne("mod.py", py_assign(vname("SVC", "SECRET", "TERMS"), expr), set())
+
+    def test_py_empty_list_value_is_not_env_literal(self):
+        self.assertOne("mod.py", py_assign(vname("SVC", "BURNED", "SECRETS"), "[]"), set())
+
+    def test_py_set_expression_value_is_not_env_literal(self):
+        expr = " | ".join(("ALL", "{TEXT}"))
+        self.assertOne("mod.py", py_assign(vname("SVC", "SECRET", "KINDS"), expr), set())
+
+    def test_py_call_value_is_not_env_literal(self):
+        expr = "".join(("re.compile(r", '"', "alfa|beta", '"', ")"))
+        self.assertOne("mod.py", py_assign(vname("SVC", "SECRET", "NAME", "TERM"), expr), set())
+
+    def test_py_dict_value_is_not_env_literal(self):
+        expr = "".join(("{", '"alfa"', ", ", '"beta"', "}"))
+        self.assertOne("mod.py", py_assign(vname("SVC", "SECRET", "RULES"), expr), set())
+
+    def test_py_bare_identifier_value_is_not_env_literal(self):
+        expr = vname("load", "service", "value")
+        self.assertOne("mod.py", py_assign(vname("SVC", "TOKEN"), expr), set())
+
+    def test_py_environ_call_value_is_not_env_literal(self):
+        expr = "".join(("os.environ.get(", '"', vname("SVC", "API", "KEY"), '"', ")"))
+        self.assertOne("mod.py", py_assign(vname("SVC", "API", "KEY"), expr), set())
+
+    # ---- guardie: verdi anche sul GREEN (non indebolimento) ----
+
+    def test_py_double_quoted_long_value_stays_critical(self):
+        expr = "".join(('"', alnum(24), '"'))
+        self.assertOne("mod.py", py_assign(vname("SVC", "API", "KEY"), expr),
+                       {(ENVLIT, 1), (HKEY, 1)})
+
+    def test_py_single_quoted_long_value_stays_env_literal(self):
+        expr = "".join(("'", alnum(24), "'"))
+        got = self.scan_tree({"mod.py": py_assign(vname("SVC", "TOKEN"), expr)})
+        self.assertIn(("mod.py", ENVLIT, 1), got, sorted(got, key=str))
+
+    def test_env_bare_value_stays_env_literal(self):
+        self.assertOne("app.env", env_line(vname("SVC", "TOKEN"), alnum(24)), {(ENVLIT, 1)})
+
+    def test_sh_bare_value_stays_env_literal(self):
+        self.assertOne("run.sh", env_line(vname("SVC", "SECRET"), alnum(24)), {(ENVLIT, 1)})
+
+    def test_sh_bare_expression_like_value_stays_env_literal(self):
+        # (A) vale solo per Python: in uno script shell un valore nudo resta letterale.
+        self.assertOne("run.sh", env_line(vname("SVC", "SECRET", "KINDS"), alnum(12)),
+                       {(ENVLIT, 1)})
+
+
+class D02NumberWithUnit(Scanner0162):
+
+    # ---- rossi attesi sul GREEN del 2026-10-29 ----
+
+    def test_txt_duration_ms_under_token_name_is_clean(self):
+        text = kv_quoted(vname("tokenization", "time"), num_unit("ms"))
+        self.assertOne("run.txt", text, set())
+
+    def test_log_duration_microseconds_under_token_name_is_clean(self):
+        text = kv_quoted(vname("queue", "token", "time"), num_unit("µs", "344"))
+        self.assertOne("run.log", text, set())
+
+    def test_log_line_with_several_durations_is_clean(self):
+        text = "".join(("embed{", vname("total", "time"), '="', num_unit("ms", "18"), '" ',
+                        vname("tokenization", "time"), '="', num_unit("ms"), '"}', "\n"))
+        self.assertOne("run.log", text, set())
+
+    def test_txt_size_mib_under_token_name_is_clean(self):
+        text = kv_quoted(vname("token", "cache", "size"), num_unit("MiB", "1536", "25"))
+        self.assertOne("run.txt", text, set())
+
+    def test_txt_percentage_under_token_name_is_clean(self):
+        text = kv_quoted(vname("token", "share"), num_unit("%", "12"))
+        self.assertOne("run.txt", text, set())
+
+    def test_env_duration_under_secret_name_is_clean(self):
+        # (B) vale per tutte le regole dei segreti, `env-secret-literal` compresa.
+        self.assertOne("app.env", env_line(vname("SVC", "TOKEN", "WAIT"), num_unit("ms", "250")),
+                       set())
+
+    # ---- guardie: verdi anche sul GREEN (non indebolimento) ----
+
+    def test_txt_random_alnum_under_token_name_stays_flagged(self):
+        val = alnum(16)
+        self.assertTrue(any(c.isdigit() for c in val) and any(c.isalpha() for c in val))
+        got = self.scan_tree({"run.txt": kv_quoted(vname("token", "value"), val)})
+        self.assertTrue({r for (_f, r, ln) in got if ln == 1}, sorted(got, key=str))
+
+    def test_txt_number_with_non_unit_suffix_stays_flagged(self):
+        text = kv_quoted(vname("tokenization", "time"), num_unit("zq"))
+        got = self.scan_tree({"run.txt": text})
+        self.assertTrue({r for (_f, r, ln) in got if ln == 1}, sorted(got, key=str))
+
+    def test_env_number_with_non_unit_suffix_stays_env_literal(self):
+        self.assertOne("app.env", env_line(vname("SVC", "TOKEN", "WAIT"), num_unit("zq", "250")),
+                       {(ENVLIT, 1)})
+
+    def test_txt_unit_then_secret_tail_stays_flagged(self):
+        # Il numero con unita' deve essere l'intero valore, non un prefisso.
+        text = kv_quoted(vname("token", "value"), num_unit("ms") + alnum(12))
+        got = self.scan_tree({"run.txt": text})
+        self.assertTrue({r for (_f, r, ln) in got if ln == 1}, sorted(got, key=str))
+
+
 if __name__ == "__main__":
     unittest.main()
