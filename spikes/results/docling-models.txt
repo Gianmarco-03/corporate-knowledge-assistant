@@ -1,3 +1,23 @@
+# Pesi Docling offline — manifest del volume docling-models-min (gap-closure 1.6, piano 01.6-04)
+#
+**Modifica:** Claude (gsd-executor 01.6-04) · 2026-10-29 · volume ridotto docling-models-min senza --all (gap-closure 1.6, D-09)
+
+git_rev base: 27efdf362be5791d2c6f374b90e3823d494a9373
+run_id download e verifica D-12: 01-6-04-20261028t235621z-446d
+
+## Validazione
+modelli ammessi: layout tableformer tableformerv2 code_formula picture_classifier smolvlm granitedocling granitedocling_mlx smoldocling smoldocling_mlx granite_vision granite_chart_extraction granite_chart_extraction_v3_3 granite_chart_extraction_v4 rapidocr easyocr nemotron_ocr_v2 (docling-tools models download --help, immagine docling-serve-cpu v1.37.0, via session.sh docling-models-help)
+download: exit=0 tentativi=1 run_id=01-6-04-20261028t235621z-446d
+volume min: file=66 dimensione=669M (cka-spikes_docling-models-min; 01-02: 1192 file, 28.6G)
+obbligatori: 5/5 sha256 uguali (confronto a 64 caratteri con docling-models.txt di git_rev base, nel driver)
+  docling-project--docling-layout-heron/config.json sha256:fdea30805ce2f566…02207d3da056a97d uguale
+  docling-project--docling-layout-heron/model.safetensors sha256:00333a43451945aa…91aa95f4c7929e0c uguale
+  docling-project--docling-layout-heron/preprocessor_config.json sha256:cd38cd59999e7a95…57e6126ba0c4eaf1 uguale
+  docling-project--docling-models/model_artifacts/tableformer/accurate/tableformer_accurate.safetensors sha256:2a7d6c924b3cd12f…d2e088c1a40374d9 uguale
+  docling-project--docling-models/model_artifacts/tableformer/accurate/tm_config.json sha256:984e122ceb8ccf84…6289892c36f3cffd uguale
+revisioni: docling-layout-heron=uguale docling-models=uguale (prima riga dei file .cache/huggingface/download/*.metadata del volume nuovo; 01-02 non registra la sorgente, ma le stesse revisioni sono il nome dei file .cache/huggingface/trees/<rev>.json del suo elenco)
+
+## Storia: volume completo di 01-02 (--all)
 # Pesi Docling offline — manifest del volume docling-models (piano 01-02, Task 3)
 #
 # Fonte di verità per le misure Docling della fase 1 (RISK-003; risk_audit_8 RISK-001:
