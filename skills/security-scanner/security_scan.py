@@ -14,6 +14,7 @@ personali nei log.
 Uso:
     python security_scan.py <file_o_cartella> [<file_o_cartella> ...] [--json]
                             [--fail-on {MEDIUM,HIGH,CRITICAL}]
+    Almeno un percorso e' obbligatorio: senza percorsi l'esito e' 2.
 
     --fail-on  soglia di blocco (default MEDIUM): solo i rilevamenti di
                severita' pari o superiore alla soglia rendono l'esito 1. Quelli
@@ -25,10 +26,24 @@ Esito:
     1  almeno un rilevamento di severita' >= soglia (FAIL del gate)
     2  non eseguito: nessun file scansionabile nello scope (percorsi
        inesistenti o scope vuoto). Uno scope vuoto non e' mai verde.
+       Dal piano 01.6-02 (D-07, D-04) anche: nessun percorso passato
+       (`security-no-paths`), un percorso inesistente fra quelli passati,
+       anche mescolato a percorsi esistenti (`security-missing-paths`), e
+       un'allowlist del marcatore illeggibile o con voci invalide
+       (`fixture-allowlist-unreadable`). Stesso messaggio in `--json`.
 
 Nessuna soppressione e' silenziosa: una directory FIGLIA con il marcatore
 FIXTURE_MARKER_FILENAME e' esclusa e il suo percorso e' sempre riportato.
 Una directory passata esplicitamente come radice e' sempre scansionata.
+
+Dal piano 01.6-02 (D-04) il marcatore esclude una directory solo se il suo
+percorso del progetto e' in `fixture-allowlist.json`, accanto allo script
+(corrispondenza esatta). Il percorso del progetto e' relativo alla radice del
+repo (due livelli sopra la cartella dello script) quando la radice passata sta
+dentro il repo, altrimenti alla radice passata; mai alla cartella corrente.
+Fuori allowlist la directory si scansiona lo stesso e il marcatore da'
+`fixture-marker-not-allowlisted` CRITICAL. Il numero di directory escluse si
+stampa sempre (`Escluse per marcatore (<n>)`) ed e' `excluded_count` nel JSON.
 
 Gap-closure 1.6 (piano 01.6-01):
   D-01  le letture fino all'EOF (`read_to_end`, `read_until`, `io::copy` verso un
@@ -40,6 +55,18 @@ Gap-closure 1.6 (piano 01.6-01):
         alla parentesi bilanciata, con il finding sulla riga d'apertura.
   D-06  sono handler anche gli `async fn` registrati in `.route(..)` dello stesso
         file e quelli pubblici di un modulo di handler, anche senza argomenti.
+
+Gap-closure 1.6 (piano 01.6-02):
+  D-02  `env-secret-literal` riconosce ogni nome con SECRET, PASSWORD, API_KEY,
+        ACCESS_KEY o TOKEN; un valore di sole cifre e' esente solo sotto un nome
+        da contatore (suffisso `_COUNTER_SUFFIX`, nessun termine da segreto nel
+        resto del nome). `known-key-prefix` segnala `sk-`/`sk-ant-` e le chiavi
+        Garage `GK` + 24 esadecimali. Un valore uguale al nome, o a una sua
+        parola, non e' un segnaposto; `password` e `secret` non lo sono piu'.
+  D-03  famiglia `TEXT` (.txt .csv .tsv .jsonl .ndjson .log .pem .key .crt e i
+        file senza estensione) letta con le sole regole dei segreti; un file
+        illeggibile e' `unreadable-file` CRITICAL, mai un file pulito; si potano
+        solo `target`, `node_modules` e `.git`.
 """
 import argparse
 import json
@@ -55,6 +82,12 @@ EXIT_OK, EXIT_FINDINGS, EXIT_NOT_RUN = 0, 1, 2
 RS, TS, CFG, SCRIPT, DOC, SQL = "rs", "ts", "cfg", "script", "doc", "sql"
 ALL = frozenset({RS, TS, CFG, SCRIPT, DOC, SQL})
 CODE = frozenset({RS, TS})
+# D-03: file testuali senza un tipo di codice. Fuori da ALL per costruzione:
+# vi girano solo le regole dei segreti (con ALL finirebbero sui CSV anche le
+# regole TLS e HTTP).
+TEXT = "text"
+_TEXT_EXTS = frozenset({".txt", ".csv", ".tsv", ".jsonl", ".ndjson", ".log",
+                        ".pem", ".key", ".crt"})
 
 _EXT_KIND = {
     ".rs": RS,
@@ -75,7 +108,14 @@ def file_kind(path):
         return CFG
     if base.startswith(("compose.", "docker-compose")) and base.endswith((".yml", ".yaml")):
         return CFG
-    return _EXT_KIND.get(os.path.splitext(base)[1])
+    ext = os.path.splitext(base)[1]
+    if ext in _EXT_KIND:
+        return _EXT_KIND[ext]
+    # D-03: testuali elencati e file senza estensione (hook, dotfile come
+    # `.gitignore`). I binari con estensione (.pdf, .docx, .png, ...) restano fuori.
+    if ext in _TEXT_EXTS or ext == "":
+        return TEXT
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -86,11 +126,33 @@ def file_kind(path):
 _PLACEHOLDER = re.compile(
     r"""^(?:<[^>]*>|\$\{[^}]*\}|\$\w+|\{\{[^}]*\}\}|%\w+%|\*+|x{3,}|\.{3}|"""
     r"""changeme|change[-_]me|replace[-_]?me|example\w*|placeholder|dummy|"""
-    r"""your[-_]\w+|redacted|todo|none|null|password|secret|test|fake\w*)$""", re.I)
+    r"""your[-_]\w+|redacted|todo|none|null|test|fake\w*)$""", re.I)
+# D-02: `password` e `secret` sono usciti dalla lista chiusa (non sono
+# segnaposto). Un valore uguale al nome della variabile, o a una delle sue
+# parole, non e' mai un segnaposto.
+_NAME_WORDS = re.compile(r"""[_-]+""")
 
 
-def is_placeholder(val):
-    return val is None or not val.strip() or bool(_PLACEHOLDER.match(val.strip()))
+def value_equals_name(val, name):
+    """Vero se il valore grezzo (minuscolo, senza apici) e' uguale al nome o a
+    una delle sue parole separate da `_` o `-`. Il confronto e' sul valore
+    grezzo, prima di qualunque normalizzazione di `$` e graffe: `${NOME}` e
+    `$NOME` non sono uguali a `NOME`."""
+    if not name or val is None:
+        return False
+    v = val.strip().strip("\"'").lower()
+    if not v:
+        return False
+    n = name.lower()
+    return v == n or v in {w for w in _NAME_WORDS.split(n) if w}
+
+
+def is_placeholder(val, name=None):
+    if val is None or not val.strip():
+        return True
+    if value_equals_name(val, name):
+        return False
+    return bool(_PLACEHOLDER.match(val.strip()))
 
 
 # --------------------------------------------------------------------------
@@ -113,45 +175,105 @@ _PII_TERMS = (r"""email|e_mail|phone|phone_number|telefono|address|indirizzo|"""
 _SECRET_TERMS = (r"""password|passwd|pin|token|access_token|refresh_token|secret|"""
                  r"""api_key|apikey|jwt|authorization|bearer|private_key|cookie""")
 
+# D-03: le regole dei segreti valgono anche sui file testuali; nessun'altra.
+SECRET_KINDS = ALL | {TEXT}
+
+# D-02: nome da contatore. Il suffisso conta solo in coda al nome; il resto del
+# nome, tolto il suffisso, non deve contenere un termine da segreto (il termine
+# da segreto ha sempre la precedenza sul suffisso).
+_COUNTER_SUFFIX = re.compile(r"""(_TOKENS|_MAX|_SIZE|_LEN|_LIMIT|_COUNT|_TTL)$""")
+_SECRET_NAME_TERM = re.compile(r"""SECRET|PASSWORD|API_KEY|ACCESS_KEY|TOKEN""")
+_DIGITS_ONLY = re.compile(r"""^\d+$""")
+
+
+def is_counter_name(name):
+    m = _COUNTER_SUFFIX.search(name or "")
+    return m is not None and _SECRET_NAME_TERM.search(name[:m.start()]) is None
+
+
+# D-02, precisazione dell'utente del 2026-10-29 (B): in tutte le regole dei
+# segreti un valore fatto interamente di un numero con un'unita' di misura
+# (durata, dimensione, percentuale) non e' un segreto. L'unita' e' obbligatoria
+# e chiude il valore: un suffisso che non e' un'unita', o una coda alfanumerica
+# dopo l'unita', restano un finding. Le sole cifre senza unita' seguono la
+# regola dei contatori qui sotto.
+_NUMBER_WITH_UNIT = re.compile(
+    r"""^\d+(?:\.\d+)?"""
+    r"""(?:ns|us|\u00b5s|\u03bcs|ms|s|sec|min|h|d|"""
+    r"""b|kb|mb|gb|tb|kib|mib|gib|tib|%)$""", re.I)
+
+
+def is_number_with_unit(val):
+    return val is not None and _NUMBER_WITH_UNIT.match(val.strip().strip("\"'")) is not None
+
+
+# D-02, precisazione dell'utente del 2026-10-29 (A): nei file Python
+# `env-secret-literal` conta un valore come letterale solo se e' fra virgolette;
+# un valore nudo e' un'espressione del linguaggio (tupla, lista, insieme,
+# chiamata, identificatore). I letterali fra virgolette restano CRITICAL; gli
+# altri tipi di file non cambiano.
+def python_unquoted_exempt(rid, path, line, m):
+    if rid != "env-secret-literal" or os.path.splitext(path)[1].lower() != ".py":
+        return False
+    start = m.start("val")
+    return start == 0 or line[start - 1] not in "\"'"
+
+
+def numeric_counter_exempt(rid, name, val):
+    """D-02: un valore di sole cifre non e' un segreto per la sola regola
+    `env-secret-literal`, e solo sotto un nome da contatore."""
+    return (rid == "env-secret-literal" and val is not None
+            and _DIGITS_ONLY.match(val) is not None and is_counter_name(name))
+
+
 # (severity, id, regex, message, kinds)
-# Le regole di segreto catturano il valore nel gruppo `val`: un segnaposto
-# non scatta.
+# Le regole di segreto catturano il valore nel gruppo `val` (un segnaposto non
+# scatta) e, se c'e', il nome nel gruppo `name` (un valore uguale al nome, o a
+# una sua parola, non e' un segnaposto: D-02).
 RULES = [
     # ---- Segreti (ASVS V14, regola segreti di CKA) ----
     ("CRITICAL", "hardcoded-password",
-     re.compile(r"""(?:password|passwd|pwd)\w*["']?\s*[:=]\s*["'](?P<val>[^"'\s]{3,})["']""", re.I),
-     "Password hard-coded. Usa variabili d'ambiente / secret store.", ALL),
+     re.compile(r"""(?P<name>\w*(?:password|passwd|pwd)\w*)["']?\s*[:=]\s*["'](?P<val>[^"'\s]{3,})["']""",
+                re.I),
+     "Password hard-coded. Usa variabili d'ambiente / secret store.", SECRET_KINDS),
     ("CRITICAL", "hardcoded-apikey",
-     re.compile(r"""(?:api[_-]?key|apikey|secret|token|client[_-]?secret|private[_-]?key)\w*["']?"""
-                r"""\s*[:=]\s*["'](?P<val>[^"'\s]{8,})["']""", re.I),
-     "Chiave/segreto hard-coded. Sposta in variabile d'ambiente o secret store.", ALL),
+     re.compile(r"""(?P<name>\w*(?:api[_-]?key|apikey|secret|token|client[_-]?secret|private[_-]?key|"""
+                r"""access[_-]?key)\w*)["']?\s*[:=]\s*["'](?P<val>[^"'\s]{8,})["']""", re.I),
+     "Chiave/segreto hard-coded. Sposta in variabile d'ambiente o secret store.", SECRET_KINDS),
     ("CRITICAL", "rust-const-secret",
-     re.compile(r"""\b(?:const|static)\s+\w*(?:KEY|SECRET|TOKEN|PASSWORD)\w*\s*:\s*&(?:'static\s+)?str"""
-                r"""\s*=\s*"(?P<val>[^"]{6,})\""""),
-     "Segreto come costante Rust. Leggilo dalla configurazione a runtime.", frozenset({RS})),
+     re.compile(r"""\b(?:const|static)\s+(?P<name>\w*(?:KEY|SECRET|TOKEN|PASSWORD)\w*)\s*:\s*"""
+                r"""&(?:'static\s+)?str\s*=\s*"(?P<val>[^"]{6,})\""""),
+     "Segreto come costante Rust. Leggilo dalla configurazione a runtime.", frozenset({RS, TEXT})),
     ("CRITICAL", "env-secret-literal",
-     re.compile(r"""^\s*(?:export\s+|-\s+)?(?:TYPESAFE_API_KEY|JWT_\w*(?:KEY|SECRET)\w*|\w*_API_KEY|"""
-                r"""\w*_SECRET|\w*_PASSWORD)\s*[=:]\s*["']?(?P<val>[^"'\s#]+)"""),
+     re.compile(r"""^\s*(?:export\s+|-\s+)?(?P<name>TYPESAFE_API_KEY|JWT_\w*(?:KEY|SECRET)\w*|"""
+                r"""\w*(?:SECRET|PASSWORD|API_KEY|ACCESS_KEY|TOKEN)\w*)\s*[=:]\s*["']?(?P<val>[^"'\s#]+)"""),
      "Segreto con valore letterale in un file versionato (env, Compose, script). Solo "
      "segnaposto (`${VAR}`, `<...>`, `changeme`) nei file versionati; i valori reali in "
-     "`.env` ignorato da git o nel secret store.", frozenset({CFG, SCRIPT, DOC})),
+     "`.env` ignorato da git o nel secret store. Un valore di sole cifre e' esente solo "
+     "sotto un nome da contatore (D-02).", frozenset({CFG, SCRIPT, DOC, TEXT})),
     ("CRITICAL", "connstring-inline-pwd",
      re.compile(r"""\b(?:postgres(?:ql)?|mysql|redis|rediss|amqp|mongodb(?:\+srv)?)://[^:/\s"'@]+:"""
                 r"""(?P<val>[^@\s"'/]+)@""", re.I),
      "Password dentro una connection string (es. DATABASE_URL). Componi l'URL a runtime "
-     "da variabili d'ambiente.", ALL),
+     "da variabili d'ambiente.", SECRET_KINDS),
     ("CRITICAL", "private-key-block",
      re.compile(r"""-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----"""),
      "Chiave privata versionata (es. chiave di firma JWT). Rimuovila, ruotala e caricala "
-     "dal secret store.", ALL),
+     "dal secret store.", SECRET_KINDS),
     ("CRITICAL", "sql-role-password",
      re.compile(r"""\bPASSWORD\s+'(?P<val>[^']+)'""", re.I),
      "Password di ruolo DB in una migrazione/script SQL. Gestisci le credenziali fuori "
-     "dalle migrazioni.", frozenset({SQL})),
+     "dalle migrazioni.", frozenset({SQL, TEXT})),
     ("HIGH", "jwt-literal",
      re.compile(r"""\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"""),
      "JWT letterale committato. Se e' reale va revocato; nei test generalo con una chiave "
-     "di test a runtime.", ALL),
+     "di test a runtime.", SECRET_KINDS),
+    ("CRITICAL", "known-key-prefix",
+     re.compile(r"""(?<![A-Za-z0-9_-])sk-(?:ant-)?[A-Za-z0-9_-]{20,}|"""
+                r"""(?<![A-Za-z0-9_])GK[0-9a-fA-F]{24}(?![A-Za-z0-9_])"""),
+     "Chiave con un prefisso noto (`sk-`/`sk-ant-` dei provider LLM, `GK` + 24 esadecimali "
+     "delle chiavi Garage) in un file versionato (D-02). Se e' reale va ruotata e tolta "
+     "dalla storia; nei test componila a runtime.", SECRET_KINDS),
 
     # ---- Iniezione SQL (ASVS V5) ----
     ("CRITICAL", "sql-format",
@@ -320,11 +442,15 @@ _BURNED_RE = (re.compile("|".join(map(re.escape, BURNED_SECRETS)), re.I)
 _BURNED_MSG = "Segreto bruciato di questo progetto nel codice: ruotalo e rimuovilo dalla storia."
 
 FIXTURE_MARKER_FILENAME = ".security-scan-fixture"
-_PRUNED_DIRS = ("target", "node_modules", ".git", "dist", "build", "coverage")
+FIXTURE_ALLOWLIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixture-allowlist.json")
+# Radice del repo: due livelli sopra `skills/security-scanner/`, senza git (D-04).
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# D-03: `dist`, `build` e `coverage` non si potano piu'.
+_PRUNED_DIRS = ("target", "node_modules", ".git")
 
 _SECRET_RULES = {"hardcoded-password", "hardcoded-apikey", "rust-const-secret",
                  "env-secret-literal", "connstring-inline-pwd", "private-key-block",
-                 "sql-role-password", "jwt-literal"}
+                 "sql-role-password", "jwt-literal", "known-key-prefix"}
 # Su una riga commentata restano attive solo le regole di segreto: un segreto
 # commentato e' committato lo stesso; il resto descrive comportamento runtime.
 _COMMENT_SCANNED_RULES = _SECRET_RULES
@@ -847,7 +973,73 @@ FILE_RULES = [
 # --------------------------------------------------------------------------
 
 
-def find_files(path, excluded_dirs):
+class AllowlistError(Exception):
+    """Allowlist del marcatore assente, illeggibile o con voci invalide (D-04)."""
+
+
+def load_fixture_allowlist(path=None):
+    """Insieme dei percorsi del progetto (separatore `/`) in cui il marcatore
+    vale. File assente, JSON non valido, voce senza `path` o `motivo`, `path`
+    assoluto o con `..`: AllowlistError (esito 2 in `main`)."""
+    path = path or FIXTURE_ALLOWLIST
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise AllowlistError(f"{path}: {exc}") from exc
+    if not isinstance(data, list):
+        raise AllowlistError(f"{path}: atteso un array JSON di voci {{path, motivo}}")
+    out = set()
+    for k, item in enumerate(data):
+        if not isinstance(item, dict):
+            raise AllowlistError(f"{path}: voce {k} non e' un oggetto")
+        rel, motivo = item.get("path"), item.get("motivo")
+        if not isinstance(rel, str) or not rel.strip():
+            raise AllowlistError(f"{path}: voce {k} senza `path`")
+        if not isinstance(motivo, str) or not motivo.strip():
+            raise AllowlistError(f"{path}: voce {k} ({rel}) senza `motivo`")
+        if (os.path.isabs(rel) or rel.startswith(("/", "\\")) or re.match(r"""^[A-Za-z]:""", rel)
+                or "\\" in rel):
+            raise AllowlistError(f"{path}: voce {k} ({rel}) con un percorso assoluto o con una barra rovesciata")
+        parts = rel.split("/")
+        if any(seg in ("..", ".", "") for seg in parts):
+            raise AllowlistError(f"{path}: voce {k} ({rel}) con `..`, `.` o un segmento vuoto")
+        out.add(rel)
+    return out
+
+
+def _is_within(path, root):
+    try:
+        return os.path.commonpath([os.path.normcase(path), os.path.normcase(root)]) == \
+            os.path.normcase(root)
+    except ValueError:  # unita' diverse su Windows
+        return False
+
+
+def project_path(child, root):
+    """D-04: percorso del progetto della directory `child` trovata sotto la
+    radice passata `root`, con separatore `/`. Relativo alla radice del repo se
+    `root` sta dentro il repo, altrimenti relativo a `root` (istantanee degli
+    hook); mai alla cartella corrente."""
+    real_root = os.path.realpath(root)
+    under_root = os.path.relpath(os.path.abspath(child), os.path.abspath(root))
+    real_repo = os.path.realpath(REPO_ROOT)
+    if _is_within(real_root, real_repo):
+        rel = os.path.relpath(os.path.join(real_root, under_root), real_repo)
+    else:
+        rel = under_root
+    rel = rel.replace("\\", "/")
+    while rel.startswith("./"):
+        rel = rel[2:]
+    return rel
+
+
+_MARKER_MSG = ("Marcatore .security-scan-fixture fuori da skills/security-scanner/fixture-allowlist.json "
+               "(D-04): la directory e' scansionata lo stesso. Un'esclusione si aggiunge solo con una "
+               "voce versionata e motivata nell'allowlist, da giudicare in review.")
+
+
+def find_files(path, excluded_dirs, allowlist=frozenset(), marker_findings=None):
     if os.path.isfile(path):
         return [path] if file_kind(path) else []
     out = []
@@ -857,9 +1049,14 @@ def find_files(path, excluded_dirs):
             if d in _PRUNED_DIRS:
                 continue
             child = os.path.join(root, d)
-            if os.path.isfile(os.path.join(child, FIXTURE_MARKER_FILENAME)):
-                excluded_dirs.append(child)
-                continue
+            marker = os.path.join(child, FIXTURE_MARKER_FILENAME)
+            if os.path.isfile(marker):
+                if project_path(child, path) in allowlist:
+                    excluded_dirs.append(child)
+                    continue
+                if marker_findings is not None:
+                    marker_findings.append(("CRITICAL", "fixture-marker-not-allowlisted", marker, 0,
+                                            _MARKER_MSG))
             kept.append(d)
         dirs[:] = kept
         out.extend(os.path.join(root, f) for f in files if file_kind(os.path.join(root, f)))
@@ -878,7 +1075,7 @@ def is_comment(line, kind):
     s = line.strip()
     if kind in (CFG, SCRIPT, SQL):
         return s.startswith(("#", "--", "//", ";"))
-    if kind == DOC:
+    if kind in (DOC, TEXT):
         return False
     return s.startswith(("//", "/*", "*", "#!"))
 
@@ -932,7 +1129,9 @@ def scan_file(path):
         with open(path, encoding="utf-8", errors="replace") as fh:
             text = fh.read()
     except OSError:
-        return findings
+        # D-03: un file non letto non e' un file pulito.
+        return [("CRITICAL", "unreadable-file", path, 0,
+                 "File non leggibile: un file non letto non e' un file pulito (D-03).")]
     kind = file_kind(path)
     lines = text.splitlines()
     test_file = is_test_file(path)
@@ -947,8 +1146,16 @@ def scan_file(path):
             if comment and rid not in _COMMENT_SCANNED_RULES:
                 continue
             for m in rx.finditer(bare if rid in _STRIP_STRING_RULES else line):
-                if "val" in rx.groupindex and is_placeholder(m.group("val")):
-                    continue
+                if "val" in rx.groupindex:
+                    name = m.group("name") if "name" in rx.groupindex else None
+                    if is_placeholder(m.group("val"), name):
+                        continue
+                    if numeric_counter_exempt(rid, name, m.group("val")):
+                        continue
+                    if is_number_with_unit(m.group("val")):
+                        continue
+                    if python_unquoted_exempt(rid, path, line, m):
+                        continue
                 findings.append((sev, rid, path, i, msg))
                 break
         if kind in CODE and not comment:
@@ -964,10 +1171,10 @@ def scan_file(path):
     return findings
 
 
-def collect_files(paths, excluded_dirs):
+def collect_files(paths, excluded_dirs, allowlist=frozenset(), marker_findings=None):
     seen, out = set(), []
     for p in paths:
-        for f in find_files(p, excluded_dirs):
+        for f in find_files(p, excluded_dirs, allowlist, marker_findings):
             k = os.path.normcase(os.path.abspath(f))
             if k not in seen:
                 seen.add(k)
@@ -978,18 +1185,49 @@ def collect_files(paths, excluded_dirs):
 SEV_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}
 
 
+def _not_run(as_json, error, msg, **extra):
+    """Esito 2 («non eseguito»), con lo stesso messaggio in testo e in JSON."""
+    if as_json:
+        print(json.dumps(dict({"error": error, "message": msg, "status": "not-run"}, **extra),
+                         indent=2, ensure_ascii=False))
+    else:
+        print(msg, file=sys.stderr)
+    return EXIT_NOT_RUN
+
+
 def main():
     ap = argparse.ArgumentParser(prog="security_scan.py")
-    ap.add_argument("path", nargs="+")
+    # D-07: `nargs="*"` con controllo esplicito, cosi' l'esito 2 senza percorsi
+    # ha lo stesso messaggio anche in --json (argparse uscirebbe 2 senza JSON).
+    ap.add_argument("path", nargs="*")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--fail-on", choices=list(SEV_ORDER), default="MEDIUM",
                     help="severita' minima che fa fallire (default MEDIUM)")
     args = ap.parse_args()
     soglia = SEV_ORDER[args.fail_on]
 
+    if not args.path:
+        return _not_run(args.json, "security-no-paths",
+                        "NON ESEGUITO [security-no-paths] nessun percorso passato. "
+                        "Uno scope vuoto non e' un verde.")
+
     missing = [p for p in args.path if not os.path.exists(p)]
+    if missing:
+        # Un refuso nell'elenco di un gate darebbe un verde parziale (D-07).
+        return _not_run(args.json, "security-missing-paths",
+                        f"NON ESEGUITO [security-missing-paths] percorsi inesistenti: {missing}. "
+                        "Un percorso non letto non e' un verde.", missing_paths=missing)
+
+    try:
+        allowlist = load_fixture_allowlist()
+    except AllowlistError as exc:
+        return _not_run(args.json, "fixture-allowlist-unreadable",
+                        f"NON ESEGUITO [fixture-allowlist-unreadable] {exc}. Senza un'allowlist "
+                        "valida il marcatore non si puo' giudicare (D-04).")
+
     excluded_dirs = []
-    files = collect_files([p for p in args.path if os.path.exists(p)], excluded_dirs)
+    marker_findings = []
+    files = collect_files(args.path, excluded_dirs, allowlist, marker_findings)
 
     if not files:
         msg = ("NON ESEGUITO [security-scope-empty] nessun file scansionabile nello scope"
@@ -998,13 +1236,20 @@ def main():
                + ". Uno scope vuoto non e' un verde.")
         if args.json:
             print(json.dumps({"error": "security-scope-empty", "message": msg,
-                              "status": "not-run", "excluded_dirs": excluded_dirs},
+                              "status": "not-run", "excluded_dirs": excluded_dirs,
+                              "excluded_count": len(excluded_dirs)},
                              indent=2, ensure_ascii=False))
         else:
             print(msg, file=sys.stderr)
         return EXIT_NOT_RUN
 
     findings = []
+    seen_markers = set()
+    for mf in marker_findings:
+        k = os.path.normcase(os.path.abspath(mf[2]))
+        if k not in seen_markers:
+            seen_markers.add(k)
+            findings.append(mf)
     for f in files:
         findings.extend(scan_file(f))
     findings = [(s, r, f.replace("\\", "/"), l, m) for (s, r, f, l, m) in findings]
@@ -1023,18 +1268,16 @@ def main():
             "blocking_count": len(bloccanti),
             "warning_count": len(findings) - len(bloccanti),
             "excluded_dirs": excluded_dirs,
+            "excluded_count": len(excluded_dirs),
             "missing_paths": missing,
             "scanned_files": len(files),
         }, indent=2, ensure_ascii=False))
         return esito
 
-    if excluded_dirs:
-        print(f"Escluse per marcatore {FIXTURE_MARKER_FILENAME} ({len(excluded_dirs)}): "
-              + ", ".join(excluded_dirs))
-    else:
-        print(f"Nessuna directory esclusa per marcatore {FIXTURE_MARKER_FILENAME}.")
-    for p in missing:
-        print(f"[INESISTENTE] {p}")
+    # D-04: il conteggio si stampa sempre, anche a zero.
+    print(f"Escluse per marcatore ({len(excluded_dirs)})"
+          + (": " + ", ".join(excluded_dirs) if excluded_dirs else "")
+          + f" [{FIXTURE_MARKER_FILENAME}, allowlist skills/security-scanner/fixture-allowlist.json]")
     if not findings:
         print(f"OK - nessun problema di sicurezza rilevato su {len(files)} file.")
         return EXIT_OK

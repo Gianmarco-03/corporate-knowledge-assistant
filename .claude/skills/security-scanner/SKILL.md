@@ -55,29 +55,80 @@ comune di due aree del repo.
 
 File analizzati: `.rs`; `.ts .tsx .js .jsx .mjs .cjs`; configurazione
 (`.toml .yaml .yml .json .env .env.* .conf .ini`, `Dockerfile*`, `compose*`);
-script (`.sh .bash .py .ps1`); `.md`; `.sql`. Ogni regola dichiara a quali
-famiglie si applica: su markdown, script e SQL valgono le regole di segreto
-(e TLS per gli script), non quelle di comportamento runtime. Directory
-saltate: `target`, `node_modules`, `.git`, `dist`, `build`, `coverage`.
+script (`.sh .bash .py .ps1`); `.md`; `.sql`; e la famiglia testuale
+(gap-closure 1.6, D-03): `.txt .csv .tsv .jsonl .ndjson .log .pem .key .crt` e
+i file senza estensione, compresi gli hook (`pre-commit`) e i dotfile come
+`.gitignore`. Ogni regola dichiara a quali famiglie si applica: su markdown,
+script e SQL valgono le regole di segreto (e TLS per gli script), non quelle
+di comportamento runtime; sulla famiglia testuale valgono **solo** le regole
+dei segreti (con le regole TLS e HTTP un CSV di evidenza darebbe falsi
+allarmi), e una riga che inizia con `#` o `//` non vale come commento. I
+binari con estensione (`.pdf`, `.docx`, `.png`, …) restano fuori. Directory
+saltate: solo `target`, `node_modules`, `.git`. Un file che non si apre o non
+si legge dà `unreadable-file` (CRITICAL, riga 0): un file non letto non è un
+file pulito.
 
 **Esiti**: `0` nessun rilevamento o solo rilevamenti sotto soglia, `1`
-almeno un rilevamento pari o sopra la soglia, `2` non
-eseguito — nessun file scansionabile nello scope (percorsi inesistenti o
-scope vuoto). Uno scope vuoto non è mai verde. In `--json` lo stdout è
+almeno un rilevamento pari o sopra la soglia, `2` non eseguito, mai `0`
+(gap-closure 1.6, D-07 e D-04):
+
+- nessun percorso passato: `NON ESEGUITO [security-no-paths]`;
+- un percorso inesistente fra quelli passati, anche uno solo mescolato a
+  percorsi esistenti: `NON ESEGUITO [security-missing-paths]`, perché un
+  refuso nell'elenco di un gate darebbe un verde parziale;
+- scope vuoto, nessun file scansionabile: `security-scope-empty`;
+- allowlist del marcatore assente o illeggibile, JSON non valido, voce senza
+  `path` o `motivo`, `path` assoluto o con `..`:
+  `NON ESEGUITO [fixture-allowlist-unreadable]`.
+
+Uno scope vuoto non è mai verde. Il riepilogo testuale stampa sempre
+`Escluse per marcatore (<n>)`, anche con zero. In `--json` lo stdout è
 `{findings, fail_on, blocking_count, warning_count, excluded_dirs,
-missing_paths, scanned_files}`, dove ogni finding porta `blocking`, oppure
-`{error, message, status: "not-run"}`.
+excluded_count, missing_paths, scanned_files}`, dove ogni finding porta
+`blocking`, oppure, in ognuno dei casi `2`, `{error, message, status:
+"not-run"}` (con `missing_paths` per `security-missing-paths`).
 
 ### 2. Le regole e la loro motivazione
 
-**Segreti (CRITICAL; ASVS V14).** `hardcoded-password`, `hardcoded-apikey`,
-`rust-const-secret`, `env-secret-literal` (`TYPESAFE_API_KEY`, `JWT_*KEY*`,
-`*_API_KEY`, `*_SECRET`, `*_PASSWORD` con valore letterale in env, Compose,
-script o documenti), `connstring-inline-pwd` (password dentro
-`DATABASE_URL` e simili), `private-key-block` (chiavi di firma JWT),
-`sql-role-password`; `jwt-literal` (HIGH). Nei file versionati solo
-segnaposto: `${VAR}`, `<...>`, `changeme`, `example…`, `your-…`. La lista dei
-segnaposto è chiusa e non si allarga per far tacere un finding.
+**Segreti (CRITICAL; ASVS V14).** `hardcoded-password`, `hardcoded-apikey`
+(nomi con `api_key`, `apikey`, `secret`, `token`, `client_secret`,
+`private_key`, `access_key`), `rust-const-secret`, `env-secret-literal`,
+`connstring-inline-pwd` (password dentro `DATABASE_URL` e simili),
+`private-key-block` (chiavi di firma JWT), `sql-role-password`,
+`known-key-prefix`; `jwt-literal` (HIGH).
+
+*Nomi (gap-closure 1.6, D-02).* `env-secret-literal` riconosce, ancorato a
+inizio riga e sensibile alle maiuscole, `TYPESAFE_API_KEY`, `JWT_*KEY*`,
+`JWT_*SECRET*` e ogni nome `\w*(SECRET|PASSWORD|API_KEY|ACCESS_KEY|TOKEN)\w*`
+con un valore letterale in env, Compose, script, documenti e file testuali:
+quindi anche `GARAGE_SECRET_KEY`, `*_ACCESS_KEY` e `*_TOKEN`.
+
+*Prefissi noti (D-02).* `known-key-prefix` segnala in qualsiasi file dei
+segreti, commenti e file di test compresi, `sk-` o `sk-ant-` seguiti da almeno
+20 caratteri `[A-Za-z0-9_-]`, con un confine a sinistra (nessuna lettera,
+cifra, `_` o `-` prima: `syn-05-risk-…` non scatta), e le chiavi Garage `GK`
+seguite da esattamente 24 cifre esadecimali (maiuscole o minuscole) con
+confine di parola su entrambi i lati (23 o 25 cifre non scattano). Un
+`sk-test-{SENTINEL}` composto a runtime non scatta.
+
+*Segnaposto (D-02).* Nei file versionati solo segnaposto. La lista è chiusa e
+non si allarga per far tacere un finding; così com'è nel codice
+(`_PLACEHOLDER`, senza distinzione di maiuscole), un valore è un segnaposto se
+è vuoto oppure è interamente uno di questi: `<…>`, `${…}`, `$NOME`, `{{…}}`,
+`%NOME%`, una serie di `*`, almeno tre `x`, `...`, `changeme`, `change-me`,
+`change_me`, `replaceme`, `replace-me`, `replace_me`, `example…` (lettere,
+cifre e `_` dopo `example`), `placeholder`, `dummy`, `your-…`, `your_…`,
+`redacted`, `todo`, `none`, `null`, `test`, `fake…`. `password` e `secret`
+non sono segnaposto. Un valore uguale al nome della variabile, o a una delle
+sue parole separate da `_` o `-`, non è mai un segnaposto: il confronto si fa
+sul valore grezzo, quindi `${SERVICE_TOKEN}` e `$SERVICE_TOKEN` restano
+segnaposto, mentre `token` o il nome intero ripetuto sotto `SERVICE_TOKEN`
+fanno scattare il finding.
+
+*Varco dichiarato (T-01.6-02-08).* Un nome di segreto minuscolo senza
+virgolette in un file env non scatta: i nomi delle variabili d'ambiente sono
+maiuscoli per convenzione e `env-secret-literal` è sensibile alle maiuscole;
+con le virgolette lo copre `hardcoded-apikey`, che non lo è.
 `BURNED_SECRETS` è vuota per costruzione (repo greenfield) e si ripopola solo
 dopo un incidente reale, insieme alla rotazione; una lista vuota lascia la
 regex a `None`, mai `re.compile("")`, che corrisponderebbe a ogni riga.
@@ -234,18 +285,80 @@ contenuti non fidati in ruoli separati, chunk delimitati come dati.
 ### 3. Esclusioni — mai silenziose
 
 1. **Marcatore di directory** `.security-scan-fixture` (con la motivazione
-   dentro): esclude una directory **figlia** incontrata nella camminata; una
-   directory passata esplicitamente come radice si scansiona sempre. Ogni
-   esclusa è riportata in output e in `excluded_dirs`.
+   dentro), solo in allowlist (gap-closure 1.6, D-04): esclude una directory
+   **figlia** incontrata nella camminata solo se il suo percorso del progetto
+   è una voce di `skills/security-scanner/fixture-allowlist.json` (array di
+   `{ "path", "motivo" }`, letto accanto allo script; oggi la sola
+   `spikes/data/hostile`, le fixture ostili di S-02). Il percorso del progetto
+   è relativo alla radice del repo (due livelli sopra la cartella dello
+   script) quando la radice passata sta dentro il repo, altrimenti alla radice
+   passata, con separatore `/`; mai alla cartella corrente. Il confronto è
+   esatto, mai per prefisso: `spikes/data/hostile-x` non è in allowlist, e una
+   copia annidata (`altro/spikes/data/hostile`) resta fuori da qualunque
+   cartella si lanci. Un'istantanea degli hook (radice temporanea fuori dal
+   repo) dà lo stesso `spikes/data/hostile`; un'istantanea passata da una sua
+   sottocartella dà un percorso più corto e quindi il finding: è il lato
+   sicuro. Un marcatore fuori allowlist dà `fixture-marker-not-allowlisted`
+   (CRITICAL) e la directory si scansiona lo stesso. Una directory passata
+   esplicitamente come radice si scansiona sempre. Ogni esclusa è riportata
+   in output, in `excluded_dirs` e nel conteggio `excluded_count`. Aggiungere
+   una voce all'allowlist è una modifica versionata, con il motivo, da
+   giudicare in review.
 2. **Regole saltate nei file di test** (`tests/`, `__tests__/`, `e2e/`,
    `*_test.rs`, `*.test.ts(x)`, `*.spec.ts(x)`): solo `http-url`,
    `jwt-literal`, `insecure-random`.
 3. **Righe commentate**: restano attive le sole regole di segreto, perché un
-   segreto commentato è committato lo stesso.
+   segreto commentato è committato lo stesso. Sulla famiglia testuale non
+   esistono righe commentate.
+4. **Contatori numerici (D-02).** Per la sola regola `env-secret-literal`, un
+   valore di sole cifre (`^\d+$`) non è un segreto solo sotto un nome da
+   contatore, deciso in due passi: il nome finisce con il suffisso
+   `(_TOKENS|_MAX|_SIZE|_LEN|_LIMIT|_COUNT|_TTL)$` (un `MAX` o un `_SIZE` in
+   mezzo al nome non conta), e il resto del nome, tolto il suffisso, non
+   contiene un termine da segreto (`SECRET`, `PASSWORD`, `API_KEY`,
+   `ACCESS_KEY`, `TOKEN`). Il termine da segreto ha sempre la precedenza:
+   `MAX_ADMIN_PASSWORD`, `ADMIN_PASSWORD_MAX` e `API_TOKEN_TTL` con un valore
+   di sole cifre restano finding, come ogni altro nome del gruppo. Motivo: un
+   tetto di token come `TEI_MAX_BATCH_TOKENS` di `spikes/.env.example` non è
+   un segreto. `_TOKENS` è un suffisso da contatore solo al plurale, in coda.
+   Le altre regole (`hardcoded-apikey` su un `api_key` fra virgolette di sole
+   cifre) non hanno questa esenzione.
+5. **Espressioni Python (D-02, precisazione dell'utente del 2026-10-29).**
+   Nei file `.py` `env-secret-literal` conta un valore come letterale solo se
+   è aperto da una virgoletta (`"` o `'`): un valore nudo è un'espressione del
+   linguaggio (tupla, lista, insieme, dizionario, chiamata, identificatore,
+   `os.environ.get(...)`). I letterali fra virgolette restano CRITICAL; negli
+   altri tipi di file (env, shell, Compose, documenti, testuali) un valore
+   nudo resta un letterale.
+6. **Numeri con unità di misura (D-02, precisazione dell'utente del
+   2026-10-29).** In tutte le regole dei segreti un valore che è interamente
+   un numero (intero o decimale) seguito da un'unità di misura non è un
+   segreto: durate (`ns`, `us`, `µs`, `ms`, `s`, `sec`, `min`, `h`, `d`),
+   dimensioni (`b`, `kb`, `mb`, `gb`, `tb`, `kib`, `mib`, `gib`, `tib`) e
+   percentuali (`%`), senza distinzione di maiuscole. L'unità è obbligatoria
+   e chiude il valore: un numero seguito da un suffisso che non è un'unità, o
+   con una coda alfanumerica dopo l'unità, resta un finding; le sole cifre
+   senza unità seguono il punto 4. Motivo: una durata in un log di misura
+   (`tokenization_time` con un valore in millisecondi) non è un segreto.
 
 Non esistono altre soppressioni. Una regola non si restringe mai per far
 tacere un finding scomodo: un falso positivo si risolve correggendo il codice
 o con la riga giudicata legittima, motivata, nel report di sicurezza.
+
+*Storia.* Fino alla gap-closure 1.6 (piano 01.6-02, banda ECC di /verify 1,
+`01-REVIEW.md` §B.1) lo scanner potava anche `dist`, `build` e `coverage`, non
+leggeva i file testuali (`.txt`, `.csv`, `.jsonl`, `.pem`, gli hook senza
+estensione), trattava un file illeggibile come pulito, accettava il marcatore
+`.security-scan-fixture` ovunque, contava `password` e `secret` fra i
+segnaposto e, senza percorsi, usciva 2 per argparse con un errore su stderr e
+senza JSON. `env-secret-literal` conosceva solo `*_API_KEY`, `*_SECRET` e
+`*_PASSWORD` in coda al nome, quindi `GARAGE_SECRET_KEY`, `*_ACCESS_KEY` e i
+token passavano. Le esclusioni 4, 5 e 6 sono le sole aggiunte: la 4 viene da
+D-02 (CONTEXT riformulata il 2026-10-26); la 5 e la 6 le ha decise l'utente
+il 2026-10-29, dopo lo stop del primo esecutore di 01.6-02, che sull'albero
+intero aveva trovato sei CRITICAL nuovi senza alcun segreto: cinque costanti
+Python dello scanner stesso, il cui valore è un'espressione, e una durata in
+millisecondi in un log di misura.
 
 ### 4. Verdetto e report
 
@@ -286,3 +399,4 @@ skills/security-scanner/tests -p 'test_security_scan.py'`.
 **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
 **Modifica:** Claude (Anthropic) · 2026-10-21 · opzione `--fail-on`; l'hook blocca solo CRITICAL e HIGH, i MEDIUM sono avvisi da motivare nel SUMMARY (decisione utente)
 **Modifica:** Claude (gsd-executor 01.6-01) · 2026-10-26 · regole upload-in-memory, upload-in-memory-unverified, upload-in-memory-capacity-unverified, unbounded-copy-to-vec; log su più righe; handler senza argomenti (D-01, D-05, D-06)
+**Modifica:** Claude (gsd-executor 01.6-02) · 2026-10-29 · segreti, file testuali, allowlist del marcatore, esito 2 senza percorsi (D-02, D-03, D-04, D-07), con le esclusioni decise dall'utente il 2026-10-29 per le espressioni Python e i numeri con unità
