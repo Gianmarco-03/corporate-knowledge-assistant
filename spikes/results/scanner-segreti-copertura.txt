@@ -32,3 +32,35 @@ esito RED test di 01.6-01: tutti verdi=si
 nota rossi: i 36 rossi sono FAIL per l'esito osservato (finding assente, exit 0 o 2 dove il contratto vuole un altro esito, JSON assente senza percorsi); nessuno per eccezione.
 deviazione test-write: test_documented_placeholders_are_clean usa il valore example_key invece di example-key, perché la lista chiusa ha example\w* e lo scanner di base segnala example-key (provato a BASE: env-secret-literal e hardcoded-apikey); allargare la lista per il trattino sarebbe un'esclusione nuova, vietata dalla hard rule 3.
 deviazione test-write: i test sulla copia dello scanner (radice del repo, copia annidata) scrivono un'allowlist sintetica con la sola voce spikes/data/hostile invece di copiare quella reale, che a BASE non esiste ancora (copiarla darebbe ERROR); la reale è provata da test_allowlisted_marker_is_excluded e test_excluded_count_in_json.
+
+RED commit: 9cfbb73063f2c3961e645bca6fb7109582f5630d
+
+## GREEN
+
+**Modifica:** Claude (gsd-executor 01.6-02) · 2026-10-27 · sezione GREEN: scanner con D-02, D-03, D-04, D-07 e allowlist versionata
+**Modifica:** Claude (gsd-executor 01.6-02, ripresa) · 2026-10-29 · sezione GREEN: esclusioni (A) e (B) decise dall'utente, test del giro b, confronto sull'albero, istantanea csv
+
+stop del primo esecutore (2026-10-27): sull'albero intero lo scanner del GREEN dava 6 CRITICAL nuovi, nessuno un segreto (5 espressioni Python in skills/security-scanner/security_scan.py sotto env-secret-literal, 1 durata in millisecondi di un log TEI in spikes/results/gpu-check.txt:73 sotto hardcoded-apikey); hard rule 4, GREEN non committato.
+decisione dell'utente (2026-10-29, D-02 del CONTEXT, precisazioni): (A) nei file .py env-secret-literal conta un valore come letterale solo se fra virgolette; (B) in tutte le regole dei segreti un valore fatto interamente di un numero con un'unità di misura (durata, dimensione, percentuale) non è un segreto.
+test del giro b: commit b62ae2350a44ee59228a9a3b40bedd97d244c743 (test-write fresco, solo aggiunte): 13 rossi e 9 guardie; il file di test non è stato toccato dall'esecutore.
+comando: sh scripts/py.sh -m unittest discover -s skills/security-scanner/tests -p 'test_security_scan.py' -v
+file di test: identico al commit del giro b (b62ae23), che rispetto al commit RED ha solo aggiunte
+esito GREEN test: 131 passed, 0 failed, rossi del RED 36 su 36 verdi
+esito GREEN test del giro b: 13 rossi su 13 verdi, 9 guardie su 9 verdi
+esito GREEN test di 01.6-01: 56 su 56 verdi
+allowlist: skills/security-scanner/fixture-allowlist.json, una voce (spikes/data/hostile, con motivo)
+
+## Confronto sull'albero
+
+comando: git archive HEAD (b62ae23) in <driver>/albero-dopo2 con i tre file del GREEN sovrapposti (security_scan.py, fixture-allowlist.json, questa evidenza); scanner del GREEN con --json --fail-on HIGH; elenco severità regola file:riga confrontato con <driver>/base.txt
+esito albero: critical_nuovi=0 high_nuovi=0 medium_nuovi=0 scomparsi=0 file_prima=619 file_dopo=718
+nuovi per famiglia: testuali=0 dist_build_coverage=0 gia_scansionati=0
+nota: i 99 file in più sono la copertura nuova (famiglia testuale, dist, build, coverage) più i file nuovi dell'albero; nessuno dà un finding. I 6 CRITICAL dello stop non compaiono più: i 5 di security_scan.py per (A), quello di gpu-check.txt:73 per (B). Nessun file trovato è stato modificato e nessuna regola è stata ristretta oltre (A) e (B).
+esito esclusi: spikes/data/hostile
+
+## Istantanea di soli dati
+
+comando: copia di spikes/s02-parser/results/isolation/hostile.csv di HEAD in <driver>/istantanea con il percorso relativo; sh scripts/py.sh skills/security-scanner/security_scan.py --fail-on HIGH <driver>/istantanea
+esito istantanea csv: exit=0 file=1
+TEST-13: scanner del GREEN con --fail-on HIGH su skills/security-scanner/tests: exit=0
+esito senza argomenti: exit=2 (security-no-paths)
