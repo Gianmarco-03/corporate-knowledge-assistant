@@ -613,14 +613,75 @@ mod tests {
         }
     }
 
-    fn input_pdf(name: &str) -> PathBuf {
+    // Modifica: Claude (gsd-executor 01.6-09) · 2026-10-29 · cartelle temporanee dei test con guardia Drop (gap-closure 1.6, D-11)
+
+    /// Cartella di prova di un solo test con il PDF `in.pdf` che contiene. `Deref` dà il
+    /// percorso del file, come il `PathBuf` restituito prima; `Drop` rimuove la cartella anche
+    /// quando il test va in panico. Guardia locale a questo file: i bin non condividono moduli
+    /// di test (stessa forma in `prescan`, `extract`, `locator` e `ocr`).
+    #[must_use]
+    struct Scratch {
+        dir: PathBuf,
+        file: PathBuf,
+    }
+
+    impl std::ops::Deref for Scratch {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.file
+        }
+    }
+
+    impl AsRef<Path> for Scratch {
+        fn as_ref(&self) -> &Path {
+            &self.file
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    fn input_pdf(name: &str) -> Scratch {
         let root = std::env::var_os("S02_TEST_BASE").map_or_else(std::env::temp_dir, PathBuf::from);
         let d = root.join(format!("s02-docling-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         let p = d.join("in.pdf");
         std::fs::write(&p, b"%PDF-1.7\n%%EOF\n").unwrap();
-        p
+        Scratch { dir: d, file: p }
+    }
+
+    #[test]
+    fn scratch_guard_cleans_on_panic() {
+        let seen = std::sync::Mutex::new(None);
+        let r = std::panic::catch_unwind(|| {
+            let g = input_pdf("guard-panic");
+            assert!(g.is_file());
+            *seen.lock().unwrap() = Some((g.dir.clone(), g.to_path_buf()));
+            panic!("sonda della guardia");
+        });
+        assert!(r.is_err());
+        let (dir, file) = seen.into_inner().unwrap().expect("guardia creata");
+        assert!(!file.exists(), "in.pdf rimasto: {file:?}");
+        assert!(!dir.exists(), "cartella rimasta: {dir:?}");
+    }
+
+    #[test]
+    fn scratch_guard_removes_only_its_own_dir() {
+        let root = std::env::var_os("S02_TEST_BASE").map_or_else(std::env::temp_dir, PathBuf::from);
+        let g = input_pdf("guard-scope");
+        let dir = g.dir.clone();
+        assert_ne!(dir, root);
+        assert_eq!(dir.parent(), Some(root.as_path()));
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("s02-docling-"), "{name}");
+        assert_eq!(g.parent(), Some(dir.as_path()));
+        drop(g);
+        assert!(!dir.exists());
+        assert!(root.is_dir(), "la guardia ha rimosso la radice");
     }
 
     fn cfg(f: &Fake) -> ConvertConfig {

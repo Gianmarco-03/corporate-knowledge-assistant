@@ -1,0 +1,86 @@
+**Modifica:** Claude (gsd-executor 01.6-09) · 2026-10-29 · evidenza della pulizia dei test in src di s02 (D-11)
+
+# s02 — guardie Drop per le cartelle temporanee dei test in src/ (piano 01.6-09)
+
+git_rev base: 27efdf362be5791d2c6f374b90e3823d494a9373
+comando della suite: bash tools/session.sh with 01-6-09 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- …' con, nello stesso job, ls -A /work/tmp | sort prima e dopo ogni cargo test -p s02-parser --locked --offline --no-fail-fast
+ambiente del job: TMPDIR=/work/tmp, S02_TEST_BASE non impostato, qpdf presente (command -v qpdf)
+binario fresco: touch di tutti i .rs sotto spikes/s02-parser prima di ogni giro; ogni log contiene «Compiling s02-parser»
+elenchi salvati sull'host fuori dal repo (cartella del driver nello scratchpad della sessione); qui solo i nomi
+
+## Base (Task 1, passo 1)
+
+run_id della base: 01-6-09-20261028t235603z-ff08
+base suite: exit=0 passed=409 failed=0 ignored=8 (uguale a main)
+base nuovi in /work/tmp: 25
+base prefissi: s02-docling-<pid>-, s02-extract-<pid>-, s02-locator-tw-<pid>-, s02-prescan-tw-<pid>, s02-score-<pid>-, s02-tables-<pid>-
+base nomi nuovi: s02-docling-4036-{abort,err,gate,opts,timeout}; s02-extract-4056-{benign,garbage,js,pages-cap,rot}; s02-locator-tw-4105-{0..8}; s02-prescan-tw-3837; s02-score-4056-{cer,iou,tables}; s02-tables-4056-{csv,params}
+base voci preesistenti in /work/tmp: 359 (residui di sessioni precedenti degli stessi helper, più fixtures, srv, s04-*, resp-*.json, table-page.pdf, tw-pdfium-out); non si toccano
+nota: cka-ocr-paddle- non compare perché i due test di ocr/score.rs chiamano già remove_dir_all alla fine (non col panico)
+
+## Task 1 — guardie in prescan.rs ed extract/*
+
+Codice: in ciascuno dei quattro mod tests una struttura locale `Scratch` con `#[must_use]`, `Deref<Target = Path>`, `AsRef<Path>` e `impl Drop for Scratch` (`let _ = std::fs::remove_dir_all`). In prescan.rs la guardia è per chiamata: cartella `s02-prescan-tw-<pid>-<n>` con dentro il file `d<n>.<ext>` (prima la cartella `s02-prescan-tw-<pid>` era condivisa e mai rimossa); `Deref` dà il file. In extract/pdf.rs `case` restituisce `(guardia, input, out)` e i cinque test legano la guardia a `_d` fino alla fine; in extract/score.rs ed extract/tables.rs la forma temporanea `scratch(..).join(..)` è diventata `let d = scratch(..); let p = d.join(..)`. Test nuovi per file: `scratch_guard_cleans_on_panic` e `scratch_guard_removes_only_its_own_dir`.
+
+run_id del primo giro della Task 1: 01-6-09-20261028t235909z-bb9e
+primo giro: exit=101 passed=416 failed=1 ignored=8; unico fallito tests/isolation.rs quota_counts_job_dir_plus_out_dir («quota non rilevata in tempo: 10.9 s dal termine delle scritture»), file fuori dal piano (01.6-07), sensibile al carico; durante il giro un altro esecutore aveva docling attivo; giro scartato e rifatto senza modifiche
+primo giro, nuovi in /work/tmp: 14, solo s02-docling-<pid>-* e s02-locator-tw-<pid>-* (helper della Task 2); nessuna voce s02-prescan-tw-, s02-extract-, s02-score-, s02-tables-
+run_id del secondo giro della Task 1: 01-6-09-20261029t000014z-bc4f
+dopo task 1 suite: exit=0 falliti=0
+passed della Task 1: 417 = 409 della base + 8 test di guardia nuovi (2 in prescan, 2 in ciascuno dei tre file di extract); ignored 8 invariati
+esito gate rust task 1: fmt=0 clippy=0
+provenienza del gate rust: sull'host da spikes/ (rustc 1.95.0, x86_64-pc-windows-msvc), cargo fmt --all -- --check e cargo clippy --workspace --all-targets --locked --offline -- -D warnings, perché il runner non ha rustfmt né clippy
+ramo FlateDecode di prescan.rs: invariato (nessuna riga +/- con ZlibDecoder o IMAGE_HEADER_SCAN_BYTES nel diff)
+
+## Task 2 — guardie in docling-client, locator e ocr, prova finale
+
+**Modifica:** Claude (gsd-executor 01.6-09) · 2026-10-29 · righe della Task 2: produzione invariata, prova su /work/tmp, gate, with_capacity, pulizia
+
+Codice: docling-client/main.rs `input_pdf` restituisce una guardia con cartella e file (`Deref` sul file `in.pdf`, `Drop` sulla cartella `s02-docling-<pid>-<name>`); locator/docx.rs `scratch_dir` restituisce `pub(crate) struct Scratch` (pub(crate) perché la usa anche main.rs); ocr/score.rs `paddle_fixture` restituisce la guardia e i due `let _ = std::fs::remove_dir_all(&d);` finali sono tolti, ora superflui. Tutte le guardie hanno `#[must_use]`, `Deref<Target = Path>`, `AsRef<Path>` e `impl Drop for Scratch`. Test nuovi per file: `scratch_guard_cleans_on_panic` e `scratch_guard_removes_only_its_own_dir`.
+locator/main.rs: invariato. I suoi cinque usi di `scratch_dir()` legano la guardia a `let dir` fino alla fine del test e passano `&dir` a funzioni che chiedono `&Path` (coercione di `Deref`), quindi non serve alcun cambio di tipo; resta nell'elenco del piano senza diff.
+
+## Produzione invariata
+
+controllo meccanico (TEST-1): per ciascun file, riga del solo `#[cfg(test)]` a BASE e inizio vecchio di ogni hunk di `git diff -U0 $BASE`
+prescan.rs: cfg(test) a 1626, 1 blocco, 6 hunk, 0 prima di 1626
+bin/extract/pdf.rs: cfg(test) a 266, 1 blocco, 10 hunk, 0 prima
+bin/extract/score.rs: cfg(test) a 1552, 1 blocco, 5 hunk, 0 prima
+bin/extract/tables.rs: cfg(test) a 649, 1 blocco, 3 hunk, 0 prima
+bin/docling-client/main.rs: cfg(test) a 519, 1 blocco, 2 hunk, 0 prima
+bin/locator/docx.rs: cfg(test) a 331, 1 blocco, 2 hunk, 0 prima
+bin/locator/main.rs: cfg(test) a 934, 0 hunk
+bin/ocr/score.rs: cfg(test) a 1605, 1 blocco, 4 hunk, 0 prima
+giudizio a mano: le righe tolte sono solo firme degli helper (`-> PathBuf`), i valori restituiti (`d`, `p`), la tupla di `case`, i cinque `let (input, out) = case(..)`, le quattro forme temporanee `scratch(..).join(..)`, gli `.arg(&x)` di qpdf diventati `.arg(&*x)`, i due `remove_dir_all` finali di ocr/score.rs e la vecchia cartella condivisa di prescan; nessuna riga con `assert` tolta
+asserzioni (TEST-2): righe con assert BASE -> HEAD: prescan 244->254, extract/pdf 28->36, extract/score 96->104, extract/tables 30->38, docling-client 40->50, locator/docx 18->26, locator/main 73->73, ocr/score 96->104; la differenza è esattamente quella dei due test nuovi per file; #[test] +2 per file (0 in locator/main), #[ignore] invariati
+durata della guardia (TEST-5): nessuna forma `helper(..).to_path_buf|join|as_path|to_owned`, nessun `let _ = helper(..)`, nessun `mem::forget` negli otto file; `#[must_use]` su tutte e sette le guardie
+nomi unici (TEST-6): ogni letterale passato a scratch, case, input_pdf e paddle_fixture compare in un solo test per file; i tre `scratch("guard-…")` di extract hanno prefissi diversi (s02-extract-, s02-score-, s02-tables-); prescan ha la cartella per chiamata `s02-prescan-tw-<pid>-<n>` e nessuna guardia rimuove `s02-prescan-tw-<pid>`; locator mantiene SEQ, ocr mantiene l'id del thread
+ramo FlateDecode, Cargo.toml, Cargo.lock, tests/ e results/ di s02: invariati rispetto a BASE
+produzione invariata: si (8 file)
+
+## Prova finale su /work/tmp
+
+run_id della prova: 01-6-09-20261029t000335z-2ecd (una prenotazione, un job: elenco, suite, elenco, suite, elenco)
+ambiente del job: TMPDIR=/work/tmp, S02_TEST_BASE non impostato, qpdf presente; log con «Compiling s02-parser» e 0 warning
+dopo suite: exit=0 falliti=0
+passed della prima suite: 423 = 409 della base + 14 test di guardia nuovi (2 per ciascuno dei 7 file con guardia); ignored 8; nessun skip o salto nel log (0 anche nella base)
+passed della seconda suite: 423, exit=0, falliti=0
+esito differenza /work/tmp: nessuna
+esito differenza dopo la seconda suite: nessuna
+controllo aggiuntivo contro il riuso dei pid: i pid dei container nuovi si ripetono fra sessioni (es. s02-docling-3939-* creato dal primo giro della Task 1 e non più «nuovo» nel secondo), quindi l'uguaglianza dei nomi da sola non basta; nello stesso job `find /work/tmp -mindepth 1 -maxdepth 1 -newermt <T0 del job>` dopo ciascuna suite: vuoto dopo la prima e dopo la seconda (nessuna voce creata o ricreata durante le suite)
+sentinella (TEST-4): run_id 01-6-09 separato, `cargo test -p s02-parser --bins` con S02_TEST_BASE=/work/tmp/01-6-09-base contenente il file `sentinella`; exit=0, 0 falliti; dopo la suite la cartella conteneva solo `sentinella`; sentinella e cartella rimosse alla fine (rmdir riuscito, cartella assente)
+
+## Gate e with_capacity
+
+esito gate rust finale: fmt=0 clippy=0
+provenienza del gate rust: sull'host da spikes/ (rustc 1.95.0, x86_64-pc-windows-msvc) dopo touch dei .rs di s02 («Checking s02-parser» nel log), cargo fmt --all -- --check e cargo clippy --workspace --all-targets --locked --offline -- -D warnings; il runner non ha rustfmt né clippy; nessuno degli otto file è solo-Linux
+lo scanner del worktree conosce l'id: si (grep -q 'upload-in-memory-capacity-unverified' skills/security-scanner/security_scan.py)
+with_capacity per file, BASE -> HEAD: prescan.rs 3->3, extract/score.rs 3->3, locator/docx.rs 1->1, ocr/score.rs 1->1, gli altri quattro 0->0 (uguali all'elenco del SUMMARY di 01.6-01); nessun HIGH o CRITICAL, 44 MEDIUM in entrambi
+esito with_capacity nuovi: 0
+
+## Pulizia
+
+PRENOTAZIONE: nessuna
+container con etichetta cka.run_id (docker ps -a --filter label=cka.run_id):
+(fine elenco)
+residui preesistenti di /work/tmp (359 voci di sessioni precedenti): lasciati intatti, fuori dal perimetro; con le guardie non ne nascono di nuovi
+copie ignorate da git nel worktree, non committate: spikes/target/pdfium e spikes/data/corpus/raw, copiate dal checkout principale (deviazione a)
