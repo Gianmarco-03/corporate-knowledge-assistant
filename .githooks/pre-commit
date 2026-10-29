@@ -7,7 +7,8 @@
 #
 #   * QUI (pre-commit) gira cio' che e' rapido e dipende da cio' che sta per
 #     essere committato: segreti nel diff dell'indice, cargo fmt, clippy sul
-#     workspace, crate-boundary-check, security-scanner sull'istantanea
+#     workspace, cargo fmt degli spike (solo se l'indice tocca codice Rust
+#     degli spike), crate-boundary-check, security-scanner sull'istantanea
 #     dell'indice, lint e tsc del frontend, lint-stato dello stato GSD.
 #   * AL PUSH (.githooks/pre-push) si ripete tutto questo e girano le suite
 #     complete (cargo test --workspace, vitest), che costano troppo per
@@ -17,8 +18,14 @@
 # esattamente come un controllo fallito, perche' un controllo che si salta e'
 # indistinguibile da un controllo che passa. L'unico salto ammesso e'
 # «NON APPLICABILE»: il manifest del passo non esiste ancora (niente
-# Cargo.toml, niente apps/web/package.json, niente .planning/), ed e' sempre
-# stampato a video.
+# Cargo.toml, niente apps/web/package.json, niente .planning/), o l'indice
+# non contiene codice Rust degli spike, ed e' sempre stampato a video. I test
+# degli spike girano solo nel runner Docker: con codice degli spike
+# nell'indice il riepilogo li dichiara «NON COPERTO», che non blocca.
+#
+# Storia: fino al piano 01.6-06 i passi Rust guardavano solo il Cargo.toml
+# alla radice, che non esiste ancora, e gli spike non passavano mai da
+# cargo fmt (D-08).
 #
 # LO SCOPE. I segreti e il security-scanner giudicano l'INDICE, non l'albero
 # di lavoro: il diff dell'indice e un'istantanea dei file nell'indice
@@ -92,6 +99,15 @@ fi
 # --- 3. Rust ----------------------------------------------------------------
 passo_cargo_fmt
 passo_cargo_clippy
+# Gli spike (D-08): fmt se l'indice tocca un .rs, un Cargo.toml o il
+# Cargo.lock sotto spikes/; i test degli spike sono NON COPERTO (runner).
+if printf '%s
+' "$INDICE" | tocca_rust_spike; then
+    passo_spike_fmt
+    esito_non_coperto_spike
+else
+    esito "NON APPLICABILE" "cargo fmt (spikes)" "nessun file Rust degli spike nello scope"
+fi
 passo_confini
 
 # --- 4. security-scanner sull'istantanea dell'indice ------------------------
@@ -116,3 +132,4 @@ passo_lint_stato
 verdetto "pre-commit" "COMMIT" "git commit --no-verify"
 
 # **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+# **Modifica:** Claude (gsd-executor 01.6-06) · 2026-10-29 · fmt e clippy degli spike, esito NON COPERTO, segreti allineati a D-02 (gap-closure 1.6, D-08)
