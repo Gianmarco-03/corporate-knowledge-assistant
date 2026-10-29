@@ -535,7 +535,35 @@ pub(crate) mod tests {
 
     static SEQ: AtomicU32 = AtomicU32::new(0);
 
-    pub(crate) fn scratch_dir() -> PathBuf {
+    // Modifica: Claude (gsd-executor 01.6-09) · 2026-10-29 · cartelle temporanee dei test con guardia Drop (gap-closure 1.6, D-11)
+
+    /// Cartella di prova di un solo test (usata anche dai test di `main.rs`). `Deref` dà il percorso della cartella, come
+    /// il `PathBuf` restituito prima; `Drop` la rimuove anche quando il test va in panico.
+    /// Guardia locale a questo file: i bin non condividono moduli di test (stessa forma in
+    /// `prescan`, `extract`, `docling-client`, `locator` e `ocr`).
+    #[must_use]
+    pub(crate) struct Scratch(PathBuf);
+
+    impl std::ops::Deref for Scratch {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl AsRef<Path> for Scratch {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    pub(crate) fn scratch_dir() -> Scratch {
         let d = std::env::temp_dir().join(format!(
             "s02-locator-tw-{}-{}",
             std::process::id(),
@@ -543,7 +571,36 @@ pub(crate) mod tests {
         ));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
-        d
+        Scratch(d)
+    }
+
+    #[test]
+    fn scratch_guard_cleans_on_panic() {
+        let seen = std::sync::Mutex::new(None);
+        let r = std::panic::catch_unwind(|| {
+            let g = scratch_dir();
+            std::fs::write(g.join("sonda.txt"), b"x").unwrap();
+            assert!(g.is_dir());
+            *seen.lock().unwrap() = Some(g.to_path_buf());
+            panic!("sonda della guardia");
+        });
+        assert!(r.is_err());
+        let dir = seen.into_inner().unwrap().expect("guardia creata");
+        assert!(!dir.exists(), "cartella rimasta: {dir:?}");
+    }
+
+    #[test]
+    fn scratch_guard_removes_only_its_own_dir() {
+        let root = std::env::temp_dir();
+        let g = scratch_dir();
+        let dir = g.to_path_buf();
+        assert_ne!(dir, root);
+        assert_eq!(dir.parent(), Some(root.as_path()));
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("s02-locator-tw-"), "{name}");
+        drop(g);
+        assert!(!dir.exists());
+        assert!(root.is_dir(), "la guardia ha rimosso la radice");
     }
 
     const CONTENT_TYPES: &str = r#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="@OX@package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
