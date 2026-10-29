@@ -1,0 +1,124 @@
+Evidenza 01.6-06 — hook: fmt e clippy degli spike, esito NON COPERTO, segreti allineati a D-02, commit di sola evidenza (D-08)
+
+**Modifica:** Claude (test-write 01.6-06) · 2026-10-29 · evidenza degli hook per gli spike e dei segreti (D-08)
+
+git_rev base: 7c9df4e308bbf59267bb987cc9ec00e73789a143
+pre16: 620ce555cd7b9747c2cb41455cec23c5f3b60ce2
+
+## Precondizioni (Task 1, passo 1)
+
+Sonde sull'host, dalla radice del worktree, prima di ogni modifica agli hook.
+Comandi: cargo fmt --manifest-path spikes/Cargo.toml --all -- --check;
+cargo clippy --manifest-path spikes/Cargo.toml --workspace --all-targets --locked --offline -- -D warnings.
+Nessun cargo fetch necessario: il registro dell'host aveva gia' i crate del lock.
+Per clippy CARGO_TARGET_DIR puntava alla cartella spikes/target del checkout principale, gia' compilata;
+il verdetto e' lo stesso, cambia solo il tempo di compilazione.
+clippy: 0.1.95 (59807616e1 2026-04-14)
+
+sonda cargo: versione=cargo 1.95.0 (f2d3ce0bd 2026-03-21) fmt_exit=0 clippy_exit=0
+
+Sonda della storia in partenza: intervallo origin/main..HEAD (29 commit; il ramo exec/01.6-06 non ha un
+upstream proprio, quindi si usa quello di main). La versione nuova di filtra_righe_segrete non esiste ancora
+(e' il Task 2): in sua vece si sono applicate alle righe aggiunte le regole dei segreti di D-02 dello scanner
+di HEAD (env-secret-literal, known-key-prefix, hardcoded-apikey, hardcoded-password, con le stesse
+esenzioni: segnaposto, contatori, numero con unita', valori Python senza virgolette), cioe' l'atteso
+della parita', e il filtro attuale dell'hook. Solo conteggi, nessuna riga stampata.
+filtro attuale dell'hook sullo stesso intervallo: righe=0
+
+sonda storia: righe=0 commit=0
+
+## RED di base, solo evidenza (Task 1, passo 2)
+
+Repository sintetico (RepoSintetico di test_hook_segreti.py) con lo scanner di pre16
+(git show pre16:skills/security-scanner/security_scan.py), commit del solo spikes/s02-parser/results/x.csv:
+pre-commit exit 1, FAIL — security-scanner (rc=2), messaggio NON ESEGUITO [security-scope-empty].
+Lo stesso caso e' anche un test (test_evidence_only_commit_rejected_with_pre16_scanner, TEST-9), verde sulla base.
+
+base csv-only con scanner pre-1.6: rifiutato=si motivo=security-scope-empty
+
+## RED dei test dell'hook (Task 1, passo 3)
+
+Comando: sh scripts/py.sh -m unittest discover -s skills/security-scanner/tests -p 'test_hook_*.py' -v
+Esito: Ran 15 tests, FAILED (failures=11), nessun ERROR.
+Verdi sulla base, come atteso: test_precommit_accepts_evidence_only_commit, test_hook_keeps_existing_rules,
+test_no_bypass_variables, test_evidence_only_commit_rejected_with_pre16_scanner (TEST-9, in piu' rispetto al piano,
+non cambia il conteggio dei rossi).
+Nel test di parita' la parte dello scanner coincide gia' con l'atteso su tutte le 33 righe; l'hook di base
+diverge su 18 righe (le regole di D-02 sui nomi e su GK), mentre le righe dei prefissi dei provider LLM coincidono gia'
+per la regola esistente dell'hook.
+
+RED test hook: falliti=11 errori=0 nomi=test_non_coperto_does_not_block,test_precommit_declares_spike_tests_not_covered,test_precommit_fails_spike_fmt_on_bad_format,test_precommit_runs_spike_fmt_on_rs_change,test_precommit_spike_fmt_not_applicable_without_rs,test_prepush_runs_spike_clippy,test_prepush_without_spike_rust_is_not_applicable,test_secret_parity_with_scanner,test_spike_fmt_fails_when_cargo_missing,test_spike_fmt_fails_when_manifest_missing,test_tocca_rust_spike_paths
+
+Controlli sul file di test prima del commit: grep anti-segreti del verify a 0; scanner --fail-on HIGH exit 0;
+filtra_righe_segrete attuale sul diff del file a 0 righe.
+
+## GREEN (Task 2)
+
+**Modifica:** Claude (gsd-executor 01.6-06) · 2026-10-29 · GREEN degli hook, sonda vera della storia, prove sul clone (D-08)
+
+Hook toccati: .githooks/controlli-comuni.sh (tocca_rust_spike, passo_spike_fmt, passo_spike_clippy,
+esito_non_coperto_spike, esito NON COPERTO con Storia, filtra_righe_segrete con il programma awk delle
+regole di D-02), .githooks/pre-commit e .githooks/pre-push (passi degli spike sullo scope). Il file di
+test non e' stato toccato.
+
+Controlli statici: sh -n sui tre file verde; costrutti bash a 0 (le classi [[:space:]] delle regole
+esistenti sono riscritte come [ [:space:]], stesso insieme di caratteri, perche' il conteggio del
+verify contava gia' 2 occorrenze di "[[" sulla base); NON COPERTO in controlli-comuni.sh >= 3; le
+regole AKIA e gh[pousr]_ ancora presenti. awk: GNU Awk 5.0.0, verificato anche con POSIXLY_CORRECT=1
+senza avvisi; il programma non usa intervalli {n,} ne' variabili d'ambiente.
+
+Comandi: sh scripts/py.sh -m unittest discover -s skills/security-scanner/tests -p 'test_hook_*.py' -v
+-> Ran 15, OK (gli 11 rossi del RED ora verdi, i 4 verdi restano verdi);
+sh scripts/py.sh -m unittest discover -s skills/security-scanner/tests -p 'test_security_scan.py'
+-> Ran 131, OK.
+
+GREEN test: 15 passed, 0 failed, rossi del RED tutti verdi
+
+Parita' dei segreti: tabella di test_secret_parity_with_scanner (33 righe con atteso assoluto, compresa
+l'esclusione decisa dall'utente il 2026-10-29 sul numero con unita', riga 17). L'esclusione dei .py
+senza virgolette dipende dal tipo di file: l'hook la applica dall'intestazione +++ del diff, e la
+tabella (righe senza intestazione) non la contiene; provata a mano su un .py sintetico (valore nudo
+pulito, valore fra virgolette segnalato, stesso valore in un .env segnalato).
+Hook e scanner coincidono con l'atteso su tutte le righe.
+
+esito parita segreti: righe=33 uguali=33
+
+Sonda vera della storia in partenza, ripetuta con la funzione awk nuova (nota del coordinatore):
+filtra_righe_segrete di questo GREEN applicata commit per commit e sul log unico come fa il pre-push.
+Intervalli: origin/main..HEAD (30 commit) e origin/main..main (30 commit, i commit locali di main non
+ancora pushati che il nuovo pre-push vedra'). Solo conteggi.
+
+sonda storia awk vera: righe=0 commit=0 intervalli=origin/main..HEAD,origin/main..main
+
+Prova sul repository vero, senza commit ne' push del repository vero: clone locale
+(git clone --local --no-hardlinks del worktree) in una mktemp -d, core.hooksPath=.githooks nel clone,
+hook del GREEN copiati nel clone, CARGO_TARGET_DIR verso spikes/target del checkout principale
+(riuso della build). Commento aggiunto in spikes/s04-jev/src/metrics.rs, poi pre-commit; ripristino
+del clone e commit del solo spikes/results/x.csv (pre-commit vero tramite core.hooksPath); pre-push
+con stdin "refs/heads/exec/01.6-06 <HEAD> refs/heads/main <origin/main>" verso un remoto nudo che
+contiene origin/main come main. MEDIUM dello scanner solo come avvisi (soglia HIGH).
+
+clone pre-commit rs: fmt=PASS non_coperto=si exit=0
+clone pre-commit csv-only: exit=0
+clone pre-push: clippy_spikes=PASS fmt_spikes=PASS segreti=PASS security=PASS exit=0
+
+Clone e remoto rimossi (verificato: la cartella temporanea non esiste piu').
+
+## Gate finali (Task 3)
+
+**Modifica:** Claude (gsd-executor 01.6-06) · 2026-10-29 · SKILL e mirror, gate finali e pulizia (D-08)
+
+Paragrafo «Allineamento con l'hook» nella SKILL canonica e nel mirror, prima di «Estendere lo scanner»,
+con la firma del piano. diff fra i due file vuoto.
+Scanner sui file toccati: sh scripts/py.sh skills/security-scanner/security_scan.py --fail-on HIGH
+.githooks skills/security-scanner/tests/test_hook_segreti.py spikes/results/hook-spike-segreti.txt.
+Gate di proprieta': node scripts/gate-proprieta-file.cjs --fase 01.6 -> exit 0, esito conforme.
+
+esito scanner file toccati: exit=0
+esito mirror: uguale
+esito gate proprieta file: exit=0
+
+## Pulizia
+
+Cartelle temporanee dei test (prefisso cka-hook-) rimaste in TMPDIR: 0. Clone della prova rimosso.
+core.hooksPath del repository: .githooks (invariato).

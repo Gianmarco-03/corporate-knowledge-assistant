@@ -14,7 +14,16 @@
 #   * security-scanner: l'istantanea dell'albero di ciascun commit in
 #     partenza (git archive), non l'albero di lavoro;
 #   * cargo fmt, clippy, test, crate-boundary-check, lint, tsc, vitest,
-#     lint-stato: l'albero di lavoro (gli strumenti compilano un workspace).
+#     lint-stato: l'albero di lavoro (gli strumenti compilano un workspace);
+#   * cargo fmt e clippy degli spike (spikes/Cargo.toml): l'albero di lavoro,
+#     solo se i commit in partenza toccano un .rs, un Cargo.toml o il
+#     Cargo.lock sotto spikes/; altrimenti NON APPLICABILE. I test degli
+#     spike girano solo nel runner Docker e sono dichiarati NON COPERTO, che
+#     non blocca.
+#
+# Storia: fino al piano 01.6-06 i passi Rust guardavano solo il Cargo.toml
+# alla radice, che non esiste ancora, e gli spike non passavano mai da fmt e
+# clippy (D-08).
 #
 # Regola verde/rosso: solo 0 e' verde; un controllo non eseguito blocca come
 # un controllo fallito; l'unico salto ammesso e' «NON APPLICABILE» (manifest
@@ -78,6 +87,7 @@ trap 'rm -rf "$LAVORO"' EXIT
 titolo "segreti nei commit in partenza (.env e chiavi mai committati)"
 NOMI=""
 RIGHE=""
+FILE_IN_PARTENZA=""
 for sha in $SHA_IN_PARTENZA; do
     TROVATI=$(git ls-tree -r --name-only "$sha" | filtra_nomi_segreti)
     [ -n "$TROVATI" ] && NOMI="${NOMI:+$NOMI
@@ -92,6 +102,10 @@ for intervallo in $INTERVALLI; do
     TROVATE=$(git log -p -U0 --no-color --format= $intervallo | filtra_righe_segrete)
     [ -n "$TROVATE" ] && RIGHE="${RIGHE:+$RIGHE
 }$TROVATE"
+    # shellcheck disable=SC2086 # come sopra
+    TOCCATI=$(git log --name-only --format= $intervallo)
+    [ -n "$TOCCATI" ] && FILE_IN_PARTENZA="${FILE_IN_PARTENZA:+$FILE_IN_PARTENZA
+}$TOCCATI"
     IFS='|'
 done
 IFS=$VECCHIO_IFS
@@ -112,6 +126,17 @@ passo_cargo_fmt
 passo_cargo_clippy
 passo_confini
 passo_cargo_test
+# Gli spike (D-08): fmt e clippy se i commit in partenza toccano codice Rust
+# degli spike; i test degli spike sono NON COPERTO (runner).
+if printf '%s
+' "$FILE_IN_PARTENZA" | tocca_rust_spike; then
+    passo_spike_fmt
+    passo_spike_clippy
+    esito_non_coperto_spike
+else
+    esito "NON APPLICABILE" "cargo fmt (spikes)" "nessun file Rust degli spike nello scope"
+    esito "NON APPLICABILE" "cargo clippy (spikes)" "nessun file Rust degli spike nello scope"
+fi
 
 # --- 4. security-scanner sull'albero di ciascun commit in partenza ----------
 for sha in $SHA_IN_PARTENZA; do
@@ -136,3 +161,4 @@ passo_lint_stato
 verdetto "pre-push" "PUSH" "git push --no-verify"
 
 # **Modifica:** Claude (Anthropic) · 2026-10-18 · porting da Gestionale Light a CKA (decisione utente)
+# **Modifica:** Claude (gsd-executor 01.6-06) · 2026-10-29 · fmt e clippy degli spike, esito NON COPERTO, segreti allineati a D-02 (gap-closure 1.6, D-08)

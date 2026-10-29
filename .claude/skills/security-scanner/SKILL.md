@@ -385,6 +385,46 @@ e risolte, esito del gate e rischi residui vanno nello stesso giro nel report
 di sicurezza della fase (`.planning/phases/<fase>/<fase>-SECURITY.md`, quello
 di `gsd-secure-phase`).
 
+## Allineamento con l'hook
+
+Gli hook versionati (`.githooks/pre-commit` e `.githooks/pre-push`) giudicano
+le righe aggiunte di un diff con `filtra_righe_segrete` in
+`.githooks/controlli-comuni.sh`, prima e indipendentemente dallo scanner.
+Dopo il piano 01.6-06 quella funzione replica, in un programma `awk` POSIX, le
+regole dei segreti di D-02 di questo scanner:
+
+- `env-secret-literal`, con gli stessi nomi (SECRET, PASSWORD, API_KEY,
+  ACCESS_KEY, TOKEN, `TYPESAFE_API_KEY`, `JWT_*`), le forme `export ` e `- `
+  e nessuna lunghezza minima del valore;
+- `hardcoded-password` e `hardcoded-apikey`, senza distinzione di maiuscole e
+  con il valore fra virgolette di almeno 3 e 8 caratteri;
+- `known-key-prefix`: `sk-`/`sk-ant-` con il confine a sinistra e `GK` più 24
+  esadecimali con i confini.
+
+Le esenzioni sono le stesse e valgono solo per queste regole: la lista chiusa
+dei segnaposto, il valore uguale al nome o a una sua parola che non è mai un
+segnaposto, le sole cifre sotto un nome da contatore, il numero con un'unità
+di misura e, nei file `.py` riconosciuti dall'intestazione `+++` del diff, il
+valore senza virgolette di `env-secret-literal` (esclusioni decise
+dall'utente il 2026-10-29). L'hook applica queste regole a ogni tipo di file,
+quindi dove lo scanner non applica `env-secret-literal` (`.rs`, `.ts`,
+`.sql`) l'hook resta più severo. Le regole storiche dell'hook (blocco PEM,
+`TYPESAFE_API_KEY`, `JWT_*`, URL postgres con password, `sk-`, `AKIA`,
+`gh[pousr]_`) restano invariate, e i segnaposto dello scanner non si
+applicano a loro.
+
+La parità non si tiene a vista. La prova il test
+`test_secret_parity_with_scanner` in
+`skills/security-scanner/tests/test_hook_segreti.py`: una tabella di righe
+composte a runtime, ciascuna con il suo atteso assoluto, che hook e scanner
+devono rispettare entrambi. Chi cambia una regola dei segreti qui, o la sua
+esenzione, aggiorna `filtra_righe_segrete` e la tabella nello stesso piano. I
+test dell'hook si lanciano a parte, perché richiedono git e cargo:
+`sh scripts/py.sh -m unittest discover -s skills/security-scanner/tests -p
+'test_hook_*.py'`.
+
+**Modifica:** Claude (gsd-executor 01.6-06) · 2026-10-29 · allineamento delle regole dei segreti con l'hook (D-08)
+
 ## Estendere lo scanner
 
 Una regola nuova dichiara le famiglie di file a cui si applica, ha un
@@ -400,3 +440,4 @@ skills/security-scanner/tests -p 'test_security_scan.py'`.
 **Modifica:** Claude (Anthropic) · 2026-10-21 · opzione `--fail-on`; l'hook blocca solo CRITICAL e HIGH, i MEDIUM sono avvisi da motivare nel SUMMARY (decisione utente)
 **Modifica:** Claude (gsd-executor 01.6-01) · 2026-10-26 · regole upload-in-memory, upload-in-memory-unverified, upload-in-memory-capacity-unverified, unbounded-copy-to-vec; log su più righe; handler senza argomenti (D-01, D-05, D-06)
 **Modifica:** Claude (gsd-executor 01.6-02) · 2026-10-29 · segreti, file testuali, allowlist del marcatore, esito 2 senza percorsi (D-02, D-03, D-04, D-07), con le esclusioni decise dall'utente il 2026-10-29 per le espressioni Python e i numeri con unità
+**Modifica:** Claude (gsd-executor 01.6-06) · 2026-10-29 · allineamento delle regole dei segreti con l'hook (D-08)
