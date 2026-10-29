@@ -654,12 +654,69 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    fn scratch(name: &str) -> PathBuf {
+    // Modifica: Claude (gsd-executor 01.6-09) · 2026-10-29 · cartelle temporanee dei test con guardia Drop (gap-closure 1.6, D-11)
+
+    /// Cartella di prova di un solo test. `Deref` dà il percorso della cartella, come
+    /// il `PathBuf` restituito prima; `Drop` la rimuove anche quando il test va in panico.
+    /// Guardia locale a questo file: i bin non condividono moduli di test (stessa forma in
+    /// `prescan`, `extract`, `docling-client`, `locator` e `ocr`).
+    #[must_use]
+    struct Scratch(PathBuf);
+
+    impl std::ops::Deref for Scratch {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl AsRef<Path> for Scratch {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn scratch(name: &str) -> Scratch {
         let root = std::env::var_os("S02_TEST_BASE").map_or_else(std::env::temp_dir, PathBuf::from);
         let d = root.join(format!("s02-tables-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
-        d
+        Scratch(d)
+    }
+
+    #[test]
+    fn scratch_guard_cleans_on_panic() {
+        let seen = std::sync::Mutex::new(None);
+        let r = std::panic::catch_unwind(|| {
+            let g = scratch("guard-panic");
+            std::fs::write(g.join("sonda.txt"), b"x").unwrap();
+            assert!(g.is_dir());
+            *seen.lock().unwrap() = Some(g.to_path_buf());
+            panic!("sonda della guardia");
+        });
+        assert!(r.is_err());
+        let dir = seen.into_inner().unwrap().expect("guardia creata");
+        assert!(!dir.exists(), "cartella rimasta: {dir:?}");
+    }
+
+    #[test]
+    fn scratch_guard_removes_only_its_own_dir() {
+        let root = std::env::var_os("S02_TEST_BASE").map_or_else(std::env::temp_dir, PathBuf::from);
+        let g = scratch("guard-scope");
+        let dir = g.to_path_buf();
+        assert_ne!(dir, root);
+        assert_eq!(dir.parent(), Some(root.as_path()));
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("s02-tables-"), "{name}");
+        drop(g);
+        assert!(!dir.exists());
+        assert!(root.is_dir(), "la guardia ha rimosso la radice");
     }
 
     fn set(v: &[u32]) -> BTreeSet<u32> {
@@ -775,7 +832,8 @@ mod tests {
 
     #[test]
     fn table_pages_csv_has_fixed_header() {
-        let p = scratch("csv").join("table_pages.csv");
+        let d = scratch("csv");
+        let p = d.join("table_pages.csv");
         let mut h = row("it-25", "holdout", 5, 4);
         h.method = "heuristic+uncertain".into();
         h.pages_selected = 6;

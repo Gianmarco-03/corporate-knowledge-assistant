@@ -2071,11 +2071,78 @@ mod tests {
 
     // ---- qpdf e lopdf per le fixture cifrate --------------------------------------------
 
-    fn scratch(ext: &str) -> PathBuf {
+    // Modifica: Claude (gsd-executor 01.6-09) · 2026-10-29 · cartelle temporanee dei test con guardia Drop (gap-closure 1.6, D-11)
+
+    /// Cartella temporanea di una sola chiamata di `scratch`, con il file che contiene.
+    /// `Deref` dà il percorso del file, come il `PathBuf` restituito prima; `Drop` rimuove la
+    /// cartella anche quando il test va in panico. Guardia locale a questo file: la lib e i
+    /// bin non condividono moduli di test (stessa forma in `extract`, `docling-client`,
+    /// `locator` e `ocr`).
+    #[must_use]
+    struct Scratch {
+        dir: PathBuf,
+        file: PathBuf,
+    }
+
+    impl std::ops::Deref for Scratch {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.file
+        }
+    }
+
+    impl AsRef<Path> for Scratch {
+        fn as_ref(&self) -> &Path {
+            &self.file
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    /// File `d<n>.<ext>` nella cartella per chiamata `temp_dir()/s02-prescan-tw-<pid>-<n>`.
+    fn scratch(ext: &str) -> Scratch {
         static N: AtomicU32 = AtomicU32::new(0);
-        let dir = std::env::temp_dir().join(format!("s02-prescan-tw-{}", std::process::id()));
+        let n = N.fetch_add(1, Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("s02-prescan-tw-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        dir.join(format!("d{}.{ext}", N.fetch_add(1, Ordering::SeqCst)))
+        let file = dir.join(format!("d{n}.{ext}"));
+        Scratch { dir, file }
+    }
+
+    #[test]
+    fn scratch_guard_cleans_on_panic() {
+        let seen = std::sync::Mutex::new(None);
+        let r = std::panic::catch_unwind(|| {
+            let g = scratch("pdf");
+            std::fs::write(&g, b"%PDF-1.7\n").unwrap();
+            assert!(g.exists());
+            *seen.lock().unwrap() = Some((g.dir.clone(), g.to_path_buf()));
+            panic!("sonda della guardia");
+        });
+        assert!(r.is_err());
+        let (dir, file) = seen.into_inner().unwrap().expect("guardia creata");
+        assert!(!file.exists(), "file rimasto: {file:?}");
+        assert!(!dir.exists(), "cartella rimasta: {dir:?}");
+    }
+
+    #[test]
+    fn scratch_guard_removes_only_its_own_dir() {
+        let root = std::env::temp_dir();
+        let g = scratch("pdf");
+        let dir = g.dir.clone();
+        assert_ne!(dir, root);
+        assert_eq!(dir.parent(), Some(root.as_path()));
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let shared = format!("s02-prescan-tw-{}", std::process::id());
+        assert!(name.starts_with(&format!("{shared}-")), "{name}");
+        assert_eq!(g.parent(), Some(dir.as_path()));
+        drop(g);
+        assert!(!dir.exists());
+        assert!(root.is_dir(), "la guardia ha rimosso la radice");
     }
 
     /// `qpdf <opts> <in> <out>` (nel runner; exit 3 = solo avvisi).
@@ -2085,8 +2152,8 @@ mod tests {
         std::fs::write(&i, input).unwrap();
         let out = Command::new("qpdf")
             .args(opts)
-            .arg(&i)
-            .arg(&o)
+            .arg(&*i)
+            .arg(&*o)
             .output()
             .unwrap_or_else(|e| panic!("qpdf non eseguibile (serve il runner): {e}"));
         assert!(
@@ -2103,7 +2170,7 @@ mod tests {
         std::fs::write(&p, pdf).unwrap();
         let out = Command::new("qpdf")
             .arg("--check")
-            .arg(&p)
+            .arg(&*p)
             .output()
             .unwrap_or_else(|e| panic!("qpdf non eseguibile (serve il runner): {e}"));
         assert_eq!(
@@ -3334,7 +3401,7 @@ mod tests {
         ]
     }
 
-    fn write_docx(entries: &[(String, Vec<u8>)]) -> PathBuf {
+    fn write_docx(entries: &[(String, Vec<u8>)]) -> Scratch {
         let path = scratch("docx");
         let mut z = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
         for (name, data) in entries {

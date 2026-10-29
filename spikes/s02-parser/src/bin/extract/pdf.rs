@@ -356,21 +356,79 @@ mod tests {
 
     // ---- ambiente ---------------------------------------------------------------------------
 
+    // Modifica: Claude (gsd-executor 01.6-09) · 2026-10-29 · cartelle temporanee dei test con guardia Drop (gap-closure 1.6, D-11)
+
+    /// Cartella di prova di un solo test (`case`). `Deref` dà il percorso della cartella, come
+    /// il `PathBuf` restituito prima; `Drop` la rimuove anche quando il test va in panico.
+    /// Guardia locale a questo file: i bin non condividono moduli di test (stessa forma in
+    /// `prescan`, `extract`, `docling-client`, `locator` e `ocr`).
+    #[must_use]
+    struct Scratch(PathBuf);
+
+    impl std::ops::Deref for Scratch {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl AsRef<Path> for Scratch {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     /// Cartella di prova vuota: `<S02_TEST_BASE | temp>/s02-extract-<pid>-<name>`.
-    fn scratch(name: &str) -> PathBuf {
+    fn scratch(name: &str) -> Scratch {
         let root = std::env::var_os("S02_TEST_BASE").map_or_else(std::env::temp_dir, PathBuf::from);
         let d = root.join(format!("s02-extract-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(d.join("out")).unwrap();
-        d
+        Scratch(d)
     }
 
-    /// `(input, out)` con il PDF scritto.
-    fn case(name: &str, pdf: &[u8]) -> (PathBuf, PathBuf) {
+    /// `(guardia, input, out)` con il PDF scritto; la guardia va tenuta fino alla fine del test.
+    fn case(name: &str, pdf: &[u8]) -> (Scratch, PathBuf, PathBuf) {
         let d = scratch(name);
         let input = d.join("in.pdf");
         fs::write(&input, pdf).unwrap();
-        (input, d.join("out"))
+        let out = d.join("out");
+        (d, input, out)
+    }
+
+    #[test]
+    fn scratch_guard_cleans_on_panic() {
+        let seen = std::sync::Mutex::new(None);
+        let r = std::panic::catch_unwind(|| {
+            let g = scratch("guard-panic");
+            std::fs::write(g.join("sonda.txt"), b"x").unwrap();
+            assert!(g.is_dir());
+            *seen.lock().unwrap() = Some(g.to_path_buf());
+            panic!("sonda della guardia");
+        });
+        assert!(r.is_err());
+        let dir = seen.into_inner().unwrap().expect("guardia creata");
+        assert!(!dir.exists(), "cartella rimasta: {dir:?}");
+    }
+
+    #[test]
+    fn scratch_guard_removes_only_its_own_dir() {
+        let root = std::env::var_os("S02_TEST_BASE").map_or_else(std::env::temp_dir, PathBuf::from);
+        let g = scratch("guard-scope");
+        let dir = g.to_path_buf();
+        assert_ne!(dir, root);
+        assert_eq!(dir.parent(), Some(root.as_path()));
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("s02-extract-"), "{name}");
+        drop(g);
+        assert!(!dir.exists());
+        assert!(root.is_dir(), "la guardia ha rimosso la radice");
     }
 
     fn entries(dir: &Path) -> Vec<PathBuf> {
@@ -428,7 +486,7 @@ mod tests {
             "/OpenAction 50 0 R",
             vec![(50, b"<< /S /JavaScript /JS (app.alert\\(1\\)) >>".to_vec())],
         );
-        let (input, out) = case("js", &pdf);
+        let (_d, input, out) = case("js", &pdf);
         match run_pdf(&input, &out, &Caps::default(), &no_pdfium()) {
             ChildOutcome::Quarantined { reasons } => {
                 assert!(reasons.contains(&"javascript".to_owned()), "{reasons:?}")
@@ -440,7 +498,7 @@ mod tests {
 
     #[test]
     fn garbage_is_failed_by_prescan_and_writes_nothing() {
-        let (input, out) = case("garbage", b"questo non e' un PDF");
+        let (_d, input, out) = case("garbage", b"questo non e' un PDF");
         match run_pdf(&input, &out, &Caps::default(), &no_pdfium()) {
             ChildOutcome::Failed { kind, detail } => {
                 assert_ne!(
@@ -457,7 +515,7 @@ mod tests {
 
     #[test]
     fn caps_from_caller_are_enforced_before_pdfium() {
-        let (input, out) = case("pages-cap", &doc(&["uno", "due"], 0, "", vec![]));
+        let (_d, input, out) = case("pages-cap", &doc(&["uno", "due"], 0, "", vec![]));
         let caps = Caps {
             max_pages: 1,
             ..Caps::default()
@@ -474,7 +532,7 @@ mod tests {
     #[test]
     fn benign_pdf_gives_one_json_per_page_in_pdf_points_bottom_left() {
         let pdf = doc(&["Ciao mondo", "Pagina due"], 0, "", vec![]);
-        let (input, out) = case("benign", &pdf);
+        let (_d, input, out) = case("benign", &pdf);
         let o = run_pdf(&input, &out, &Caps::default(), &pdfium_dir());
         let ChildOutcome::Ok {
             pages,
@@ -529,7 +587,7 @@ mod tests {
 
     #[test]
     fn rotation_is_reported_in_degrees() {
-        let (input, out) = case("rot", &doc(&["Ruotata"], 90, "", vec![]));
+        let (_d, input, out) = case("rot", &doc(&["Ruotata"], 90, "", vec![]));
         let o = run_pdf(&input, &out, &Caps::default(), &pdfium_dir());
         assert_eq!(o.status(), "ok", "{o:?}");
         let ps = pages_json(&out);

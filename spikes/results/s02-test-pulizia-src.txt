@@ -1,0 +1,33 @@
+**Modifica:** Claude (gsd-executor 01.6-09) · 2026-10-29 · evidenza della pulizia dei test in src di s02 (D-11)
+
+# s02 — guardie Drop per le cartelle temporanee dei test in src/ (piano 01.6-09)
+
+git_rev base: 27efdf362be5791d2c6f374b90e3823d494a9373
+comando della suite: bash tools/session.sh with 01-6-09 --wait 3600 -- bash -c 'bash tools/session.sh oneshot "$CKA_RUN_ID" -- …' con, nello stesso job, ls -A /work/tmp | sort prima e dopo ogni cargo test -p s02-parser --locked --offline --no-fail-fast
+ambiente del job: TMPDIR=/work/tmp, S02_TEST_BASE non impostato, qpdf presente (command -v qpdf)
+binario fresco: touch di tutti i .rs sotto spikes/s02-parser prima di ogni giro; ogni log contiene «Compiling s02-parser»
+elenchi salvati sull'host fuori dal repo (cartella del driver nello scratchpad della sessione); qui solo i nomi
+
+## Base (Task 1, passo 1)
+
+run_id della base: 01-6-09-20261028t235603z-ff08
+base suite: exit=0 passed=409 failed=0 ignored=8 (uguale a main)
+base nuovi in /work/tmp: 25
+base prefissi: s02-docling-<pid>-, s02-extract-<pid>-, s02-locator-tw-<pid>-, s02-prescan-tw-<pid>, s02-score-<pid>-, s02-tables-<pid>-
+base nomi nuovi: s02-docling-4036-{abort,err,gate,opts,timeout}; s02-extract-4056-{benign,garbage,js,pages-cap,rot}; s02-locator-tw-4105-{0..8}; s02-prescan-tw-3837; s02-score-4056-{cer,iou,tables}; s02-tables-4056-{csv,params}
+base voci preesistenti in /work/tmp: 359 (residui di sessioni precedenti degli stessi helper, più fixtures, srv, s04-*, resp-*.json, table-page.pdf, tw-pdfium-out); non si toccano
+nota: cka-ocr-paddle- non compare perché i due test di ocr/score.rs chiamano già remove_dir_all alla fine (non col panico)
+
+## Task 1 — guardie in prescan.rs ed extract/*
+
+Codice: in ciascuno dei quattro mod tests una struttura locale `Scratch` con `#[must_use]`, `Deref<Target = Path>`, `AsRef<Path>` e `impl Drop for Scratch` (`let _ = std::fs::remove_dir_all`). In prescan.rs la guardia è per chiamata: cartella `s02-prescan-tw-<pid>-<n>` con dentro il file `d<n>.<ext>` (prima la cartella `s02-prescan-tw-<pid>` era condivisa e mai rimossa); `Deref` dà il file. In extract/pdf.rs `case` restituisce `(guardia, input, out)` e i cinque test legano la guardia a `_d` fino alla fine; in extract/score.rs ed extract/tables.rs la forma temporanea `scratch(..).join(..)` è diventata `let d = scratch(..); let p = d.join(..)`. Test nuovi per file: `scratch_guard_cleans_on_panic` e `scratch_guard_removes_only_its_own_dir`.
+
+run_id del primo giro della Task 1: 01-6-09-20261028t235909z-bb9e
+primo giro: exit=101 passed=416 failed=1 ignored=8; unico fallito tests/isolation.rs quota_counts_job_dir_plus_out_dir («quota non rilevata in tempo: 10.9 s dal termine delle scritture»), file fuori dal piano (01.6-07), sensibile al carico; durante il giro un altro esecutore aveva docling attivo; giro scartato e rifatto senza modifiche
+primo giro, nuovi in /work/tmp: 14, solo s02-docling-<pid>-* e s02-locator-tw-<pid>-* (helper della Task 2); nessuna voce s02-prescan-tw-, s02-extract-, s02-score-, s02-tables-
+run_id del secondo giro della Task 1: 01-6-09-20261029t000014z-bc4f
+dopo task 1 suite: exit=0 falliti=0
+passed della Task 1: 417 = 409 della base + 8 test di guardia nuovi (2 in prescan, 2 in ciascuno dei tre file di extract); ignored 8 invariati
+esito gate rust task 1: fmt=0 clippy=0
+provenienza del gate rust: sull'host da spikes/ (rustc 1.95.0, x86_64-pc-windows-msvc), cargo fmt --all -- --check e cargo clippy --workspace --all-targets --locked --offline -- -D warnings, perché il runner non ha rustfmt né clippy
+ramo FlateDecode di prescan.rs: invariato (nessuna riga +/- con ZlibDecoder o IMAGE_HEADER_SCAN_BYTES nel diff)
