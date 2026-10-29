@@ -103,3 +103,22 @@ clone pre-commit csv-only: exit=0
 clone pre-push: clippy_spikes=PASS fmt_spikes=PASS segreti=PASS security=PASS exit=0
 
 Clone e remoto rimossi (verificato: la cartella temporanea non esiste piu').
+
+## Gate finali (Task 3)
+
+**Modifica:** Claude (gsd-executor 01.6-06) · 2026-10-29 · SKILL e mirror, gate finali e pulizia (D-08)
+
+Paragrafo «Allineamento con l'hook» nella SKILL canonica e nel mirror, prima di «Estendere lo scanner»,
+con la firma del piano. diff fra i due file vuoto.
+Scanner sui file toccati: sh scripts/py.sh skills/security-scanner/security_scan.py --fail-on HIGH
+.githooks skills/security-scanner/tests/test_hook_segreti.py spikes/results/hook-spike-segreti.txt.
+Gate di proprieta': node scripts/gate-proprieta-file.cjs --fase 01.6 -> exit 0, esito conforme.
+
+esito scanner file toccati: exit=0
+esito mirror: uguale
+esito gate proprieta file: exit=0
+
+## Pulizia
+
+Cartelle temporanee dei test (prefisso cka-hook-) rimaste in TMPDIR: 0. Clone della prova rimosso.
+core.hooksPath del repository: .githooks (invariato).
