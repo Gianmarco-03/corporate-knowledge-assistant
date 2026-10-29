@@ -21,6 +21,9 @@
 #   down <run_id>                           ferma e rimuove tutti e soli i container della sessione
 #   ps <run_id> [--assert-only <svc…>]      container della sessione; con --assert-only
 #                                           exit 1 se gira un servizio del progetto fuori elenco
+#   docling-models <run_id>                 job dei pesi Docling (volume docling-models-min),
+#                                           fino a 12 tentativi; stampa tentativi=<n>
+#   docling-models-help <run_id>            modelli ammessi da docling-tools nel job
 #
 # Regole: il run_id si valida con ^[a-z0-9][a-z0-9-]{0,62}$ (e `none`, valore di default
 # dell'etichetta, è riservato) prima di qualsiasi comando docker; nessun filtro di etichetta
@@ -37,6 +40,7 @@
 #
 # Modifica: Claude (gsd-executor 01.1-01) · 2026-10-21 · dc(): i segreti del file prevalgono sull'host (gap-closure 1.1)
 # Modifica: Claude (gsd-executor 01.6-03) · 2026-10-27 · runner senza capability, runner-init, runner-paid (gap-closure 1.6, D-09)
+# Modifica: Claude (gsd-executor 01.6-04) · 2026-10-29 · pesi Docling ridotti ai modelli usati, volume docling-models-min (gap-closure 1.6, D-09)
 
 set -euo pipefail
 
@@ -447,6 +451,45 @@ cmd_init_volumes() {
   echo "INIT-VOLUMES ok: /target /usr/local/cargo/registry /work/tmp di 10001:10001"
 }
 
+# Job dei pesi Docling (deviazione (d) del compose, gap-closure 1.6, D-09): firma fissa, il
+# comando di download e i modelli stanno solo nel compose, nessun argomento del chiamante
+# arriva a compose. Gli errori DNS transitori di Docker Desktop fanno fallire il job (01-02
+# è riuscito all'undicesimo tentativo); un nuovo tentativo riprende dai file già scaricati.
+# Tetto di 12 tentativi a 15 s l'uno dall'altro; l'uscita è quella dell'ultimo tentativo.
+readonly DOCLING_MODELS_TRIES=12
+readonly DOCLING_MODELS_PAUSE_S=15
+
+cmd_docling_models() {
+  (( $# == 1 )) || die 2 "uso: docling-models <run_id> (firma fissa, nessun altro argomento)"
+  local rid=$1
+  valid_run_id "$rid"
+  require_owner "$rid"
+  local n=0 code=1
+  while (( n < DOCLING_MODELS_TRIES )); do
+    n=$((n + 1))
+    if dc "$rid" --profile docling-models run --rm --no-deps -T         --label "cka.run_id=$rid" docling-models; then
+      code=0
+    else
+      code=$?
+    fi
+    (( code == 0 )) && break
+    err "docling-models: tentativo $n di $DOCLING_MODELS_TRIES fallito (exit $code)"
+    (( n < DOCLING_MODELS_TRIES )) && sleep "$DOCLING_MODELS_PAUSE_S"
+  done
+  echo "DOCLING-MODELS exit=$code tentativi=$n run_id=$rid"
+  return "$code"
+}
+
+# Elenco dei modelli che `docling-tools models download` accetta nell'immagine del job:
+# stesso servizio, comando --help al posto del download, nessun argomento del chiamante.
+cmd_docling_models_help() {
+  (( $# == 1 )) || die 2 "uso: docling-models-help <run_id> (firma fissa, nessun altro argomento)"
+  local rid=$1
+  valid_run_id "$rid"
+  require_owner "$rid"
+  dc "$rid" --profile docling-models run --rm --no-deps -T     --label "cka.run_id=$rid" docling-models docling-tools models download --help
+}
+
 cmd_cid() {
   local rid=${1-} svc=${2-}
   valid_run_id "$rid"
@@ -562,7 +605,7 @@ cmd_with() {
 }
 
 usage() {
-  sed -n '2,27p' "$0" >&2
+  sed -n '2,30p' "$0" >&2
   exit 2
 }
 
@@ -589,6 +632,8 @@ main() {
     down) cmd_down "$@" ;;
     ps) cmd_ps "$@" ;;
     vram) cmd_vram ;;
+    docling-models) cmd_docling_models "$@" ;;
+    docling-models-help) cmd_docling_models_help "$@" ;;
     -h|--help|help) usage ;;
     *) die 2 "sottocomando sconosciuto: $sub" ;;
   esac

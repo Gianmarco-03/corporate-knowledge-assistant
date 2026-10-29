@@ -32,9 +32,18 @@
 #     egress, e montati in sola lettura; RESEARCH §2 prevedeva un primo avvio di Docling
 #     con rete normale, scartato perché il YAML è chiuso e i download falserebbero i
 #     tempi (RISK-003).
+#     Il job scarica per nome i soli modelli che le misure usano (layout e TableFormer,
+#     più quelli che l'avvio di docling-cpu dimostra necessari, ognuno con la sua prova
+#     negativa in spikes/results/docling-models.txt) nel volume `docling-models-min`, e si
+#     lancia solo con `session.sh docling-models <run_id>`.
+#     Storia: fino alla gap-closure 1.6 il job scaricava tutti i modelli (opzione all,
+#     1192 file, 28.6 GB, compresi modelli visione e OCR mai usati) nel volume
+#     `docling-models`, montato da docling e docling-cpu. Quel volume resta dichiarato ma
+#     non è più montato; lo rimuove a mano l'utente (D-13).
 #
 # Modifica: Claude (gsd-executor 01.3-01) · 2026-10-21 · worker: tmpfs /work di uid/gid 10001, modo 0700 (gap-closure 1.3)
 # Modifica: Claude (gsd-executor 01.6-03) · 2026-10-27 · runner e paddle con privilegi minimi, runner-init, runner-paid, revisioni TEI obbligatorie (gap-closure 1.6, D-09)
+# Modifica: Claude (gsd-executor 01.6-04) · 2026-10-29 · pesi Docling ridotti ai modelli usati, volume docling-models-min (gap-closure 1.6, D-09)
 
 name: cka-spikes
 
@@ -119,7 +128,7 @@ services:
           devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
 
   # Deviazione (a): nessuna porta pubblicata, sola rete interna `parse` (niente egress).
-  # Pesi offline dal volume `docling-models`, in sola lettura (deviazione (d)).
+  # Pesi offline dal volume `docling-models-min`, in sola lettura (deviazione (d)).
   docling:
     image: quay.io/docling-project/docling-serve-cu128:v1.37.0
     profiles: [s02, gpu]
@@ -135,7 +144,7 @@ services:
       DOCLING_SERVE_MAX_FILE_SIZE: "26214400"
       DOCLING_SERVE_ARTIFACTS_PATH: "${DOCLING_ARTIFACTS_PATH:-/models}"
       HF_HUB_OFFLINE: "1"
-    volumes: ["docling-models:/models:ro"]
+    volumes: ["docling-models-min:/models:ro"]
     networks: [parse]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -163,7 +172,7 @@ services:
       DOCLING_SERVE_MAX_FILE_SIZE: "26214400"
       DOCLING_SERVE_ARTIFACTS_PATH: "${DOCLING_ARTIFACTS_PATH:-/models}"
       HF_HUB_OFFLINE: "1"
-    volumes: ["docling-models:/models:ro"]
+    volumes: ["docling-models-min:/models:ro"]
     networks: [parse]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -171,7 +180,9 @@ services:
     mem_limit: 8g
 
   # Deviazione (d): job di preparazione dei pesi Docling, unico con egress e volume in
-  # scrittura; si lancia con `compose run --rm --no-deps docling-models`, mai nelle misure.
+  # scrittura; si lancia solo con `session.sh docling-models <run_id>` (o
+  # `docling-models-help` per l'elenco dei modelli ammessi), mai nelle misure. Modelli
+  # per nome, non più tutti quelli disponibili (gap-closure 1.6, D-09).
   docling-models:
     image: quay.io/docling-project/docling-serve-cpu:v1.37.0
     profiles: [docling-models]
@@ -180,8 +191,11 @@ services:
     # root senza capability: il volume nuovo nasce di root (/models non esiste
     # nell'immagine) e l'utente 1001 dell'immagine non potrebbe scriverci
     user: "0:0"
-    command: ["docling-tools", "models", "download", "--output-dir", "/models", "--all"]
-    volumes: ["docling-models:/models"]
+    # rapidocr: il warm-up della pipeline PDF di docling-serve crea il modello OCR anche con
+    # do_ocr=false e senza i suoi pesi esce con exit 3 (prova negativa in
+    # spikes/results/docling-models.txt, 01.6-04)
+    command: ["docling-tools", "models", "download", "--output-dir", "/models", "layout", "tableformer", "rapidocr"]
+    volumes: ["docling-models-min:/models"]
     networks: [default]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -340,7 +354,9 @@ volumes:
   garage-meta: {}
   garage-data: {}
   hf-cache: {}
+  # volume completo di 01-02, non più montato; lo rimuove a mano l'utente
   docling-models: {}
+  docling-models-min: {}
   cargo-target: {}
   cargo-registry: {}
   work-tmp: {}
