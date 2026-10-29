@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.6 / onda 4 / slice 01.6-04, 01.6-09 / exec onda 4 completata · aggiornato: 2026-10-29
+fase 01.6 / onda 5 / slice 01.6-06 / exec fase completata · aggiornato: 2026-10-29
 
 ## Prossima azione
 
-/execute 1.6 onda 5 in corso (01.6-06, Opus, test-write sugli hook in repository sintetici, merge --no-ff dell'orchestratore) per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/verify 1 di nuovo (banda ECC → GSD sul diff delle fasi 1-1.6; human_judgment dai SUMMARY di 01.6) → UAT 6 punti → chiusura fase 1; prima del prossimo push di main il nuovo pre-push vede 30 commit (sonda dei segreti a 0) per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -116,6 +116,8 @@ fase 01.6 / onda 4 / slice 01.6-04, 01.6-09 / exec onda 4 completata · aggiorna
 - deviazioni livello a onda 3: `example_key` nel test dei segnaposto; allowlist sintetica nei test di copia; `<automated>` Task 2 di 02 e verify Task 2 di 08 rossi per costruzione dopo i task successivi (da rileggere in /verify 1); PDFium e fixture ignorate copiati; out_dir di calibrate per `out_dir_form`; human_judgment 01.6-02 ×5, 01.6-08 ×6 → SUMMARY
 - onda 4 di 01.6 chiusa: 01.6-04 (merge 4e95ab4; volume docling-models-min 73 file 731M senza --all, rapidocr aggiunto con prova negativa, CPU e GPU success, 5/5 sha256 obbligatori uguali; vecchio docling-models 28.6G non montato e intatto, rimozione all'utente) + 01.6-09 (merge 7c9df4e; guardie Drop Scratch in 7 file, 14 test, /work/tmp identico dopo due suite); gate onda verde (s02 giro 1 422/1 flake quota noto, giro 2 423/0/8) → 01.6-04/01.6-09-SUMMARY.md
 - deviazioni livello a onda 4: `docker logs` in sola lettura fuori dalle eccezioni della hard rule 2 di 04; attesa di «Application startup complete» perché `up --wait` esce sull'healthcheck; copie ignorate di pdfium e data/corpus/raw; flake `quota_counts_job_dir_plus_out_dir` (01.6-07) caduto 2 volte sotto carico; human_judgment 01.6-04 ×6, 01.6-09 ×5 → SUMMARY
+- onda 5 di 01.6 chiusa, fase 1.6 eseguita 9/9: 01.6-06 (merge edb312c; hook con fmt/clippy degli spike e quarto esito NON COPERTO, filtro dei segreti in awk POSIX allineato a D-02 con le esclusioni del 2026-10-29, parità hook-scanner 33/33, commit di sola evidenza accettato, sonda della storia 0 righe su 30 commit); gate verde (s02 423/0/8 con Compiling, hook 15, scanner 131) → 01.6-06-SUMMARY.md
+- deviazioni livello a onda 5: `[[:space:]]` → `[ [:space:]]` per il verify «zero [[»; commento col manifest per il grep; `[{] [}]` per gawk POSIX; hook più severo dello scanner (env-secret-literal su tutti i tipi di file); human_judgment ×7 (parità solo ASCII, esclusione .py fuori tabella, solo gawk 5.0.0, merge senza --name-only, pre-push mai girato su un push reale) → SUMMARY
 
 ## Limiti trovati
 
@@ -230,3 +232,4 @@ fase 01.6 / onda 4 / slice 01.6-04, 01.6-09 / exec onda 4 completata · aggiorna
 **Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 2, limite volume /target condiviso
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 3
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 4
+**Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 5, esecuzione completata
