@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.6 / onda 2 / slice 01.6-03, 01.6-05 / exec onda 2 completata · aggiornato: 2026-10-27
+fase 01.6 / onda 3 / slice 01.6-02, 01.6-08 / exec onda 3 completata · aggiornato: 2026-10-29
 
 ## Prossima azione
 
-/execute 1.6 onda 3 (01.6-02 + 01.6-08, Opus; un solo piano con test s02 per onda, gate con «Compiling s02-parser» e conteggio test) → onde 4-5 per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/execute 1.6 onda 4 in corso (01.6-04 + 01.6-09, Opus; test-write n/a: nessun file di test, base misurata nel piano) → onda 5 (01.6-06) per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -111,6 +111,9 @@ fase 01.6 / onda 2 / slice 01.6-03, 01.6-05 / exec onda 2 completata · aggiorna
 - onda 2 di 01.6 chiusa: 01.6-03 (merge 09c1160; runner cap_drop ALL + no-new-privileges + pids_limit 1024, runner-paid solo in profilo paid via oneshot-paid/run-paid, paddle read_only + tmpfs /tmp, revisioni TEI obbligatorie, tei-embed bge-m3 uguali=si) + 01.6-05 (merge ff5295a; check_ok_reports, budget_real su insiemi di job_id, fill_manifest exit 1, DOCX deterministici; D-12 nessun CSV/manifest cambiato); gate onda verde (s02 400/0 con Compiling) → 01.6-03/01.6-05-SUMMARY.md
 - rimbalzi livello b onda 2 ratificati dall'utente 2026-10-27: `profiles: !override [paid]` (extends unisce le sequenze) e chiusura dei servizi in node per cmd_up (compose non filtra con --no-interpolate; codice da rivedere in /verify 1) → 01.6-03-PLAN.md Storia
 - deviazioni livello a onda 2: sonda paddle sull'opzione di mount di `/`; tmpfs /tmp su paddle; pids_limit runner 1024 dopo picco 274; EMBED_MODEL=BAAI/bge-m3 in spikes.env (utente) e passo 6 rifatto; evidenza finale di runner-hardening.txt committata col SUMMARY; test check_ok_reports dell'esecutore (RED E0425 solo in evidenza); human_judgment 01.6-03 ×4, 01.6-05 ×6 → SUMMARY
+- onda 3 di 01.6 chiusa: 01.6-02 (merge 80193be; scanner 131/131, albero 718 file 0 nuovi 0 scomparsi, allowlist versionata del marcatore) + 01.6-08 (merge 27efdf3; calibration_limits per job, kind_status snake_case, missing_component; calibrate ocr_tesseract 3/3; D-12 limits/CSV/oracoli byte-identici); gate onda verde (s02 409/0/8 con Compiling) → 01.6-02/01.6-08-SUMMARY.md
+- rimbalzo livello b onda 3 deciso dall'utente 2026-10-29: stop hard rule 4 di 01.6-02 (6 CRITICAL non segreti) → due esclusioni nuove (nei .py env-secret-literal solo valori fra virgolette; numero+unità non è un segreto in tutte le regole), test-write giro b + esecutore nuovo → 01.6-CONTEXT.md D-02, 01.6-02-PLAN.md Storia
+- deviazioni livello a onda 3: `example_key` nel test dei segnaposto; allowlist sintetica nei test di copia; `<automated>` Task 2 di 02 e verify Task 2 di 08 rossi per costruzione dopo i task successivi (da rileggere in /verify 1); PDFium e fixture ignorate copiati; out_dir di calibrate per `out_dir_form`; human_judgment 01.6-02 ×5, 01.6-08 ×6 → SUMMARY
 
 ## Limiti trovati
 
@@ -223,3 +226,4 @@ fase 01.6 / onda 2 / slice 01.6-03, 01.6-05 / exec onda 2 completata · aggiorna
 **Modifica:** Claude (Anthropic) · 2026-10-26 · --plan: fase 1.6
 **Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 1
 **Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 2, limite volume /target condiviso
+**Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 3
