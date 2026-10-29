@@ -4,8 +4,8 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Fase 5 discuss completato
-last_updated: "2026-10-29T00:02:19.802Z"
-last_activity: 2026-10-29 — fase 1.6 onda 3 chiusa (01.6-02 scanner dei segreti con due esclusioni decise dall'utente, 01.6-08 calibrazione con discendenti)
+last_updated: "2026-10-29T00:16:57.093Z"
+last_activity: 2026-10-29 — fase 1.6 onda 4 chiusa (01.6-04 volume Docling ridotto, 01.6-09 guardie Drop nei test di s02)
 progress:
   total_phases: 21
   completed_phases: 6
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 ## Current Position
 
 Phase: 1 of 15 (Spike tecnici)
-Plan: 01.6-08
-Status: Executing — fase 1.6, onda 3 di 5 chiusa (6/9 piani); onda 4 in corso: 01.6-04 e 01.6-09
-Last activity: 2026-10-29 — fase 1.6 onda 3 chiusa (01.6-02 scanner dei segreti con due esclusioni decise dall'utente, 01.6-08 calibrazione con discendenti)
+Plan: 01.6-09
+Status: Executing — fase 1.6, onda 4 di 5 chiusa (8/9 piani); onda 5 in corso: 01.6-06
+Last activity: 2026-10-29 — fase 1.6 onda 4 chiusa (01.6-04 volume Docling ridotto, 01.6-09 guardie Drop nei test di s02)
 
 Progress: [░░░░░░░░░░] 0%
 

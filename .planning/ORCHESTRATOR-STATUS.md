@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.6 / onda 3 / slice 01.6-02, 01.6-08 / exec onda 3 completata · aggiornato: 2026-10-29
+fase 01.6 / onda 4 / slice 01.6-04, 01.6-09 / exec onda 4 completata · aggiornato: 2026-10-29
 
 ## Prossima azione
 
-/execute 1.6 onda 4 in corso (01.6-04 + 01.6-09, Opus; test-write n/a: nessun file di test, base misurata nel piano) → onda 5 (01.6-06) per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/execute 1.6 onda 5 in corso (01.6-06, Opus, test-write sugli hook in repository sintetici, merge --no-ff dell'orchestratore) per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -114,6 +114,8 @@ fase 01.6 / onda 3 / slice 01.6-02, 01.6-08 / exec onda 3 completata · aggiorna
 - onda 3 di 01.6 chiusa: 01.6-02 (merge 80193be; scanner 131/131, albero 718 file 0 nuovi 0 scomparsi, allowlist versionata del marcatore) + 01.6-08 (merge 27efdf3; calibration_limits per job, kind_status snake_case, missing_component; calibrate ocr_tesseract 3/3; D-12 limits/CSV/oracoli byte-identici); gate onda verde (s02 409/0/8 con Compiling) → 01.6-02/01.6-08-SUMMARY.md
 - rimbalzo livello b onda 3 deciso dall'utente 2026-10-29: stop hard rule 4 di 01.6-02 (6 CRITICAL non segreti) → due esclusioni nuove (nei .py env-secret-literal solo valori fra virgolette; numero+unità non è un segreto in tutte le regole), test-write giro b + esecutore nuovo → 01.6-CONTEXT.md D-02, 01.6-02-PLAN.md Storia
 - deviazioni livello a onda 3: `example_key` nel test dei segnaposto; allowlist sintetica nei test di copia; `<automated>` Task 2 di 02 e verify Task 2 di 08 rossi per costruzione dopo i task successivi (da rileggere in /verify 1); PDFium e fixture ignorate copiati; out_dir di calibrate per `out_dir_form`; human_judgment 01.6-02 ×5, 01.6-08 ×6 → SUMMARY
+- onda 4 di 01.6 chiusa: 01.6-04 (merge 4e95ab4; volume docling-models-min 73 file 731M senza --all, rapidocr aggiunto con prova negativa, CPU e GPU success, 5/5 sha256 obbligatori uguali; vecchio docling-models 28.6G non montato e intatto, rimozione all'utente) + 01.6-09 (merge 7c9df4e; guardie Drop Scratch in 7 file, 14 test, /work/tmp identico dopo due suite); gate onda verde (s02 giro 1 422/1 flake quota noto, giro 2 423/0/8) → 01.6-04/01.6-09-SUMMARY.md
+- deviazioni livello a onda 4: `docker logs` in sola lettura fuori dalle eccezioni della hard rule 2 di 04; attesa di «Application startup complete» perché `up --wait` esce sull'healthcheck; copie ignorate di pdfium e data/corpus/raw; flake `quota_counts_job_dir_plus_out_dir` (01.6-07) caduto 2 volte sotto carico; human_judgment 01.6-04 ×6, 01.6-09 ×5 → SUMMARY
 
 ## Limiti trovati
 
@@ -227,3 +229,4 @@ fase 01.6 / onda 3 / slice 01.6-02, 01.6-08 / exec onda 3 completata · aggiorna
 **Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 1
 **Modifica:** Claude (Anthropic) · 2026-10-27 · --exec: fase 1.6 onda 2, limite volume /target condiviso
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 3
+**Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 4
