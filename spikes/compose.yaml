@@ -191,7 +191,10 @@ services:
     # root senza capability: il volume nuovo nasce di root (/models non esiste
     # nell'immagine) e l'utente 1001 dell'immagine non potrebbe scriverci
     user: "0:0"
-    command: ["docling-tools", "models", "download", "--output-dir", "/models", "layout", "tableformer"]
+    # rapidocr: il warm-up della pipeline PDF di docling-serve crea il modello OCR anche con
+    # do_ocr=false e senza i suoi pesi esce con exit 3 (prova negativa in
+    # spikes/results/docling-models.txt, 01.6-04)
+    command: ["docling-tools", "models", "download", "--output-dir", "/models", "layout", "tableformer", "rapidocr"]
     volumes: ["docling-models-min:/models"]
     networks: [default]
     cap_drop: [ALL]

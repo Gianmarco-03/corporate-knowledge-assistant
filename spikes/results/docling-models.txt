@@ -1,9 +1,47 @@
 # Pesi Docling offline — manifest del volume docling-models-min (gap-closure 1.6, piano 01.6-04)
 #
+# Fonte di verità per i pesi Docling degli spike dopo la gap-closure 1.6 (D-09): soli
+# modelli usati, scaricati per nome. Le misure Docling della fase 1 sono state fatte sul
+# volume completo di 01-02 (sezione Storia in fondo); i 5 file obbligatori e le revisioni
+# di layout e TableFormer sono identici (D-12), quindi quelle misure restano valide.
+
 **Modifica:** Claude (gsd-executor 01.6-04) · 2026-10-29 · volume ridotto docling-models-min senza --all (gap-closure 1.6, D-09)
 
 git_rev base: 27efdf362be5791d2c6f374b90e3823d494a9373
-run_id download e verifica D-12: 01-6-04-20261028t235621z-446d
+run_id download layout+tableformer e verifica D-12: 01-6-04-20261028t235621z-446d
+run_id prove positive fallite (warm-up interrotto, vedi Modelli): 01-6-04-20261028t235922z-efd5
+run_id diagnosi della prova negativa rapidocr: 01-6-04-20261029t000045z-aa8f
+run_id download con rapidocr, inventario, prove positive CPU e GPU: 01-6-04-20261029t000216z-6cbe
+
+## Comando di download
+bash spikes/tools/session.sh with 01-6-04 --wait 3600 -- bash -c 'bash spikes/tools/session.sh docling-models "$CKA_RUN_ID"'
+sottocomando (session.sh cmd_docling_models): firma fissa <run_id>, require_owner, servizio docling-models del compose, fino a 12 tentativi a 15 s, uscita dell'ultimo tentativo
+comando del job (compose.yaml): docling-tools models download --output-dir /models layout tableformer rapidocr (utente 0:0 senza capability, rete default, volume docling-models-min in scrittura)
+montaggi: docling e docling-cpu docling-models-min:/models:ro (in docling-cpu: /models ro da /proc/self/mounts, utente 1001)
+esito: 73 file, 731M nel volume cka-spikes_docling-models-min
+
+## Modelli
+modelli: layout tableformer rapidocr
+layout: scarica docling-project/docling-layout-heron e docling-project/docling-layout-heron-onnx (insieme del nome layout nell'immagine v1.37.0, non un'aggiunta)
+tableformer: scarica docling-project/docling-models (TableFormer accurate e fast)
+prova negativa modello rapidocr: FileNotFoundError: RapidOCR artifacts not found or incomplete in artifacts_path. (Expected under: /models/RapidOcr; mancanti PP-OCRv6_det_small.onnx, ch_ppocr_mobile_v2.0_cls_mobile.onnx, PP-OCRv6_rec_small.onnx; poi "Application startup failed. Exiting.", docling-cpu Exited (3); run_id 01-6-04-20261029t000045z-aa8f)
+  causa: il warm-up di docling-serve (warm_up_caches -> StandardPdfPipeline._make_ocr_model -> auto_ocr_model -> RapidOcrModel) crea il modello OCR anche se la richiesta di misura usa do_ocr=false. up --wait esce 0 prima del warm-up: l'errore arriva dopo l'healthcheck, quindi la sessione 01-6-04-20261028t235922z-efd5 vedeva il servizio pronto e poi Connection refused
+  rapidocr senza --rapidocr-backend-lang scarica l'insieme di default: onnx e pth (torch) di PP-OCRv6 small e del classificatore, più il dizionario; la pipeline CPU e GPU usa onnxruntime
+aggiunte oltre layout tableformer: 1 su 3 ammesse
+
+## Inventario atteso: obbligatori per layout + TableFormer accurate (invariati da 01-02)
+# formato: repository  revisione  file  byte  sha256 (abbreviato; confronto a 64 caratteri nel driver)  verifica
+docling-project/docling-layout-heron  8f39ad3c0b4c58e9c2d2c84a38465abf757272d8  docling-project--docling-layout-heron/config.json  3268  sha256:fdea30805ce2f566…02207d3da056a97d  uguale a 01-02
+docling-project/docling-layout-heron  8f39ad3c0b4c58e9c2d2c84a38465abf757272d8  docling-project--docling-layout-heron/model.safetensors  171658996  sha256:00333a43451945aa…91aa95f4c7929e0c  uguale a 01-02
+docling-project/docling-layout-heron  8f39ad3c0b4c58e9c2d2c84a38465abf757272d8  docling-project--docling-layout-heron/preprocessor_config.json  444  sha256:cd38cd59999e7a95…57e6126ba0c4eaf1  uguale a 01-02
+docling-project/docling-models  fc0f2d45e2218ea24bce5045f58a389aed16dc23  docling-project--docling-models/model_artifacts/tableformer/accurate/tableformer_accurate.safetensors  212758388  sha256:2a7d6c924b3cd12f…d2e088c1a40374d9  uguale a 01-02
+docling-project/docling-models  fc0f2d45e2218ea24bce5045f58a389aed16dc23  docling-project--docling-models/model_artifacts/tableformer/accurate/tm_config.json  7060  sha256:984e122ceb8ccf84…6289892c36f3cffd  uguale a 01-02
+
+## Revisioni (repository Hugging Face scaricati)
+docling-project/docling-layout-heron  8f39ad3c0b4c58e9c2d2c84a38465abf757272d8  uguale a 01-02
+docling-project/docling-layout-heron-onnx  40bde044036bb181c130ddf6c51792187268748f  uguale a 01-02
+docling-project/docling-models  fc0f2d45e2218ea24bce5045f58a389aed16dc23  uguale a 01-02
+# RapidOcr/ non è un repository Hugging Face (nessun metadata di revisione): i suoi 7 file hanno lo stesso sha256 dei file omonimi della Storia
 
 ## Validazione
 modelli ammessi: layout tableformer tableformerv2 code_formula picture_classifier smolvlm granitedocling granitedocling_mlx smoldocling smoldocling_mlx granite_vision granite_chart_extraction granite_chart_extraction_v3_3 granite_chart_extraction_v4 rapidocr easyocr nemotron_ocr_v2 (docling-tools models download --help, immagine docling-serve-cpu v1.37.0, via session.sh docling-models-help)
@@ -16,6 +54,99 @@ obbligatori: 5/5 sha256 uguali (confronto a 64 caratteri con docling-models.txt 
   docling-project--docling-models/model_artifacts/tableformer/accurate/tableformer_accurate.safetensors sha256:2a7d6c924b3cd12f…d2e088c1a40374d9 uguale
   docling-project--docling-models/model_artifacts/tableformer/accurate/tm_config.json sha256:984e122ceb8ccf84…6289892c36f3cffd uguale
 revisioni: docling-layout-heron=uguale docling-models=uguale (prima riga dei file .cache/huggingface/download/*.metadata del volume nuovo; 01-02 non registra la sorgente, ma le stesse revisioni sono il nome dei file .cache/huggingface/trees/<rev>.json del suo elenco)
+dopo la prova negativa, comando del job con i modelli: layout tableformer rapidocr
+download con rapidocr: exit=0 tentativi=1 run_id=01-6-04-20261029t000216z-6cbe
+volume min dopo rapidocr: file=73 dimensione=731M
+obbligatori dopo rapidocr: 5/5 sha256 uguali; revisioni invariate
+confronto con la Storia: 51 file con sha256 uguale al file omonimo di 01-02 (compresi i 7 di RapidOcr), 19 file .cache/huggingface/download/*.metadata diversi perché contengono l'istante del download (3 righe: revisione, etag, timestamp; la revisione è uguale), 3 file non leggibili (sotto)
+positiva cpu: status=success tabelle=1 celle=24 righe_download=0 processing_time=1.26 s (informativo, non confrontato) run_id=01-6-04-20261029t000216z-6cbe
+positiva gpu: status=success tabelle=1 celle=24 righe_download=0 processing_time=2.31 s (informativo, non confrontato) run_id=01-6-04-20261029t000216z-6cbe
+  richiesta di 01-02: PDF sintetico a una pagina con tabella 6x4 a testo nativo (Helvetica, griglia disegnata), generato e rimosso nel container del job runner (tempfile, pdf_rimosso=True); do_ocr=false table_mode=accurate do_table_structure=true to_formats=json; tabella letta 6 righe x 4 colonne
+  log: "artifacts_path is set to a valid directory. No model weights will be downloaded at runtime.", "Application startup complete.", "POST /v1/convert/file HTTP/1.1" 200; GPU con "Accelerator device: 'cuda:0'", CPU con 'cpu'
+  righe_download: grep -ciE 'download|connect' al netto della riga No model weights dà 9 per log, tutte righe INFO dei plugin di docling_jobkit ("Connector '...' skipped"); al netto anche di queste 0 su CPU e 0 su GPU
+  vram (session.sh vram): 1351 MiB prima di up docling, 2513 MiB dopo la conversione, su 6144
+pulizia: PRENOTAZIONE: nessuna dopo ogni sessione 01-6-04 (RILASCIATO, DOWN residui 0); cartella del driver rimossa a fine piano
+container con etichetta cka.run_id a fine piano (docker ps -a --filter label=cka.run_id --format '{{.Names}}'):
+(fine elenco)
+volumi (docker volume ls --filter name=docling-models --format '{{.Name}}'):
+cka-spikes_docling-models
+cka-spikes_docling-models-min
+# il volume completo di 01-02 resta intatto e non montato (D-13); nessun volume rimosso o modificato
+
+## sha256 di tutti i file del volume (find /models -type f | sort | sha256sum dall'utente 1001 di docling-cpu, percorsi relativi a /models, digest abbreviati)
+sha256:090f04abcd9d9a74…529f1ef44e1ff94f  RapidOcr/PP-OCRv6_det_small.onnx
+sha256:fbdc74c97ea7b770…057356d622b05d54  RapidOcr/PP-OCRv6_det_small.pth
+sha256:6f327246b50388f3…f8cbe210b3c14884  RapidOcr/PP-OCRv6_rec_small.onnx
+sha256:0107b2ad694ccc9b…3127243a87bce516  RapidOcr/PP-OCRv6_rec_small.pth
+sha256:e47acedf663230f8…6dab185a89d6215c  RapidOcr/ch_ppocr_mobile_v2.0_cls_mobile.onnx
+sha256:bfe13860824b3365…18bc9913f60c98e1  RapidOcr/ch_ppocr_mobile_v2.0_cls_mobile.pth
+sha256:b5f2bfe2bdd94484…00662eb77e401c5d  RapidOcr/ppocrv6_dict.txt
+sha256:684888c0ebb17f37…bbe1c1095f494fc1  docling-project--docling-layout-heron-onnx/.cache/huggingface/.gitignore
+sha256:f6572428f6d5e157…9c6e154b849af91d  docling-project--docling-layout-heron-onnx/.cache/huggingface/CACHEDIR.TAG
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/.gitattributes.lock
+sha256:0a2a8d62aefc4e0f…bcdd38476746029b  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/.gitattributes.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/README.md.lock
+sha256:e8333b7ee94ec2b2…afbb333c01edd631  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/README.md.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/config.json.lock
+sha256:c8e9e01ac765997e…1f0a94562acc7a40  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/config.json.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/model.onnx.lock
+sha256:1a42b9f3d7057ba6…9dfc5fc111ac3505  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/model.onnx.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/preprocessor_config.json.lock
+sha256:ce27a45cf404bc68…3741a96c7cc2bab2  docling-project--docling-layout-heron-onnx/.cache/huggingface/download/preprocessor_config.json.metadata
+non leggibile dall'utente 1001 (modo 600, proprietario 0:0, cache di huggingface_hub scritta dal job root, non un peso)  docling-project--docling-layout-heron-onnx/.cache/huggingface/trees/40bde044036bb181c130ddf6c51792187268748f.json
+sha256:11ad7efa24975ee4…87b576a78a023361  docling-project--docling-layout-heron-onnx/.gitattributes
+sha256:48de0f07390f6823…433ed6280456597f  docling-project--docling-layout-heron-onnx/README.md
+sha256:c6e67b6cdf64fa24…a65843628e232180  docling-project--docling-layout-heron-onnx/config.json
+sha256:59c81a3a2923042d…9b2b9f728fb4922a  docling-project--docling-layout-heron-onnx/model.onnx
+sha256:54d086cf0d7d371f…06cc376506799d58  docling-project--docling-layout-heron-onnx/preprocessor_config.json
+sha256:684888c0ebb17f37…bbe1c1095f494fc1  docling-project--docling-layout-heron/.cache/huggingface/.gitignore
+sha256:f6572428f6d5e157…9c6e154b849af91d  docling-project--docling-layout-heron/.cache/huggingface/CACHEDIR.TAG
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron/.cache/huggingface/download/.gitattributes.lock
+sha256:ee97e164578b11ee…75cbc16fe605bd5f  docling-project--docling-layout-heron/.cache/huggingface/download/.gitattributes.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron/.cache/huggingface/download/README.md.lock
+sha256:83a0b8e575f6b2cf…8f1e7f04c7ef32c3  docling-project--docling-layout-heron/.cache/huggingface/download/README.md.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron/.cache/huggingface/download/config.json.lock
+sha256:eaf4781ef57738e4…e4bd7644d19f2b8e  docling-project--docling-layout-heron/.cache/huggingface/download/config.json.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron/.cache/huggingface/download/docling_heron_400.png.lock
+sha256:0341726738cb0434…47dad34614fa3d05  docling-project--docling-layout-heron/.cache/huggingface/download/docling_heron_400.png.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron/.cache/huggingface/download/model.safetensors.lock
+sha256:eecb7fa72ef0fdc7…e61e4128400e4da6  docling-project--docling-layout-heron/.cache/huggingface/download/model.safetensors.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-layout-heron/.cache/huggingface/download/preprocessor_config.json.lock
+sha256:9dc980238b27e2bf…474bb5496da7d9d2  docling-project--docling-layout-heron/.cache/huggingface/download/preprocessor_config.json.metadata
+non leggibile dall'utente 1001 (modo 600, proprietario 0:0, cache di huggingface_hub scritta dal job root, non un peso)  docling-project--docling-layout-heron/.cache/huggingface/trees/8f39ad3c0b4c58e9c2d2c84a38465abf757272d8.json
+sha256:11ad7efa24975ee4…87b576a78a023361  docling-project--docling-layout-heron/.gitattributes
+sha256:175700839bc7808e…2f4093e61a1a65b6  docling-project--docling-layout-heron/README.md
+sha256:fdea30805ce2f566…02207d3da056a97d  docling-project--docling-layout-heron/config.json
+sha256:e7f78610372b32a7…5bd026232f6e6f9e  docling-project--docling-layout-heron/docling_heron_400.png
+sha256:00333a43451945aa…91aa95f4c7929e0c  docling-project--docling-layout-heron/model.safetensors
+sha256:cd38cd59999e7a95…57e6126ba0c4eaf1  docling-project--docling-layout-heron/preprocessor_config.json
+sha256:684888c0ebb17f37…bbe1c1095f494fc1  docling-project--docling-models/.cache/huggingface/.gitignore
+sha256:f6572428f6d5e157…9c6e154b849af91d  docling-project--docling-models/.cache/huggingface/CACHEDIR.TAG
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/.gitattributes.lock
+sha256:8c6320eb977e8cda…04cad296fa8ef946  docling-project--docling-models/.cache/huggingface/download/.gitattributes.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/.gitignore.lock
+sha256:d46e01b912a99576…70b1158a04624f34  docling-project--docling-models/.cache/huggingface/download/.gitignore.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/README.md.lock
+sha256:79dcbc48bb62b3ee…f1f3249be605871f  docling-project--docling-models/.cache/huggingface/download/README.md.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/config.json.lock
+sha256:282f153d1b447607…b8cd36ca4621fbf7  docling-project--docling-models/.cache/huggingface/download/config.json.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/accurate/tableformer_accurate.safetensors.lock
+sha256:3542e84050056384…c2bdb0f0e2169420  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/accurate/tableformer_accurate.safetensors.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/accurate/tm_config.json.lock
+sha256:adf37df92c97fd75…18aa9e8fc7310054  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/accurate/tm_config.json.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/fast/tableformer_fast.safetensors.lock
+sha256:a61bae1ad7bc68de…2edad0c84be84b5f  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/fast/tableformer_fast.safetensors.metadata
+sha256:e3b0c44298fc1c14…a495991b7852b855  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/fast/tm_config.json.lock
+sha256:47b6a63624e76d84…56aa83a02013d9f6  docling-project--docling-models/.cache/huggingface/download/model_artifacts/tableformer/fast/tm_config.json.metadata
+non leggibile dall'utente 1001 (modo 600, proprietario 0:0, cache di huggingface_hub scritta dal job root, non un peso)  docling-project--docling-models/.cache/huggingface/trees/fc0f2d45e2218ea24bce5045f58a389aed16dc23.json
+sha256:360aba3ff7ce7539…95ebb00c82700386  docling-project--docling-models/.gitattributes
+sha256:b44b404189eaff36…ad50325e6f56e95d  docling-project--docling-models/.gitignore
+sha256:d17f233378eff124…713bf03f7e00822a  docling-project--docling-models/README.md
+sha256:9c34024dc28ff47b…cc63a4acb62396d9  docling-project--docling-models/config.json
+sha256:2a7d6c924b3cd12f…d2e088c1a40374d9  docling-project--docling-models/model_artifacts/tableformer/accurate/tableformer_accurate.safetensors
+sha256:984e122ceb8ccf84…6289892c36f3cffd  docling-project--docling-models/model_artifacts/tableformer/accurate/tm_config.json
+sha256:3119563aab5a7c96…d15507616422f718  docling-project--docling-models/model_artifacts/tableformer/fast/tableformer_fast.safetensors
+sha256:dca6762508dddfae…9db7413118c2622a  docling-project--docling-models/model_artifacts/tableformer/fast/tm_config.json
 
 ## Storia: volume completo di 01-02 (--all)
 # Pesi Docling offline — manifest del volume docling-models (piano 01-02, Task 3)
