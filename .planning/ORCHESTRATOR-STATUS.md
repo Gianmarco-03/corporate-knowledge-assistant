@@ -5,13 +5,17 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01 / onda — / slice — / verify 1 secondo giro completato, gaps_found · aggiornato: 2026-11-05
+fase 03.1 / onda — / slice — / discuss completato · aggiornato: 2026-11-05
 
 ## Prossima azione
 
-/plan 1.7 --gaps (01.7-CONTEXT.md) → /execute 1.7 → /verify 1 → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. Fasi 05 e 06: discuss completato (05-CONTEXT.md, 06-CONTEXT.md) → /plan 5 e /plan 6 dopo i plan 02-04 (ordine provider-first).
+/plan 1.7 --gaps (01.7-CONTEXT.md) → /execute 1.7 → /verify 1 → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. Fasi 03.1, 05 e 06: discuss completato → /plan 3.1 con provider dopo /plan 3, poi /plan 5 e /plan 6 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
+
+- fase 03.1 criticità critica, ratificata utente 2026-11-05 → 03.1-CONTEXT.md
+- 03.1 D-01..D-17: 5 layer, albero aree, rete sicurezza, assegnazione locale, ACL in espansione, tabelle PG, soglie accensione · fonti → 03.1-RICERCA-DISCUSSIONE.md
+- 03.1 rischio pipeline: fase 1 non verificata (1.7 aperta), annotato non bloccante → 03.1-CONTEXT.md
 
 - verify 1 giro 2: WIRING-MAP invariata (nessun seam in 1 e 1.6); contratto 1.6 deviato su test deterministici (G1) → 1.7; fase 1.7 inserita, criticità normale · utente 2026-11-05 → 01.7-CONTEXT.md
 - fase 01 criticità critica, ratificata → 01-CONTEXT.md
@@ -168,6 +172,7 @@ fase 01 / onda — / slice — / verify 1 secondo giro completato, gaps_found ·
 
 ## TODO
 
+- 03.1 da risolvere in plan: misura rifiuti prima fasi 7-8; innesto archi in publish_version con Fase 3; ADR grafo e ADR su ADR-0009; query globali su non public → 03.1-CONTEXT.md#da-risolvere-in-plan
 - /verify 1 da 01-17: ADR-0006:66-67 Modifica attaccate alla tabella (resa GFM); titolo ADR-0011 «routing per complessità» e D-18/D-19 in DEPENDENCIES:89 vs D-33; checklist LLM threat-model:96 rimando T-18 impreciso; PLAT-07 ancora Pending in REQUIREMENTS.md:67,109 → 01-17-SUMMARY.md
 - /verify 1 da 01-16: Locator (titoli sezione) stampato dal Debug derivato di Block/IndexedChunk/IndexVersionDraft (s07 lib.rs:1171,1273,1283); InvalidationScope::DocumentVersion senza campo in CacheKey (fake svuota tutto); collocazione Embedder + query_text in RetrievalSearchRequest da decidere in 01-17/Fondazione → 01-16-SUMMARY.md
 - ~~scanner upload-in-memory falso positivo su .take(~~ superato da D-01 della 1.6 (regola sensibile alla posizione di .take() → 01.6-CONTEXT.md

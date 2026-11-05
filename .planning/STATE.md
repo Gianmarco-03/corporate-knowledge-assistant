@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 6 context gathered
-last_updated: "2026-11-05T12:28:00.759Z"
+last_updated: "2026-11-05T13:38:37.372Z"
 last_activity: "2026-10-29 — fase 1.6 eseguita: onda 5 chiusa (01.6-06 hook con fmt e clippy degli spike, NON COPERTO, segreti allineati a D-02)"
 progress:
   total_phases: 23
@@ -67,6 +67,7 @@ Progress: [░░░░░░░░░░] 0%
 - Phase 01.1 inserted after Phase 1: Gap-closure session.sh (file chiuso 01-02): env host vince su --env-file; riapre_perimetro [1]; prima dell'onda 3 di fase 1 (URGENT)
 - Phase 01.2 inserted after Phase 1: Gap-closure spikes/common/src/hist.rs (file chiuso 01-01): saturating_record satura a 2047 µs; riapre_perimetro [1]; prima dell'onda 4 di fase 1 (URGENT)
 - Phase 01.3 inserted after Phase 1: Gap-closure spikes/compose.yaml (file chiuso 01-02): tmpfs /work del worker root 755, uid 10001 non crea cartelle dei job; + commento s05-cancel/src/main.rs:279-281 (file chiuso 01-05); riapre_perimetro [1]; blocca 01-07 (URGENT)
+- Phase 3.1 edited: goal, criticità, requisiti GRAPH-01..04 e criteri dal discuss 2026-11-05
 
 ### Decisions
 

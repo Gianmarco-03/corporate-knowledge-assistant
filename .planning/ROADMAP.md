@@ -190,6 +190,26 @@ Plans:
 **Perimetro file**: moduli `ports` e `adapters` delle sei porte nel Document Service, slot provider pre-registrati per la Fase 3, relativi contract test e fake
 **Plans**: TBD
 
+### Phase 03.1: Grafo di conoscenza: collegamenti fra documenti e chunk per risposte su più documenti (INSERTED)
+
+**Goal:** Il Document Service collega documenti e chunk in un grafo a cinque layer, costruito in automatico, così che una risposta possa poggiare su evidenze sparse in più documenti senza far trapelare nulla di non autorizzato
+**Criticità**: critica (retrieval autorizzato + ingestion)
+**Requirements**: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04
+**Depends on:** Phase 3
+**Success Criteria** (what must be TRUE):
+
+  1. La porta del grafo supera la stessa suite di contract test su adapter reale e fake, e ogni operazione cita una fase consumatrice.
+  2. Un documento pubblicato entra in tutti i layer previsti nella stessa transazione della sua versione; se l'assegnazione è ambigua finisce in «Non classificato» e resta trovabile con la ricerca globale.
+  3. L'espansione applica il predicato ACL nella query, con massimo 2 salti e un tetto di chunk; il test sul documento-trappola misura zero fughe, e nessun nodo interno raggiunge utente, LLM, JEV, cache o log.
+  4. Una nuova versione del corpus contiene domande a catena, parallele, globali e senza risposta, ratificate con il triplo guardrail prima della misura.
+  5. Il grafo si accende nel flusso di query solo se passa le soglie: fuga = 0, rifiuti al massimo -2 punti, recall sulle catene almeno +10 punti, latenza p95 al massimo +200 ms. Altrimenti resta spento e l'esito è registrato.
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 03.1 to break down)
+
 ### Phase 4: Provider di decisione, risposta e trasversali
 
 **Goal**: Il decision layer JEV, il generatore di risposte, l'audit sink e la cache funzionano per intero dietro le rispettive porte, con fake deterministici e baseline, e nessun contenuto oltre quello passato dal chiamante attraversa il confine verso JEV o LLM

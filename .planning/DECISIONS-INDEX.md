@@ -101,6 +101,13 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-21 · Fake deterministici con copione di guasti dietro feature testkit, mai in release; fixture ostili copiate con manifest → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#contract-test-e-fake-area-i`
 - 2026-10-24 · D-19: lettore limitato unico (quota sull'output, budget per documento) e divieto Clippy di read_to_end/io::copy fuori da esso (da D-41) → `phases/03-provider-di-ingestion-e-indice/03-CONTEXT.md#implementation-decisions`
 
+## Fase 3.1 — Grafo di conoscenza (discuss)
+
+- 2026-11-05 · Grafo a cinque layer con albero di aree fino al singolo documento; discesa nei migliori rami con ricerca globale di sicurezza, niente potatura rigida → `phases/03.1-grafo-di-conoscenza-collegamenti-fra-documenti-e-chunk-per-r/03.1-CONTEXT.md#forma-del-grafo`
+- 2026-11-05 · Assegnazione locale: bge-m3, poi bge-reranker su CPU, poi «Non classificato»; entità con NER locale; LLM esterno a ingestion solo su public; riassunti spenti → `phases/03.1-grafo-di-conoscenza-collegamenti-fra-documenti-e-chunk-per-r/03.1-CONTEXT.md#costruzione-automatica`
+- 2026-11-05 · ACL nella query di espansione, massimo 2 salti, nodi interni mai esposti; tabelle PostgreSQL, archi nella tx della versione → `phases/03.1-grafo-di-conoscenza-collegamenti-fra-documenti-e-chunk-per-r/03.1-CONTEXT.md#sicurezza`
+- 2026-11-05 · Query multi-documento nuove dentro la 3.1; acceso solo con fuga 0, rifiuti -2 punti al massimo, recall catene +10, p95 +200 ms → `phases/03.1-grafo-di-conoscenza-collegamenti-fra-documenti-e-chunk-per-r/03.1-CONTEXT.md#misura`
+
 ## Fase 4 — Provider di decisione, risposta e trasversali (discuss)
 
 - 2026-10-21 · Split S-07 Reranker/DecisionEngine; baseline solo sul Reranker, guasto JEV = errore tipizzato; criterio 1 ROADMAP da riformulare → `phases/04-provider-di-decisione-risposta-e-trasversali/04-CONTEXT.md#porte-e-baseline-aree-a-b-d-e`

@@ -66,6 +66,15 @@ Convenzione: tra parentesi l'ID originale (FR/NFR/BR) e la fonte. I requisiti ma
 - [ ] **PLAT-06**: **[derivato]** L'ambiente locale si avvia da un clone pulito con Docker Compose (PostgreSQL + `pgvector`, tre servizi, frontend) e la CI GitHub Actions verifica ogni push. (U-01, istruzioni orchestratore)
 - [ ] **PLAT-07**: **[derivato]** Il threat model è compilato (asset, attori, minacce prioritarie, mitigazioni mappate ai requisiti), chiudendo la lacuna M0. (docs/security/threat-model.md, M0)
 
+### Grafo di conoscenza (GRAPH)
+
+**Modifica:** Claude (Anthropic) · 2026-11-05 · requisiti aggiunti con la Fase 3.1 (decisione utente)
+
+- [ ] **GRAPH-01**: **[derivato]** Collegamenti fra documenti e chunk e albero delle aree si costruiscono in automatico durante l'ingestion; l'admin conferma una sola volta le aree di primo livello. (Decisione utente 2026-11-05, 03.1-CONTEXT D-01..D-10)
+- [ ] **GRAPH-02**: **[derivato]** La navigazione dell'albero non fa sparire un documento in silenzio: una ricerca globale resta attiva accanto ai rami scelti, e un documento non classificato resta trovabile. (03.1-CONTEXT D-04, D-06)
+- [ ] **GRAPH-03**: **[derivato]** L'espansione sul grafo applica l'autorizzazione nella query e nessun nodo interno raggiunge utente, LLM, JEV, cache o log. (SEC-02, 03.1-CONTEXT D-11..D-13)
+- [ ] **GRAPH-04**: **[derivato]** Il grafo entra nel flusso di query solo dopo aver superato le soglie scritte prima della misura; altrimenti resta spento e l'esito è registrato. (03.1-CONTEXT D-16, D-17)
+
 ### Evaluation (EVAL)
 
 - [ ] **EVAL-01**: L'evaluation corpus è versionato, immutabile per release e separato dal knowledge corpus dinamico. (NFR-008, D-0002-a)
@@ -110,6 +119,10 @@ Rinviati; tracciati ma fuori dalla roadmap corrente.
 | PLAT-02 | Phase 2 | Pending |
 | PLAT-03 | Phase 2 | Pending |
 | PLAT-06 | Phase 2 | Pending |
+| GRAPH-01 | Phase 3.1 | Pending |
+| GRAPH-02 | Phase 3.1 | Pending |
+| GRAPH-03 | Phase 3.1 | Pending |
+| GRAPH-04 | Phase 3.1 | Pending |
 | PLAT-01 | Phase 4 | Pending |
 | AUTH-01 | Phase 5 | Pending |
 | AUTH-02 | Phase 5 | Pending |
