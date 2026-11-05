@@ -51,3 +51,28 @@ Confronto fra il vecchio tetto `ritorno - scritto < 5 s` e il nuovo `morto - scr
 Comportamento di `procs_with_cwd` che regge la misura:
 - zombie: un processo ucciso e non ancora raccolto ha `/proc/<pid>/cwd` illeggibile e non compare. Lista vuota vuol dire «processi usciti», anche prima di `reap_group`: la finestra si chiude sull'effetto del kill, senza contare il reap;
 - cwd rimossa: con la cartella rimossa e il processo vivo il link diventa `<percorso> (deleted)` e il processo sparisce dalla lista. Oggi non inganna, perché `remove_dir_all` (`isolate.rs:870`) viene dopo il kill e dopo `reap_group`. Se un difetto futuro invertisse quell'ordine la lista si svuoterebbe in anticipo e il test non lo vedrebbe, come non lo vedeva il vecchio tetto. Caso dichiarato, non provato (accettato da D-06).
+
+## Mutazioni
+
+Una sola prenotazione, run_id 01-7-01-20261105t170511z-2383. Ogni mutazione è temporanea, ha `Compiling s02-parser`, non ha `could not compile`, e `git diff --quiet` sul file mutato esce con 1 dopo l'applicazione. Ancora di M-Q3: 1 sola riga a 12 spazi di rientro.
+
+mutazione M-Q1: applicata=si compiling=si test=FAILED motivo=esito riga_panico=assertion `left == right` failed: RunReport { job_id: "tw-quota-sum", outcome: Failed { kind: Timeout, detail: "wall_timeout" }, ... } | left: (Timeout, "wall_timeout") | right: (ResourceLimit, "out_quota")
+M-Q1 quota_timing: visti=1 rilevamento_ms=10000 teardown_ms=0 totale_ms=9992 wall_ms=10002
+mutazione M-Q2: applicata=si compiling=si test=FAILED motivo=tempo riga_panico=quota non rilevata in tempo: 7.998542525s dal termine delle scritture
+M-Q2 quota_timing: visti=1 rilevamento_ms=7998 teardown_ms=0 totale_ms=7991 wall_ms=8002
+mutazione M-Q3: applicata=si compiling=si test=FAILED motivo=tempo riga_panico=quota non rilevata in tempo: 29.992270332s dal termine delle scritture
+M-Q3 quota_timing: visti=1 rilevamento_ms=29992 teardown_ms=0 totale_ms=29991 wall_ms=30001
+mutazione M-Q4: applicata=si compiling=si nuovo=ok teardown_ms=6994 vecchio=FAILED motivo_vecchio=tempo
+M-Q4 nuovo quota_timing: visti=1 rilevamento_ms=247 teardown_ms=6994 totale_ms=7241 wall_ms=252
+M-Q4 vecchio riga_panico: quota non rilevata in tempo: 7.244818225s dal termine delle scritture
+
+controllo dopo ripristino: rc=0 compiling=si
+controllo quota_timing: visti=1 rilevamento_ms=247 teardown_ms=0 totale_ms=241 wall_ms=251
+isolate.rs dopo le mutazioni: identico alla base
+tests/isolation.rs dopo le mutazioni: identico al commit
+
+PIANO FERMO su M-Q4: `teardown_ms=6994` è sotto i 7000 che il piano esige, e la Task 2 dice che un valore diverso ferma il piano. Gli altri tre criteri di M-Q4 sono rispettati: nuovo verde, vecchio rosso, rosso del vecchio sul tempo.
+
+Lettura dei numeri, non ancora giudicata dal coordinatore: `morto` si legge con un polling da 10 ms, quindi cade dopo l'uscita vera del processo. Nel controllo senza mutazioni `morto` cade 6 ms dopo `ritorno` (rilevamento 247, totale 241), e 7000 - 6 = 6994. In M-Q4 `rilevamento + teardown = 247 + 6994 = 7241 = totale`. Il deficit è compatibile con la grana del polling che le risposte del coordinatore su TEST-2 già riconoscono; il valore non è stato rimisurato né la mutazione allungata per superare la soglia.
+
+Task 3 non eseguita.
