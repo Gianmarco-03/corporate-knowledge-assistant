@@ -62,7 +62,7 @@ mutazione M-Q2: applicata=si compiling=si test=FAILED motivo=tempo riga_panico=q
 M-Q2 quota_timing: visti=1 rilevamento_ms=7998 teardown_ms=0 totale_ms=7991 wall_ms=8002
 mutazione M-Q3: applicata=si compiling=si test=FAILED motivo=tempo riga_panico=quota non rilevata in tempo: 29.992270332s dal termine delle scritture
 M-Q3 quota_timing: visti=1 rilevamento_ms=29992 teardown_ms=0 totale_ms=29991 wall_ms=30001
-mutazione M-Q4: applicata=si compiling=si nuovo=ok teardown_ms=6994 vecchio=FAILED motivo_vecchio=tempo
+mutazione M-Q4: applicata=si compiling=si nuovo=ok rilevamento_ms=247 teardown_ms=6994 totale_ms=7241 vecchio=FAILED motivo_vecchio=tempo
 M-Q4 nuovo quota_timing: visti=1 rilevamento_ms=247 teardown_ms=6994 totale_ms=7241 wall_ms=252
 M-Q4 vecchio riga_panico: quota non rilevata in tempo: 7.244818225s dal termine delle scritture
 
@@ -76,3 +76,7 @@ PIANO FERMO su M-Q4: `teardown_ms=6994` è sotto i 7000 che il piano esige, e la
 Lettura dei numeri, non ancora giudicata dal coordinatore: `morto` si legge con un polling da 10 ms, quindi cade dopo l'uscita vera del processo. Nel controllo senza mutazioni `morto` cade 6 ms dopo `ritorno` (rilevamento 247, totale 241), e 7000 - 6 = 6994. In M-Q4 `rilevamento + teardown = 247 + 6994 = 7241 = totale`. Il deficit è compatibile con la grana del polling che le risposte del coordinatore su TEST-2 già riconoscono; il valore non è stato rimisurato né la mutazione allungata per superare la soglia.
 
 Task 3 non eseguita.
+
+**Modifica:** Claude (gsd-executor 01.7-01) · 2026-11-05 · *Storia* del fermo su M-Q4 e formato nuovo della riga M-Q4
+
+*Storia.* Le due righe qui sopra, «PIANO FERMO» e «Task 3 non eseguita», restano scritte com'erano quando il piano si è fermato. Il criterio che le ha causate, `teardown_ms` di almeno 7000, era del coordinatore ed era sbagliato per il polling da 10 ms: `morto` si legge con quella grana e può cadere dopo l'uscita vera del processo, quindi il ritardo di 7 s non finisce per intero in `teardown_ms`. Il coordinatore lo ha corretto il 2026-11-05 in `totale_ms` di almeno 7000 e `rilevamento_ms` sotto 5000, senza rimisurare. I numeri sono quelli misurati allora (`rilevamento_ms=247 teardown_ms=6994 totale_ms=7241`, vecchio rosso a 7,24 s), e nella riga M-Q4 è cambiato solo il formato. Con il criterio corretto M-Q4 è rispettata, e il piano riprende dalla Task 3.
