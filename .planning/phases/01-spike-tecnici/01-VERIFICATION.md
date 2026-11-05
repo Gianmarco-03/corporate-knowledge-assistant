@@ -2,7 +2,7 @@
 phase: 01-spike-tecnici
 verified: 2026-10-26T14:20:00Z
 status: gaps_found
-score: 105/110 verità verificate (5 criteri del ROADMAP più 100 must-have dei 18 PLAN; 4 per override; 5 verità ingegneristiche della banda ECC fallite, instradate alla gap-closure 1.6)
+score: 108/110 verità verificate alla ri-verifica del 2026-11-05 (105 must-have come prima, 4 per override; delle 5 verità della banda ECC, E1, E2 ed E4 chiuse dalla 1.6, E3 ed E5 chiuse in parte; prima della ri-verifica 105/110)
 overrides_applied: 4
 overrides:
   - must_have: "01-06: ogni oracolo ha il triplo guardrail completo, con un agente Claude separato dall'esecutore"
@@ -21,16 +21,30 @@ overrides:
     reason: "La regola D-31 è fallita sulle misure (0,6852 contro 0,7431 e 0,7241 contro 0,85, ricalcolati dal verifier su llm.csv); con D-33 Sonnet è il modello unico. La Choice di complessità JEV resta misurata (25/30)"
     accepted_by: "utente (D-33, ratificata con ADR-0011)"
     accepted_at: "2026-10-22T00:00:00Z"
+re_verification:
+  verified: 2026-11-05T12:00:00Z
+  head: 37fc79a
+  previous_status: gaps_found
+  previous_score: 105/110
+  gaps_closed:
+    - "E1: Lo scanner di sicurezza rileva tutte le forme che dichiara di coprire"
+    - "E2: Gli hook git applicano ai commit gli stessi controlli dello scanner, spike compresi, senza bloccare i commit di soli dati"
+    - "E4: Ogni driver di misura esce con errore quando una componente della misura non riesce"
+  gaps_remaining:
+    - "E3, voce «Segreti passati solo ai job che li usano»: spikes/compose.yaml:269-273"
+    - "E5, voce «Test d'isolamento di s02 stabili sotto carico»: spikes/s02-parser/tests/isolation.rs:1314-1323"
+  regressions: []
 gaps:
   - truth: "Lo scanner di sicurezza rileva tutte le forme che dichiara di coprire"
-    status: failed
+    status: closed
+    previous_status: failed
     reason: "La banda ECC (01-REVIEW.md §B.1) ha trovato regole che non scattano su forme reali: upload in memoria sensibile alla posizione di .take( e cieco a io::copy verso Vec (D-41), segreti con nomi e prefissi non coperti, file testuali non scansionati, fixture ed esclusioni senza allowlist, potatura troppo larga, file illeggibili ignorati, log su più righe, handler Axum senza argomenti"
-    artifacts:
+    artifacts_original:
       - path: "skills/security-scanner/security_scan.py"
         issue: "regole upload-in-memory, segreti, no-leak e identità incomplete; exit code senza percorsi ambiguo"
       - path: "spikes/s02-parser/src/prescan.rs"
         issue: "la rilettura Flate usa io::copy al posto di take + read_to_end proprio per non far scattare la regola (857-867, commento 5239f0e)"
-    missing:
+    missing_original:
       - "Correzione D-41: regola upload-in-memory indipendente dalla posizione di .take(, nuova regola su io::copy verso Vec, test sulle forme; prescan riportato a take + read_to_end"
       - "Regole dei segreti estese a *_SECRET_KEY, *_ACCESS_KEY, *_TOKEN e ai prefissi noti (sk-ant-, GK…)"
       - "Scansione dei soli segreti su .txt, .csv, .pem, .key"
@@ -40,32 +54,45 @@ gaps:
       - "Macro di log su più righe normalizzate prima delle regole no-leak"
       - "Handler Axum senza estrattore d'identità segnalati anche senza argomenti"
       - "Exit code senza percorsi chiarito"
+    closed_by: "gap-closure 1.6, ri-verifica 2026-11-05: security_scan.py:685-813, :185, :261-263, :285, :117, :179, :463, :1063-1072, :1147, :1134-1162, :955, :1209; prescan.rs:862"
+    missing: []
   - truth: "Gli hook git applicano ai commit gli stessi controlli dello scanner, spike compresi, senza bloccare i commit di soli dati"
-    status: failed
+    status: closed
+    previous_status: failed
     reason: "01-REVIEW.md §B.2: i controlli Rust non guardano spikes/Cargo.toml, le regole dei segreti divergono da quelle dello scanner, e un commit di soli dati viene bloccato da security-scope-empty"
-    artifacts:
+    artifacts_original:
       - path: ".githooks/controlli-comuni.sh"
         issue: "nessun controllo Rust sul workspace degli spike, regole dei segreti proprie, falso blocco security-scope-empty"
-    missing:
+    missing_original:
       - "Controlli Rust anche su spikes/Cargo.toml, oppure dichiarazione esplicita che gli spike non sono coperti"
       - "Stesse regole dei segreti dello scanner"
       - "Commit di soli dati non più bloccati da security-scope-empty"
+    closed_by: "gap-closure 1.6, ri-verifica 2026-11-05: controlli-comuni.sh:154-190, :358; pre-commit:105-109; pre-push:135-141; test_hook_segreti.py:401, :509"
+    missing: []
   - truth: "Il runner e i servizi del compose degli spike girano con privilegi minimi, segreti solo dove servono e pesi a revisione fissata"
-    status: failed
+    status: partial
+    previous_status: failed
     reason: "01-REVIEW.md §B.3, confermato sul file: il servizio runner (compose.yaml:219 e seguenti) non ha cap_drop, no-new-privileges né pids_limit e riceve tutti i segreti (GARAGE_SECRET_KEY, TYPESAFE_API_KEY, …); paddle (:203) ha cap_drop ma non read_only né pids_limit; docling-models scarica con --all (:175); le revisioni dei pesi hanno default mutabile ${EMBED_REVISION:-main} (:78) e ${RERANK_REVISION:-main} (:101)"
-    artifacts:
+    artifacts_original:
       - path: "spikes/compose.yaml"
         issue: "runner senza hardening e con tutti i segreti; paddle senza read_only e pids_limit; --all a :175; revisioni con default main a :78 e :101"
-    missing:
+    missing_original:
       - "cap_drop: [ALL], no-new-privileges e pids_limit sul runner"
       - "Segreti passati solo ai job che li usano"
       - "read_only e pids_limit su paddle"
       - "Download dei modelli Docling senza --all (riga 175)"
       - "Revisioni dei pesi obbligatorie: ${EMBED_REVISION:?} e ${RERANK_REVISION:?}"
-  - truth: "Ogni driver di misura esce con errore quando una componente della misura non riesce"
-    status: failed
-    reason: "01-REVIEW.md §B.4: quattro driver possono produrre un CSV o un esito verde con una componente fallita. La verifica sui dati ha mostrato che nessuna misura ratificata ne è alterata (run_ttq.sh: non determinabile ma non alterabile), quindi il difetto è dello strumento, non dei numeri degli ADR"
+    reason_re_verification: "Quattro voci su cinque sono chiuse sul codice: tempra del runner, paddle, Docling senza --all, revisioni obbligatorie. Delle chiavi a pagamento si è occupata D-09, ma le credenziali dei servizi locali restano nell'ambiente fisso di ogni job del runner, e GARAGE_RPC_SECRET non ha consumatori"
     artifacts:
+      - path: "spikes/compose.yaml"
+        issue: ":269-273 POSTGRES_PASSWORD, DATABASE_URL, GARAGE_RPC_SECRET, GARAGE_ACCESS_KEY e GARAGE_SECRET_KEY nel servizio runner, ereditati da runner-paid"
+    missing:
+      - "Decisione dell'utente: accettare il restringimento di D-09 con un override, oppure togliere almeno GARAGE_RPC_SECRET e passare le credenziali locali solo ai job di s01 e s03"
+  - truth: "Ogni driver di misura esce con errore quando una componente della misura non riesce"
+    status: closed
+    previous_status: failed
+    reason: "01-REVIEW.md §B.4: quattro driver possono produrre un CSV o un esito verde con una componente fallita. La verifica sui dati ha mostrato che nessuna misura ratificata ne è alterata (run_ttq.sh: non determinabile ma non alterabile), quindi il difetto è dello strumento, non dei numeri degli ADR"
+    artifacts_original:
       - path: "spikes/s02-parser/ocr-run/run_ttq.sh"
         issue: "considera riuscito l'OCR senza contare i rapporti ok (211-217)"
       - path: "spikes/s02-parser/src/bin/ocr/ttq.rs"
@@ -78,15 +105,18 @@ gaps:
         issue: "fill_manifest non esce 1 su mismatch"
       - path: "spikes/s02-parser/hostile-gen/gen_sof.py"
         issue: "stessa funzione fill_manifest, da allineare"
-    missing:
+    missing_original:
       - "run_ttq.sh e ttq-merge richiedono N rapporti ok pari alle pagine OCR attese"
       - "vram.sh esce 1 se un carico fallisce"
       - "budget_real.py confronta l'insieme dei job_id"
       - "fill_manifest esce 1 sul mismatch"
+    closed_by: "gap-closure 1.6, ri-verifica 2026-11-05: run_ttq.sh:151-153, :231-232, :240-241; ttq.rs:190, :211, :221; vram.sh:97, :234, :277; budget_real.py:272-277; gen_hostile.py:749-771, :810; gen_sof.py:450-468, :507"
+    missing: []
   - truth: "I test degli spike sono stabili e i TODO noti della fase sono chiusi"
-    status: failed
+    status: partial
+    previous_status: failed
     reason: "01-REVIEW.md §B.5: test d'isolamento di s02 instabili sotto carico, cartelle tmp dei test non pulite, inventario dei modelli Docling non allineato, calibrazione di BudgetExceeded aperta, quattro incoerenze di testo annotate"
-    artifacts:
+    artifacts_original:
       - path: "spikes/s02-parser/tests/"
         issue: "test d'isolamento flaky sotto carico; directory tmp non rimosse"
       - path: "spikes/results/docling-models.txt"
@@ -99,12 +129,18 @@ gaps:
         issue: "timestamp a :577"
       - path: "spikes/data/corpus/oracles/ORACOLI.md"
         issue: "anomalia a :39"
-    missing:
+    missing_original:
       - "Test d'isolamento di s02 stabili sotto carico"
       - "Pulizia delle directory tmp dei test di s02"
       - "results/docling-models.txt allineato ai modelli rimossi"
       - "Calibrazione di BudgetExceeded (parse-parent.rs:599-610, isolate.rs:120-125)"
       - "Incoerenze di testo: nota di isolate.rs:534, timestamp di gen_hostile.py:577, anomalia di ORACOLI.md:39, maiuscole miste negli stati di overhead"
+    reason_re_verification: "Quattro voci su cinque sono chiuse sul codice: pulizia delle cartelle tmp, inventario Docling, calibrazione, incoerenze di testo. Il test di quota conserva un tetto assoluto di 5 s che comprende la chiusura di run_child, ed è caduto due volte dopo la correzione (10,9 s; 01.6-09-SUMMARY.md:145, :161)"
+    artifacts:
+      - path: "spikes/s02-parser/tests/isolation.rs"
+        issue: ":1314-1315 misura dopo il join! con run_child, cioè dopo kill e pulizia; tetto a :1323"
+    missing:
+      - "Nel test quota_counts_job_dir_plus_out_dir, misurare il rilevamento senza la chiusura di run_child, oppure legare l'asserzione a un evento; la verifica su ResourceLimit/out_quota resta identica"
 deferred:
   - truth: "01-04 TEST-4: il semaforo delle validazioni non è mai arrivato a saturazione (picco 1 su 2)"
     addressed_in: "Phase 6"
@@ -165,7 +201,7 @@ human_verification:
 **Obiettivo della fase:** le decisioni tecniche che fissano porte e provider sono chiuse con misure documentate, e il threat model guida le scelte su upload e parsing di file non fidati.
 **Verificato:** 2026-10-26
 **Status:** gaps_found
-**Ri-verifica:** no, verifica iniziale (HEAD `b22a1d2`)
+**Ri-verifica:** no, verifica iniziale (HEAD `b22a1d2`); ri-verificata il 2026-11-05 su `37fc79a`: vedi la sezione «Ri-verifica 2026-11-05»
 
 ## Esito in breve
 
@@ -479,6 +515,92 @@ Gli 80 punti `human_judgment: true` dei 18 SUMMARY ricadono in quattro gruppi.
 | Nessun seam nella WIRING-MAP | `.planning/WIRING-MAP.md:40` e registro `:46` | mantenuta |
 | Vincoli verso la Fondazione (`exclude = ["spikes"]`, riallineamento di `interfaces-and-concurrency.md`) | non ancora applicabili: non c'è un workspace di prodotto | passano alla fase 2 come scritto nel contratto |
 
+## Ri-verifica 2026-11-05
+
+**Modifica:** Claude (gsd-verifier) · 2026-11-05 · ri-verifica dei gap E1-E5 dopo la gap-closure 1.6, su HEAD `37fc79a`
+
+**Status finale della fase:** `gaps_found`. **Punteggio:** 108 su 110.
+
+Delle cinque verità della banda ECC, tre sono chiuse e due lo sono in parte. Ho controllato ogni voce di `missing` sul codice, non sui SUMMARY. I 105 must-have restano al loro posto: nessuna misura è cambiata, perché `git diff --name-only b22a1d2 HEAD` filtrato su CSV, limiti, manifest e oracoli è vuoto, e la banda ECC di questo giro non registra regressioni. Le righe citate nelle sezioni precedenti si riferiscono a `b22a1d2`. Storia, override, differiti e i sei punti di verifica umana restano invariati: se E3 ed E5 si chiudessero, lo status diventerebbe `human_needed`.
+
+### E1: scanner — chiuso
+
+| Voce di `missing` | Esito | Prova a HEAD |
+|---|---|---|
+| Correzione D-41, regola su `io::copy`, test sulle forme, prescan a `take` + `read_to_end` | CHIUSA | `security_scan.py:685-813`, voci `:963`, `:968`, `:974`, `:979`; `prescan.rs:862`; la mia sonda dà HIGH con `take` dentro il decoder, nessun finding con `take` dopo, HIGH su `io::copy` verso un `Vec` |
+| Segreti: `*_SECRET_KEY`, `*_ACCESS_KEY`, `*_TOKEN`, prefissi noti | CHIUSA | `security_scan.py:185`, `:261-263`, `:285`; sonde su `.env`, `.txt`, `.csv` |
+| Soli segreti su `.txt`, `.csv`, `.pem`, `.key` | CHIUSA | `:88`, `:117`, `:179` |
+| Allowlist del marcatore e gate sulle directory escluse | CHIUSA | `fixture-allowlist.json`; `:459`, `:1063-1072`, `:1292-1294`; sonda: marcatore fuori lista bloccante |
+| Potatura limitata | CHIUSA | `:463` |
+| File illeggibile bloccante | CHIUSA | `:1147` |
+| Macro di log su più righe | CHIUSA | `:475`, `:1134-1162`; sonda: `tracing::info!` su tre righe, `log-secret` |
+| Handler senza argomenti | CHIUSA | voce `:955`; sonda: CRITICAL su `async fn health()` |
+| Exit code senza percorsi | CHIUSA | `:1209`, `:1228-1233`; sonde: senza argomenti 2, cartella vuota 2; `SKILL.md:71` |
+
+137 test dello scanner verdi oggi. Scansione dell'albero: exit 0, 770 file, 0 bloccanti, 101 MEDIUM.
+
+### E2: hook — chiuso
+
+| Voce di `missing` | Esito | Prova a HEAD |
+|---|---|---|
+| Controlli Rust su `spikes/Cargo.toml` | CHIUSA | `controlli-comuni.sh:154`, `:164-182`; `pre-commit:105-109`; `pre-push:135-141`; test degli spike dichiarati `NON COPERTO` a `controlli-comuni.sh:188-190` |
+| Stesse regole dei segreti | CHIUSA | `controlli-comuni.sh:358`; test `test_hook_segreti.py:509`; hook e scanner danno lo stesso verdetto sui cinque valori della mia sonda, compresa la restrizione di numero+unità (`0ffbb1c`) |
+| Commit di soli dati | CHIUSA | test `test_hook_segreti.py:401`, `:414`; sonda: un solo `.csv` dà exit 0 |
+
+17 test degli hook verdi oggi. La correzione del fail-open sullo sha remoto ignoto è a `pre-push:62-69`. Il pre-push non è ancora girato su un push reale: è fuori da E2 e passa all'UAT della 1.6.
+
+### E3: runner e compose — chiuso in parte
+
+| Voce di `missing` | Esito | Prova a HEAD |
+|---|---|---|
+| `cap_drop`, `no-new-privileges`, `pids_limit` sul runner | CHIUSA | `compose.yaml:259-261`; `runner-hardening.txt:88` |
+| Segreti passati solo ai job che li usano | **APERTA IN PARTE** | Chiavi a pagamento uscite: `compose.yaml:345-346`, avvio solo da `session.sh:437`, `:448`, rifiuto in `up` a `:345-346`. Restano nell'ambiente fisso del runner `compose.yaml:269` `POSTGRES_PASSWORD`, `:270` `DATABASE_URL`, `:271` `GARAGE_RPC_SECRET`, `:272` `GARAGE_ACCESS_KEY`, `:273` `GARAGE_SECRET_KEY`. Il `reason` del gap nominava proprio `GARAGE_SECRET_KEY`. `GARAGE_RPC_SECRET` non ha consumatori nel runner: `git grep` lo trova solo in `.env.example:22`, `compose.yaml:78` e `:271`, e in un commento di `docker/garage.toml:4` |
+| `read_only` e `pids_limit` su paddle | CHIUSA | `compose.yaml:234`, `:241` |
+| Docling senza `--all` | CHIUSA | `compose.yaml:197`, volume a `:198` |
+| Revisioni obbligatorie | CHIUSA | `compose.yaml:95`, `:118` |
+
+D-09 ha ristretto questa voce ai soli segreti a pagamento, e piani e contratto la seguono: la 1.6 ha fatto quello che si era data. Però nessun registro mostra che il restringimento l'abbia deciso l'utente. Per questo non la considero chiusa da sola.
+
+**Questo sembra intenzionale.** Per accettare la deviazione, l'utente può aggiungere al frontmatter:
+
+```yaml
+overrides:
+  - must_have: "Il runner riceve solo i segreti che i suoi job usano"
+    reason: "Credenziali di servizi locali ed effimeri degli spike, usa e getta; D-09 limita la voce alle chiavi a pagamento"
+    accepted_by: "utente"
+    accepted_at: "<data della decisione>"
+```
+
+### E4: driver di misura — chiuso
+
+| Voce di `missing` | Esito | Prova a HEAD |
+|---|---|---|
+| `run_ttq.sh` e `ttq-merge` richiedono N rapporti `ok` | CHIUSA | `run_ttq.sh:151-153`, `:231-232`, `:240-241`; `ttq.rs:190`, `:211`, `:221` |
+| `vram.sh` esce 1 | CHIUSA | `vram.sh:97`, `:234`, `:277`, dopo CSV e campioni |
+| `budget_real.py` sugli insiemi | CHIUSA | `budget_real.py:272-277`; 7 test verdi oggi |
+| `fill_manifest` esce 1 | CHIUSA | `gen_hostile.py:749-771`, `:810`; `gen_sof.py:450-468`, `:507`. Sull'host il test di `gen_hostile` non parte, perché `qpdf` c'è solo nel runner; verde nel runner in `driver-esiti-contati.txt:60`, `:132` |
+
+`ORCHESTRATOR-STATUS.md:140` registra driver 7+6 verdi alla banda ECC.
+
+### E5: test e TODO — chiuso in parte
+
+| Voce di `missing` | Esito | Prova a HEAD |
+|---|---|---|
+| Test d'isolamento stabili sotto carico | **APERTA IN PARTE** | `budget_admits…` e `dropped_future…` sono legati a eventi (`isolation.rs:984-997`, `:1130-1156`). `quota_counts_job_dir_plus_out_dir` no: `isolation.rs:1314` fa il `join!` con `run_child`, `:1315` legge il tempo solo dopo, quindi dopo kill e pulizia, e `:1323` impone 5 s. È caduto due volte dopo la correzione, 10,9 s su 5 s, con un carico reale sulla macchina (`01.6-09-SUMMARY.md:145`, `:161`; `ORCHESTRATOR-STATUS.md:118`). La banda ECC lo tiene come residuo MEDIUM (`:140`) |
+| Pulizia delle directory tmp | CHIUSA | `isolation.rs:73`, `:109`, `:131`; `drivers.rs:128`, `:163`; `oom.rs:54-57`; 7 guardie `Drop` sotto `src/` (per esempio `prescan.rs:2100`); `s02-test-stabili.txt:60`; `s02-test-pulizia-src.txt:67-68` |
+| `docling-models.txt` allineato | CHIUSA | `docling-models.txt:21`, *Storia* con il volume completo a `:172` |
+| Calibrazione di `BudgetExceeded` | CHIUSA | `parse-parent.rs:579-600`, `:639-642`, `:674`; `calibrazione-discendenti.txt:52` |
+| Incoerenze di testo | CHIUSA | `isolate.rs:532`, `:545`; `gen_hostile.py:593-598`; `ORACOLI.md:39`, `:41`; `parse-parent.rs:1264`, `:1283` |
+
+Il primo giro su un volume `/target` nuovo ha dato anche due rossi di `docling-client` (7,096 s contro 5 s), con causa non verificata (`spikes/results/cargo-target-per-worktree.txt`). Non è un test d'isolamento, quindi resta un avviso, ma è lo stesso genere di difetto.
+
+### Cosa resta alla fase
+
+- **Gap E3:** una decisione dell'utente (override), oppure una modifica a `compose.yaml`.
+- **Gap E5:** una correzione di poche righe in `isolation.rs`. È un file chiuso, quindi passa da una nuova gap-closure decimale.
+- **I sei punti di verifica umana** del frontmatter, invariati. Il primo resta la riratifica del threat model.
+- **I punti della 1.6:** quattro altri punti di UAT sono in `01.6-VERIFICATION.md`.
+
 ## Riepilogo dei gap
 
 Il goal della fase è raggiunto: decisioni chiuse con misure e hardware, threat model compilato e mappato, spike isolati dal prodotto. Restano due cose. La prima sono i cinque gruppi di difetti negli strumenti che l'utente ha voluto chiudere prima della fase, cioè scanner, hook, compose del runner, driver di misura, test instabili e TODO noti: sono i gap E1-E5, con file e voci pronti per `/plan 1.6 --gaps`. I file sono quasi tutti sotto `spikes/`, quindi la 1.6 avrà `riapre_perimetro: [1]`. `skills/security-scanner/security_scan.py` e `.githooks/controlli-comuni.sh` vanno verificati contro `scripts/proprieta-file.whitelist.json` prima del piano. La seconda sono i sei punti di UAT, il più importante dei quali è la riratifica del threat model.
@@ -489,3 +611,13 @@ _Verificato: 2026-10-26_
 _Verificatore: Claude (gsd-verifier)_
 
 **Modifica:** Claude (gsd-verifier) · 2026-10-26 · creazione
+**Modifica:** Claude (gsd-verifier) · 2026-11-05 · ri-verifica dei gap E1-E5 dopo la 1.6: E1, E2, E4 chiusi, E3 ed E5 aperti in parte; status resta gaps_found
+
+## Decisioni dell'utente sui gap residui (2026-11-05)
+
+Lo status resta `gaps_found` finché la fase 1.7 non è verificata.
+
+- **Test di quota e cronometri di `docling-client` (E5, G1):** gap-closure 1.7, con il loop normale.
+- **Credenziali nel runner (E3, G2):** override dell'utente per `POSTGRES_PASSWORD`, `DATABASE_URL`, `GARAGE_ACCESS_KEY` e `GARAGE_SECRET_KEY`: sono credenziali di container locali usa e getta, i job le usano e D-09 restringe la segregazione ai soli segreti a pagamento. `GARAGE_RPC_SECRET`, che nel runner non ha consumatori, esce dal compose nella 1.7.
+
+**Modifica:** Claude (Anthropic) · 2026-11-05 · decisioni dell'utente su G1 e G2, inserita la fase 1.7

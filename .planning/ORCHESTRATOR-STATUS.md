@@ -5,14 +5,15 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.6 / onda 5 / slice 01.6-06 / exec fase completata · aggiornato: 2026-10-29
+fase 01 / onda — / slice — / verify 1 secondo giro completato, gaps_found · aggiornato: 2026-11-05
 
 ## Prossima azione
 
-/verify 1 di nuovo (banda ECC → GSD sul diff delle fasi 1-1.6; human_judgment dai SUMMARY di 01.6) → UAT 6 punti → chiusura fase 1; prima del prossimo push di main il nuovo pre-push vede 30 commit (sonda dei segreti a 0) per 01.6-ONDE.md → /verify 1 di nuovo → UAT 6 punti. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/plan 1.7 --gaps (01.7-CONTEXT.md) → /execute 1.7 → /verify 1 → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. 06-DISCUSS-CHECKPOINT.json in corso in altra sessione: non committarlo da qui. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
+- verify 1 giro 2: WIRING-MAP invariata (nessun seam in 1 e 1.6); contratto 1.6 deviato su test deterministici (G1) → 1.7; fase 1.7 inserita, criticità normale · utente 2026-11-05 → 01.7-CONTEXT.md
 - fase 01 criticità critica, ratificata → 01-CONTEXT.md
 - storage S3 Garage, chiave sha256 + GC orfani, dedup invisibile (D-01/02) · fonte Area A
 - tempfile + validazione pre-persistenza; limite 25 MB; L1 + regole economiche (D-03..05)
@@ -137,6 +138,7 @@ fase 01.6 / onda 5 / slice 01.6-06 / exec fase completata · aggiornato: 2026-10
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| fase 01.6 (01.6-01..09), verify 1 giro 2 su b22a1d2..HEAD | conforme → 01.6-GATE.md | verde con residui: fmt/clippy spikes, test host, s02 runner 423/0/8 a volume compilato; 1° giro volume nuovo 421/2/8 (2 docling-client 7,096 s vs 5 s, causa non verificata, 3 giri verdi dopo); scanner 137, hook 17, driver 7+6; scanner HIGH 0, MEDIUM 101; 3 valvole conformi; corretti: pre-push fail-open sha ignoto + numero+unità ristretta 0ffbb1c, /target per worktree 37fc79a (utente); residui: .py valore nudo in stringa (utente, solo tooling); nome solo token con numero+unità esente (criterio coordinatore, da confermare utente); merge e delete .rs in hook LOW; 55 capacity letti riga per riga: nessun campo lunghezza letto dal file, prescan.rs:1561 conteggio voci zip già limitato da upload 25 MiB; timer isolation.rs:1314 include teardown MEDIUM → spikes/results/cargo-target-per-worktree.txt, 01.6-CONTEXT D-02 | gaps_found: 01.6 58/60, fase 1 108/110; E1, E2, E4 chiusi; E5/G1 cronometri → 1.7; E3/G2 override utente, GARAGE_RPC_SECRET → 1.7; human_judgment 46: 35 chiusi, 7 differiti, 4 UAT → 01.6-VERIFICATION.md, 01-VERIFICATION.md, 01.7-CONTEXT.md |
 | fase 01 (01-01..01-18) | conforme (giri per piano → 01-GATE.md) | verde con gap: fmt/clippy spikes ok, test host ok tranne s02 runner-only (runner -p s02-parser tutti verdi, isolamento 37/37), lint-stato ok; prodotto/web/e2e/eval n/a; 4 review: 0 CRITICAL, 14 HIGH (scanner falsi verdi, hook senza manifest spike, runner compose senza hardening, run_ttq/vram/budget_real esiti non contati, threat model 7 righe «misurata» sopravvalutate, setsid fuori gruppo); verifica sui dati: 0 misure ratificate alterate; instradamento utente: threat model riscritto ora, 1.6 strumenti+TODO, pattern → vincoli fasi 2-4 → 01-REVIEW.md | gaps_found 105/110: 5 criteri ROADMAP + 100 must-have ok (4 override), 5 gap = §B 1.6; 11 differiti fasi 2-13; UAT 6 punti → 01-VERIFICATION.md |
 | 01.5-01 | conforme 6/6 (3 giri sul test design: D-09 JPX, D-10, residui a-c) → 01.5-GATE.md | verde: fmt/clippy host, runner -p s02-parser 333 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review Warning 0 gravi: MEDIUM un byte per campione (12/16 bit, JPX Ssiz>8) = RISK-14 accettato (dimensioni codificate ≤ dichiarate, RLIMIT_AS), LOW fail-closed accettati; security PASS con riserve: io::copy equivalente a read_to_end su Take (falso positivo lessicale upload-in-memory), deviazione non dichiarata → commento corretto 5239f0e e SUMMARY; follow-up scanner → TODO | passed 11/11, 0 gap; UAT 3/3 accettate → 01.5-VERIFICATION.md |
 | 01.4-02 | conforme 6/6 (1° giro) → 01.4-GATE.md | verde: fmt/clippy host, runner -p s02-parser 269 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review APPROVE 0 gravi, LOW accettati (test overflow accetta 2 Kind; forma T non legata a /Thumb = RISK-7); security APPROVATO 0 gravi: forma T più stretta del ramo /Image; debito preesistente 01-07 tetto su /Width /Height non su SOF JPEG (RISK-16) → verify fase 1 | passed 16/16 (fase), 0 gap; UAT 4/4 accettate → 01.4-VERIFICATION.md |
@@ -147,6 +149,7 @@ fase 01.6 / onda 5 / slice 01.6-06 / exec fase completata · aggiornato: 2026-10
 
 ## UAT
 
+- 01.6 pendenti, dopo 1.7: criterio nome per numero+unità (solo token esente); hook stampa righe segrete su stderr (pre-commit:91, con agente finiscono in trascrizione); primo giro reale pre-push; 359 residui vecchi in volume work-tmp → 01.6-VERIFICATION.md
 - fase 01 pendenti (dopo filtro perimetro): riratifica threat model v. verify 1; conferma soglie mancate ratificate; evidenze solo da rapporti/raw persi (01-02..01-18); lettura 9 doc sintetici (01-03 TEST-10); campione oracoli 10 query + 2 pagine (01-06 TEST-3); conferma approvazioni pip PaddleOCR e 34 crate → 01-VERIFICATION.md
 - 01.5 accettata · utente 2026-10-23 · JPX solo sintetico (RISK-5), immagini inline debito fase 3/ADR-0004 (D-09), residui RISK-14/17 e T-01.5-09 accettati → 01.5-VERIFICATION.md
 - 01.4 accettata · utente 2026-10-23 · gate runner come prova 01.4-01, TEST-8 non scritto (RISK-7), docker version fuori session.sh: accettati; exit 0 di overhead con errori in status confermato (D-02); RISK-16 → verify fase 1 / 01-13 → 01.4-VERIFICATION.md
@@ -233,3 +236,5 @@ fase 01.6 / onda 5 / slice 01.6-06 / exec fase completata · aggiornato: 2026-10
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 3
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 4
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 5, esecuzione completata
+**Modifica:** Claude (Anthropic) · 2026-11-05 · --verify-ecc: verify 1 secondo giro, diff 1.6
+**Modifica:** Claude (Anthropic) · 2026-11-05 · --verify: verify 1 secondo giro, gaps_found, fase 1.7 inserita
