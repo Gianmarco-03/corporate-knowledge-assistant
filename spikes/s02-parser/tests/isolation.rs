@@ -21,6 +21,7 @@
 
 // Modifica: Claude (test-write 01.6-07) · 2026-10-26 · budget_admits, dropped_future e quota_counts deterministici sotto carico, senza tolleranze allargate (gap-closure 1.6, D-11)
 // Modifica: Claude (gsd-executor 01.6-07) · 2026-10-26 · test deterministici sotto carico e pulizia delle cartelle temporanee (gap-closure 1.6, D-11)
+// Modifica: Claude (gsd-executor 01.7-01) · 2026-11-05 · test di quota legato a eventi: rilevamento senza teardown (gap-closure 1.7, D-01)
 
 use std::ffi::OsString;
 use std::fs;
@@ -1299,29 +1300,67 @@ async fn quota_counts_job_dir_plus_out_dir() {
         json!({}),
     ));
     let (jd, od) = (job_dir(id), out_real("test", id));
+    // La finestra va dal termine delle scritture all'uscita dei processi del job: reap, lettura
+    // delle pipe e rimozione delle cartelle restano fuori (piano 01.7-01, D-01). Come legge i
+    // processi `procs_with_cwd`:
+    // - zombie: un processo ucciso e non ancora raccolto ha `/proc/<pid>/cwd` illeggibile e non
+    //   compare. La lista vuota vuol dire «processi usciti», anche prima di `reap_group`;
+    // - cwd rimossa: con la cartella rimossa e il processo vivo il link diventa
+    //   `<percorso> (deleted)` e il processo sparisce dalla lista. Oggi non inganna, perché
+    //   `remove_dir_all` viene dopo il kill e dopo `reap_group`. Se un difetto invertisse
+    //   quell'ordine questo test non lo vedrebbe, come non lo vedeva il tetto precedente;
+    // - processo mai partito: anche allora la lista è vuota, quindi le scritture partono solo
+    //   dopo aver visto un processo vivo. `in.sleep` fa `exec /bin/sleep 30`: un solo processo,
+    //   che non esce da solo durante la misura.
     let writer = async {
+        let mut visti = 0;
         assert!(
-            eventually(Duration::from_secs(5), || jd.is_dir() && od.is_dir()).await,
-            "cartelle del job non create"
+            eventually(Duration::from_secs(5), || {
+                visti = procs_with_cwd(&jd).len();
+                jd.is_dir() && od.is_dir() && visti > 0
+            })
+            .await,
+            "cartelle del job non create o nessun processo vivo nella cartella del job"
         );
         write_bytes(&jd.join("half.bin"), quota / 2);
         write_bytes(&od.join("half-plus-one.bin"), quota / 2 + 1);
-        // Istante del termine delle scritture, restituito come valore del ramo del `join!`:
-        // i 5 s si misurano da qui, non dall'avvio del job (piano 01.6-07, D-11).
-        Instant::now()
+        let scritto = Instant::now();
+        // Guardia contro il blocco, non prova della proprietà: allo scadere il test fallisce.
+        assert!(
+            eventually(Duration::from_secs(30), || procs_with_cwd(&jd).is_empty()).await,
+            "processi del job ancora vivi dopo le scritture"
+        );
+        (scritto, Instant::now(), visti)
     };
     let bb = big_budget();
-    let (r, scritto) = tokio::join!(run_child(&s, &l, &bb), writer);
-    let rilevata = scritto.elapsed();
+    // L'istante di ritorno si prende nel ramo del figlio, non dopo il `join!`, che attende anche
+    // lo scrittore.
+    let figlio = async {
+        let r = run_child(&s, &l, &bb).await;
+        (r, Instant::now())
+    };
+    let ((r, ritorno), (scritto, morto, visti)) = tokio::join!(figlio, writer);
     let r = r.unwrap();
+    let rilevamento = morto.saturating_duration_since(scritto);
+    let teardown = ritorno.saturating_duration_since(morto);
+    let totale = ritorno.saturating_duration_since(scritto);
+    // Stampata prima delle asserzioni: è la diagnostica di ogni caduta futura.
+    eprintln!(
+        "quota_timing: visti={visti} rilevamento_ms={} teardown_ms={} totale_ms={} wall_ms={}",
+        rilevamento.as_millis(),
+        teardown.as_millis(),
+        totale.as_millis(),
+        r.wall_ms
+    );
     assert_eq!(
         failed(&r.outcome),
         (Kind::ResourceLimit, "out_quota".to_owned()),
         "{r:?}"
     );
+    assert!(visti >= 1, "nessun processo visto prima delle scritture");
     assert!(
-        rilevata < Duration::from_secs(5),
-        "quota non rilevata in tempo: {rilevata:?} dal termine delle scritture"
+        rilevamento < Duration::from_secs(5),
+        "quota non rilevata in tempo: {rilevamento:?} dal termine delle scritture"
     );
     assert!(!jd.exists());
 }

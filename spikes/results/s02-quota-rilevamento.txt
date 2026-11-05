@@ -1,0 +1,26 @@
+**Modifica:** Claude (test-write 01.7-01) · 2026-11-05 · evidenza del test di quota legato a eventi (D-01, D-05): intestazione e base sul test vecchio
+
+git_rev base: 29bb39ed19ca3052864d79c3785a46255d31636e
+nproc del runner: 16
+copie ignorate dal checkout principale: spikes/target/pdfium, spikes/data/corpus/raw
+
+## Base sul test vecchio
+
+Una sola prenotazione, run_id 01-7-01-20261105t165654z-26dc, volume nuovo cka-spikes-target-26efc0681e36 (creato in questa sessione). init-volumes non necessario: /target, /work/tmp e il registry risultano scrivibili dal runner.
+
+giro suite base: compiling=si rc=0 pass=423 fail=0 ign=8 rossi=nessuno
+hard rule 4: non applicata, i due test di docling non sono caduti al primo giro su volume nuovo; 1 solo giro di suite
+
+base carico reale: giri=3 falliti=0 test=nessuno
+carico reale rossi: nessuno
+carico reale compilazione viva giro=1 si
+carico reale compilazione viva giro=2 si
+carico reale compilazione viva giro=3 si
+compilazioni completate in tutta la base: 1, prima del primo giro; nessuna fallita
+
+Note del carico reale, /proc/loadavg e processi rustc nel container prima e dopo ogni giro. Ogni giro ha `running 38 tests`, `test result: ok. 38 passed` e `test quota_counts_job_dir_plus_out_dir ... ok`.
+giro 1 prima: load 6.78 rustc=12, dopo: load 7.60 rustc=7, durata test 2.34 s
+giro 2 prima: load 7.60 rustc=7, dopo: load 8.35 rustc=6, durata test 2.26 s
+giro 3 prima: load 8.35 rustc=6, dopo: load 8.35 rustc=3, durata test 2.15 s
+
+Limite di questa base: il load a 1 minuto è rimasto sotto nproc 16 e i tre giri durano circa 7 s in tutto. Il verde è un'informazione, non una prova che il test vecchio regga sotto carico: le cadute a 10,9 s di 01.6-09 non sono state riprodotte qui.
