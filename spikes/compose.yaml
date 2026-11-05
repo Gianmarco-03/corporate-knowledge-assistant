@@ -357,6 +357,11 @@ volumes:
   # volume completo di 01-02, non più montato; lo rimuove a mano l'utente
   docling-models: {}
   docling-models-min: {}
-  cargo-target: {}
+  # Un volume di build per worktree, stesso percorso /target (/verify 1, decisione utente
+  # 2026-11-05): con un volume unico cargo poteva riusare i binari di un altro worktree e
+  # dare un verde stale. L'id lo calcola session.sh; il vecchio cka-spikes_cargo-target non è
+  # più montato, lo rimuove a mano l'utente.
+  cargo-target:
+    name: "cka-spikes-target-${CKA_TREE_ID:?lanciare da session.sh}"
   cargo-registry: {}
   work-tmp: {}

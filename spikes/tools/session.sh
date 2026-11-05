@@ -4,6 +4,7 @@
 #
 # Contratto completo in 01-02-PLAN.md <interfaces>. In breve:
 #   new-id <piano>                          stampa un run_id nuovo
+#   tree-id                                 stampa l'id del worktree (nome del volume /target)
 #   acquire <piano> <run_id> [--wait <s>]   prenota la finestra di misura (exit 3 se occupata)
 #   release <run_id>                        rilascia, solo se il run_id è il proprietario
 #   with <piano> [--wait <s>] -- <cmd…>     new-id + acquire + cmd + down + release
@@ -41,6 +42,7 @@
 # Modifica: Claude (gsd-executor 01.1-01) · 2026-10-21 · dc(): i segreti del file prevalgono sull'host (gap-closure 1.1)
 # Modifica: Claude (gsd-executor 01.6-03) · 2026-10-27 · runner senza capability, runner-init, runner-paid (gap-closure 1.6, D-09)
 # Modifica: Claude (gsd-executor 01.6-04) · 2026-10-29 · pesi Docling ridotti ai modelli usati, volume docling-models-min (gap-closure 1.6, D-09)
+# Modifica: Claude (Anthropic) · 2026-11-05 · volume /target per worktree (/verify 1, decisione utente)
 
 set -euo pipefail
 
@@ -60,7 +62,7 @@ CKA_SPIKES_ENV="${CKA_SPIKES_ENV:-$CKA_HOME/spikes.env}"
 # ne contiene una omonima: CKA_RUN_ID la imposta dc() stesso (etichette cka.run_id);
 # le altre servono al funzionamento di session.sh; COMPOSE_PROFILES è già rifiutata da
 # check_env e tolta qui sopra.
-readonly DC_ENV_KEEP=(CKA_RUN_ID CKA_SPIKES_ENV CKA_LOCK_GRACE_S CKA_OWNER_PID
+readonly DC_ENV_KEEP=(CKA_RUN_ID CKA_TREE_ID CKA_SPIKES_ENV CKA_LOCK_GRACE_S CKA_OWNER_PID
   MSYS_NO_PATHCONV MSYS2_ARG_CONV_EXCL COMPOSE_PROFILES)
 
 err() { printf 'session.sh: %s\n' "$*" >&2; }
@@ -87,6 +89,13 @@ compose_file() {
   local top
   top=$(git rev-parse --show-toplevel 2>/dev/null) || die 2 "non sono in un repository git"
   printf '%s/spikes/compose.yaml\n' "$top"
+}
+
+# Id del worktree: dà il nome al volume /target (un volume di build per worktree, /verify 1).
+tree_id() {
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || die 2 "non sono in un repository git"
+  printf '%s' "$top" | sha1sum | cut -c1-12
 }
 
 check_env() {
@@ -128,7 +137,7 @@ dc() {
       err "variabile dell'host $n non passata a compose: vale il file segreti"
     fi
   done < <(compgen -e)
-  env ${unset_args[@]+"${unset_args[@]}"} CKA_RUN_ID="$rid" docker compose \
+  env ${unset_args[@]+"${unset_args[@]}"} CKA_RUN_ID="$rid" CKA_TREE_ID="$(tree_id)" docker compose \
     --env-file "$(hostpath "$CKA_SPIKES_ENV")" -f "$(compose_file)" "$@"
 }
 
@@ -615,6 +624,7 @@ main() {
   shift
   case $sub in
     new-id) cmd_new_id "$@" ;;
+    tree-id) tree_id; echo ;;
     acquire) cmd_acquire "$@" ;;
     release) cmd_release "$@" ;;
     with) cmd_with "$@" ;;

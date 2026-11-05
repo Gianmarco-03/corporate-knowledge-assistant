@@ -58,8 +58,10 @@ console.log(hits[0]);
 [[ $exe == /target/* ]] || { echo "run_oom.sh: eseguibile fuori da /target: $exe" >&2; exit 2; }
 
 # (2) volume /target del runner, per etichetta.
+# Il filtro sul nome tiene il solo volume di questo worktree (un volume per worktree).
 vols=$(docker volume ls -q --filter label=com.docker.compose.project=cka-spikes \
-  --filter label=com.docker.compose.volume=cargo-target | tr -d '\r')
+  --filter label=com.docker.compose.volume=cargo-target \
+  --filter "name=^cka-spikes-target-$(bash "$S" tree-id)\$" | tr -d '\r')
 if [[ $(printf '%s\n' $vols | grep -c .) -ne 1 ]]; then
   echo "run_oom.sh: volume cargo-target non univoco o assente" >&2
   exit 2

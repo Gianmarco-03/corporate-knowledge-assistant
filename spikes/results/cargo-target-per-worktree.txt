@@ -1,0 +1,34 @@
+Volume /target per worktree: evidenza di /verify 1 (2026-11-05)
+
+Modifica: Claude (Anthropic) · 2026-11-05 · creazione, decisione utente «Correggi ora»
+
+Difetto: il volume cka-spikes_cargo-target era unico per tutti i worktree. Il 2026-10-27
+una suite di 01.6-05 ha eseguito 47 test vecchi invece di 64 con exit 0.
+
+Correzione: volume cka-spikes-target-<id>, id = primi 12 caratteri dello sha1 della radice
+del worktree, calcolato da session.sh. Il percorso /target nel container non cambia, perché
+driver e bench usano /target/release/... scritti per esteso.
+
+Prove:
+
+1. Id diversi su due checkout (worktree temporaneo, poi rimosso):
+   main=06dea61ff33b worktree=ad7d7848b9e4
+
+2. Compose senza session.sh rifiuta di partire:
+   error while interpolating volumes.cargo-target.name: required variable CKA_TREE_ID is missing a value: lanciare da session.sh
+
+3. Suite di s02 nel runner, stesso albero, volume nuovo cka-spikes-target-06dea61ff33b:
+   primo giro, build da zero (Compiling s02-parser presente): rc=101, pass=421 fail=2 ign=8
+     caller_timeout_is_client_timeout_exit_3   7,096 s contro il tetto di 5 s
+     abort_after_is_client_abort_exit_3        7,096 s contro il tetto di 5 s
+   giri 2, 3, 4, a volume compilato (nessun sorgente Rust cambiato): rc=0, pass=423 fail=0 ign=8
+
+Residuo: i due rossi compaiono solo al primo giro su un volume nuovo, con lo stesso ritardo
+in entrambi i test, quindi con un blocco comune. La causa non è verificata e non è stata
+riprodotta. Ipotesi non provata: scrittura su disco dopo circa 10 GB di build. Conseguenza
+pratica: su un worktree nuovo il primo giro può dare questi due rossi; si rilancia e, se
+restano, è un difetto vero.
+
+Costo: ogni worktree nuovo ricompila da zero e occupa un proprio volume, che session.sh non
+rimuove mai. Il vecchio cka-spikes_cargo-target (10,21 GB) non è più montato; lo rimuove a
+mano l'utente.
