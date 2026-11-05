@@ -1,0 +1,13 @@
+**Modifica:** Claude (gsd-executor 01.7-03) · 2026-11-05 · GARAGE_RPC_SECRET fuori dal runner (D-03, D-04, D-05)
+
+git_rev base: 29bb39ed19ca3052864d79c3785a46255d31636e
+copie ignorate dal checkout principale: spikes/target/pdfium, spikes/data/corpus/raw
+consumatori fuori da garage: nessuno (spikes/.env.example:22, spikes/compose.yaml:78, spikes/compose.yaml:271, spikes/docker/garage.toml:4 commento)
+
+chiavi runner prima: totale=34 GARAGE_RPC_SECRET=1 POSTGRES_PASSWORD=1 DATABASE_URL=1 GARAGE_ACCESS_KEY=1 GARAGE_SECRET_KEY=1
+chiavi runner-paid prima: totale=36 GARAGE_RPC_SECRET=1 POSTGRES_PASSWORD=1 DATABASE_URL=1 GARAGE_ACCESS_KEY=1 GARAGE_SECRET_KEY=1
+chiavi garage prima: totale=4 GARAGE_RPC_SECRET=1 POSTGRES_PASSWORD=0 DATABASE_URL=0 GARAGE_ACCESS_KEY=0 GARAGE_SECRET_KEY=0
+
+chiavi runner dopo: totale=33 GARAGE_RPC_SECRET=0 POSTGRES_PASSWORD=1 DATABASE_URL=1 GARAGE_ACCESS_KEY=1 GARAGE_SECRET_KEY=1
+chiavi runner-paid dopo: totale=35 GARAGE_RPC_SECRET=0 POSTGRES_PASSWORD=1 DATABASE_URL=1 GARAGE_ACCESS_KEY=1 GARAGE_SECRET_KEY=1
+chiavi garage dopo: totale=4 GARAGE_RPC_SECRET=1 POSTGRES_PASSWORD=0 DATABASE_URL=0 GARAGE_ACCESS_KEY=0 GARAGE_SECRET_KEY=0
