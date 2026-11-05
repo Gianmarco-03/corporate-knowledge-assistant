@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 6 context gathered
-last_updated: "2026-11-05T16:29:26.434Z"
+last_updated: "2026-11-05T17:40:22.525Z"
 last_activity: 2026-11-05 -- Phase 1.7 planning complete
 progress:
   total_phases: 23
   completed_phases: 7
   total_plans: 36
-  completed_plans: 33
+  completed_plans: 35
   percent: 30
 ---
 
@@ -152,6 +152,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01]: 01-17: utente ratifica tutti gli ADR 0003-0012, threat model e ADR-0013 (AV/CDR rinviati a fase 14); DEPENDENCIES Decisa con valori reali → `phases/01-spike-tecnici/01-17-SUMMARY.md`
 - [Phase 5]: Discuss chiuso: JWT EdDSA 10 min con token inoltrato, refresh ruotato con revoca al riuso, Argon2id 64 MiB + NIST, throttling PG, ultimo admin, scope utenti (D-01..D-18) → `phases/05-identita-e-accesso/05-CONTEXT.md`
 - [Phase 6]: Discuss chiuso: Q-01, Q-02, Q-06; Docling in background → 06-CONTEXT.md
+- [Phase 01.7]: M-Q4: criterio corretto in totale_ms >= 7000 e rilevamento_ms < 5000, senza rimisurare → `phases/01.7-gap-closure-di-verify-1-cronometri-dei-test-di-s02-e-garage-/01.7-01-SUMMARY.md#deviations-from-plan`
 
 ### Pending Todos
 

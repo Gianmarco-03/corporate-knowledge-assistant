@@ -136,8 +136,13 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-11-05 · Docling in background sulla stessa versione con generazione interna e interruttore (idea utente); publish_version da estendere nel piano 3 → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#docling-e-ttq-area-g`
 - 2026-11-05 · Tombstone in fase 6, versioni solo come modello, polling, UI upload + i miei caricamenti + PATCH acl → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#perimetro-aree-h-i-j`
 
+## Fase 1.7 — Gap-closure di verify 1 (execute)
+
+- 2026-11-05 · M-Q4: criterio corretto in totale_ms >= 7000 e rilevamento_ms < 5000, senza rimisurare → `phases/01.7-gap-closure-di-verify-1-cronometri-dei-test-di-s02-e-garage-/01.7-01-SUMMARY.md#deviations-from-plan`
+
 **Modifica:** Claude (Anthropic) · 2026-10-19 · creazione dell'indice con le decisioni dell'onda 1 della fase 1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 4
 **Modifica:** Claude (Anthropic) · 2026-10-26 · decisioni del discuss della fase 5
 **Modifica:** Claude (Anthropic) · 2026-11-05 · decisioni del discuss della fase 6
+**Modifica:** Claude (Anthropic) · 2026-11-05 · decisione dell'execute della fase 1.7
