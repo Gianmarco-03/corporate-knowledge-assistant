@@ -529,7 +529,6 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc;
-    use std::time::Instant;
 
     // ---- server finto -----------------------------------------------------------------------
 
@@ -614,6 +613,7 @@ mod tests {
     }
 
     // Modifica: Claude (gsd-executor 01.6-09) · 2026-10-29 · cartelle temporanee dei test con guardia Drop (gap-closure 1.6, D-11)
+    // Modifica: Claude (gsd-executor 01.7-02) · 2026-11-05 · test di timeout e abort legati a eventi, testimone di 5 s (gap-closure 1.7, D-02)
 
     /// Cartella di prova di un solo test con il PDF `in.pdf` che contiene. `Deref` dà il
     /// percorso del file, come il `PathBuf` restituito prima; `Drop` rimuove la cartella anche
@@ -804,29 +804,95 @@ mod tests {
 
     // ---- TEST-2 (client): timeout, disconnessione, errore --------------------------------
 
+    /// Finestra del testimone dalla richiesta osservata: uguale al vecchio tetto.
+    const WITNESS_WINDOW: Duration = Duration::from_secs(5);
+    /// Guardia di blocco sull'armamento del testimone: fallisce allo scadere e non prova la
+    /// proprietà.
+    const WITNESS_ARM_GUARD: Duration = Duration::from_secs(60);
+
+    /// Testimone del timer di `convert`: finisce `WITNESS_WINDOW` dopo aver visto la richiesta.
+    ///
+    /// Perché l'evento e non un istante preso a inizio test: `metadata` e `read` attendono sul
+    /// pool bloccante con il thread del runtime libero, prima che il timer esista. Un testimone
+    /// armato da lì scatterebbe durante un blocco del pool, con un rosso falso. La richiesta
+    /// ricevuta è invece sempre successiva alla creazione del timer.
+    ///
+    /// Perché `sleep` dall'osservazione e non una scadenza assoluta con un istante preso dal
+    /// server: quella scadenza può essere già passata al primo poll del testimone, che scatterebbe subito
+    /// mentre il driver non ha ancora segnato il timer, e `convert` è già stato poll-ato in quel
+    /// giro. Sarebbe un rosso falso sotto carico. Con `sleep` dall'osservazione la scadenza è
+    /// sempre futura; il prezzo è l'armamento in ritardo, cioè il caso residuo (timer sbagliato e
+    /// blocco insieme) dichiarato nell'evidenza.
+    async fn witness(requests: &mpsc::Receiver<Vec<u8>>) {
+        let observed = async {
+            loop {
+                match requests.try_recv() {
+                    Ok(_) => {
+                        // evento: richiesta ricevuta
+                        break;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        panic!("canale delle richieste chiuso prima dell'evento");
+                    }
+                }
+            }
+        };
+        if tokio::time::timeout(WITNESS_ARM_GUARD, observed)
+            .await
+            .is_err()
+        {
+            panic!("richiesta mai arrivata e convert ancora in corso");
+        }
+        tokio::time::sleep(WITNESS_WINDOW).await;
+    }
+
+    /// `convert` contro il testimone. Con `biased` si poll-a `convert` per primo: se il timer e
+    /// il testimone sono scaduti nello stesso giro di driver, vince il timer.
+    async fn convert_with_witness(cfg: &ConvertConfig, f: &Fake, file: &Path) -> ConvertResult {
+        tokio::select! {
+            biased;
+            r = convert(cfg, file) => r,
+            () = witness(&f.requests) => panic!("timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta"),
+        }
+    }
+
+    /// `caller_timeout` di 135 s: un timer ignorato non si confonde con un altro timer corto.
+    fn cfg_long(f: &Fake) -> ConvertConfig {
+        ConvertConfig::new(f.base_url.clone(), 120)
+    }
+
     #[tokio::test]
     async fn caller_timeout_is_client_timeout_exit_3() {
         let f = serve(Mode::Hang);
-        let mut c = cfg(&f);
-        c.caller_timeout = Duration::from_millis(400);
-        let t = Instant::now();
-        let r = convert(&c, &input_pdf("timeout")).await;
-        assert!(t.elapsed() < Duration::from_secs(5), "{:?}", t.elapsed());
+        let mut c = cfg_long(&f);
+        let timer = Duration::from_millis(400);
+        c.caller_timeout = timer;
+        let r = convert_with_witness(&c, &f, &input_pdf("timeout")).await;
         assert_eq!(r.status, Status::ClientTimeout, "{r:?}");
         assert_eq!(r.status.exit_code(), 3);
         assert_eq!(r.body, None);
+        assert!(
+            r.seconds >= timer.as_secs_f64(),
+            "limite inferiore: esito prima del timer {timer:?}: {r:?}"
+        );
     }
 
     #[tokio::test]
     async fn abort_after_is_client_abort_exit_3() {
         let f = serve(Mode::Hang);
-        let mut c = cfg(&f);
-        c.abort_after = Some(Duration::from_millis(300));
-        let t = Instant::now();
-        let r = convert(&c, &input_pdf("abort")).await;
-        assert!(t.elapsed() < Duration::from_secs(5), "{:?}", t.elapsed());
+        let mut c = cfg_long(&f);
+        let timer = Duration::from_millis(300);
+        c.abort_after = Some(timer);
+        let r = convert_with_witness(&c, &f, &input_pdf("abort")).await;
         assert_eq!(r.status, Status::ClientAbort, "{r:?}");
         assert_eq!(r.status.exit_code(), 3);
+        assert!(
+            r.seconds >= timer.as_secs_f64(),
+            "limite inferiore: esito prima del timer {timer:?}: {r:?}"
+        );
     }
 
     #[tokio::test]

@@ -1,0 +1,229 @@
+Cronometri di docling-client: diagnosi del ritardo e prova legata a eventi (D-02, D-05)
+
+**Modifica:** Claude (gsd-executor 01.7-02) · 2026-11-05 · evidenza della diagnosi e dei cronometri di docling-client (D-02, D-05)
+
+git_rev base: 9dbb2f9096c244ab44040b755a6ccd18deb78beb
+git_rev test: 608a4079d2ad374d64ff913c0b44425882916370
+copie ignorate dal checkout principale: spikes/target/pdfium, spikes/data/corpus/raw
+
+## Diagnosi
+
+Ritardo da spiegare: 7,096 s in entrambi i test, primo giro su volume nuovo
+(cargo-target-per-worktree.txt:20-23). Strumento diag_stage applicato prima di ogni giro,
+controllato con cargo check sull'host prima di entrare nel runner, tetto vecchio di 5 s intatto.
+Comando: hard rule 2, con giro.sh al posto di cargo test diretto. Riprodotto significa
+rosso per il tetto di 5 s.
+
+albero tentativo 1: worktree, motivo=test vecchi 2 su 2 e volume assente
+albero tentativo 2: temporaneo, motivo=tentativo 1 non riprodotto, serve un altro volume nuovo
+spazio libero su C: prima dei tentativi: 112 GB (tentativo 1), 119 GB (tentativo 2), soglia 20 GB
+init-volumes: non usato, /target e /work/tmp scrivibili dal runner in entrambi i volumi nuovi
+
+diagnosi tentativo 1: volume=cka-spikes-target-d6ad152910c8 volume_nuovo=si compiling=si rc=0 pass=423 fail=0 ign=8 rossi=nessuno caller_s=3.009 abort_s=3.004
+diagnosi tentativo 2: volume=cka-spikes-target-f7d254063c29 volume_nuovo=si compiling=si rc=0 pass=423 fail=0 ign=8 rossi=nessuno caller_s=0.402 abort_s=0.301
+
+caller_s e abort_s sono test_start → convert_end letti da stages.log, in ms sull'orologio
+epoch: i test erano verdi, quindi nessun panic riporta t.elapsed().
+
+Tentativo 1 (run_id 01-7-02-20261105t172741z-b0df):
+stadi caller_timeout_is_client_timeout_exit_3: input_pdf=0 metadata=0 read=0 armato=0 build=3003 form=1 attesa=5 fine_ms=3009 majflt_delta=1 coda_ms_delta=0.013 blkio_delta=0
+stadi abort_after_is_client_abort_exit_3: input_pdf=0 metadata=1 read=0 armato=0 build=3002 form=1 attesa=0 fine_ms=3004 majflt_delta=1 coda_ms_delta=0.047 blkio_delta=0
+
+Tentativo 2 (run_id 01-7-02-20261105t172921z-bb22):
+stadi caller_timeout_is_client_timeout_exit_3: input_pdf=0 metadata=0 read=0 armato=0 build=19 form=0 attesa=383 fine_ms=402 majflt_delta=0 coda_ms_delta=0.005 blkio_delta=0
+stadi abort_after_is_client_abort_exit_3: input_pdf=0 metadata=0 read=0 armato=0 build=17 form=0 attesa=284 fine_ms=301 majflt_delta=0 coda_ms_delta=0 blkio_delta=0
+
+Unità: ms per gli stadi; coda_ms_delta da /proc/thread-self/schedstat; blkio_delta in tick da
+10 ms del campo 42 di stat. Delta presi fra test_start e convert_end.
+
+diagnosi esito: non riprodotto
+blocco: stadio=nessuno
+causa: non provata
+psi: disponibile
+
+Il tetto di 5 s non è caduto in nessuno dei due tentativi, che erano il massimo ammesso.
+Il ritardo di 7,096 s resta non riprodotto e questa evidenza non ne spiega l'origine.
+
+Osservato sotto la soglia, nel tentativo 1 (dato, non riproduzione e non causa):
+sotto soglia tentativo 1: stadio=build durata_ms=3003 stesso_stadio_nei_due_test=si majflt_delta=1 coda_ms_delta=0.013 blkio_delta=0 psi_io_full_max=38.43 dirty_kb_max=2720604
+- Il tempo è fra pre_build e post_build, cioè in reqwest::Client::builder().build(). Tutti e
+  cinque i test del binario che passano di lì escono dal build allo stesso millisecondo
+  (1793899690376), avendo cominciato entro 1 ms. Il binario riporta finished in 3.01s.
+- Nell'intervallo, su 3289 ms di campioni, il totale PSI io full cresce di 2835 ms a livello
+  di sistema; avg10 full sale da 2,23 a 21,78. Dirty massimo nell'intervallo 1858460 kB.
+- coda_ms_delta è lo 0,4 per mille della durata e blkio_delta è 0: nessuna delle due righe della
+  regola sulla causa è soddisfatta. blkio_delta è 0 in ogni riga di entrambi i giri, quindi lo
+  strumento può essere cieco (contabilità del ritardo spenta nel kernel): lo zero non prova
+  l'assenza di attesa di I/O.
+compatibile con: pressione di I/O del sistema durante il build(), major fault 1 sul thread; ipotesi non provata
+- Nel tentativo 2 lo stesso stadio dura 17-19 ms, con psi_io_full_max=2.86 sull'intero giro e
+  dirty_kb_max=1891344: il volume nuovo da solo non basta a produrre il blocco.
+
+Deviazione dello strumento: nel tentativo 1 diag_stage scriveva la riga a pezzi (writeln! su
+File senza buffer) e le righe di thread diversi si sono intrecciate, fra cui test_start,
+post_build e post_form. I millisecondi e i valori delle righe convert_end restano leggibili,
+il build è ricostruito da quelli; i valori per riga di post_build non sono attribuibili. Dal
+tentativo 2 la riga è una sola scrittura. Stadi, campi e comando non cambiano.
+
+strumento rimosso: si
+volumi di diagnosi da rimuovere a mano: cka-spikes-target-f7d254063c29
+volume di questo worktree, resta per le task successive: cka-spikes-target-d6ad152910c8
+
+## Mutazioni
+
+Confronto sul test vecchio, prima della riscrittura (Task 2 passo 1), una mutazione per volta
+con ripristino dopo ciascuna. Comando: oneshot del comando delle mutazioni, nell'albero del
+piano, volume cka-spikes-target-d6ad152910c8. Ogni riga ha "running 2 tests".
+
+mutazione B1: applicata=si compiling=si caller=rosso abort=rosso motivo=tempo atteso=si running=2 finished_s=7.02 rc=101
+mutazione B2: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=0.04 rc=0
+mutazione B3: applicata=si compiling=si caller=rosso abort=verde motivo=tempo atteso=si running=2 finished_s=6.00 rc=101
+
+B1: panic con 7.021390719s (caller) e 7.022270872s (abort). B3: panic con 6.001944017s (caller).
+B1 prova il rosso del vecchio tetto solo per il blocco in build(): per il pool bloccante e per
+il blocco dopo l'evento il rosso del vecchio è letto dal codice, perché t abbraccia tutto convert.
+
+### Mutazioni sul test nuovo (Task 3)
+
+Annotata prima di lanciare M5 e M5b: spesa prima del timer, metadata + read + armato + build + form
+dalle righe stadi della diagnosi, contro le soglie di RISK-8 (360 ms caller, 270 ms abort).
+spesa prima del timer tentativo 2: caller=19 ms abort=17 ms, sotto le soglie (giro senza blocco)
+spesa prima del timer tentativo 1: caller=3004 ms abort=3004 ms, sopra le soglie (build di 3 s)
+
+Comando: oneshot del comando delle mutazioni, una prenotazione (run_id
+01-7-02-20261105t174807z-f43a), pattern esatti del piano a conteggio 1, ripristino con checkout
+dopo ciascuna e trap su EXIT. Il motivo è letto dal messaggio di panic: timer non rispettato =
+testimone; limite inferiore: = limite; assert_eq con ConvertResult e left/right = stato.
+
+mutazione M1: applicata=si compiling=si caller=rosso abort=verde motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M1 caller: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M2: applicata=si compiling=si caller=rosso abort=verde motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M2 caller: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M2b: applicata=si compiling=si caller=rosso abort=verde motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M2b caller: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+banda cieca: minore di 200 ms
+La misura di M2b è di un giro senza carico: sotto carico δ cresce e la banda cieca si allarga.
+mutazione M3: applicata=si compiling=si caller=verde abort=rosso motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M3 abort: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M4: applicata=si compiling=si caller=verde abort=rosso motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M4 abort: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M5: applicata=si compiling=si caller=rosso abort=verde motivo=limite atteso=si running=2 finished_s=0.30 rc=101
+panico M5 caller: limite inferiore: esito prima del timer 400ms: ConvertResult { status: ClientTimeout, body: None, seconds: 0.041946669 }
+mutazione M5b: applicata=si compiling=si caller=verde abort=rosso motivo=limite atteso=si running=2 finished_s=0.40 rc=101
+panico M5b abort: limite inferiore: esito prima del timer 300ms: ConvertResult { status: ClientAbort, body: None, seconds: 0.031326215 }
+M5 e M5b rosse al primo giro: nessun rilancio, nessuna riga di limite inferiore cieco.
+mutazione M6: applicata=si compiling=si caller=rosso abort=verde motivo=stato atteso=si running=2 finished_s=0.40 rc=101
+panico M6 caller: assertion `left == right` failed: ConvertResult { status: ClientAbort, body: None, seconds: 0.401494725 } | left: ClientAbort | right: ClientTimeout
+mutazione M7: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.02 rc=0
+mutazione M8: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.40 rc=0
+mutazione M9: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.03 rc=0
+mutazione M10: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.02 rc=0
+residuo riga 13: provato, verde falso con timer 6 s e blocco 7 s
+
+M7, M8, M9 e M10 hanno ciascuna "test result: ok. 2 passed" e finished in di almeno 7 s: il blocco è
+stato attraversato, il verde non è vacuo. Sono blocchi simulati e non dicono nulla sulla causa del
+ritardo di 7,096 s, che resta non riprodotto.
+
+main.rs dopo le mutazioni: identico al commit
+Confronto di M7, M8 e M9 con B1: B1 prova il vecchio rosso solo per il blocco in build(); per il
+pool bloccante e per il blocco dopo l'evento il vecchio rosso è letto dal codice, non misurato,
+mentre il verde del test nuovo è misurato in tutti e tre i casi.
+
+I due test riscritti (commit f709711 di test-write, esito GREEN_UNEXPECTED: comportamento già
+esistente, il rosso viene dalle mutazioni), senza mutazioni, con main.rs toccato per forzare la
+compilazione; running=2, 2 passati, finished in 0.40s:
+dopo singolo: rc=0 compiling=si
+esito gate rust: fmt=0 clippy=0
+
+## Forza
+
+Il vecchio tetto faceva due mestieri: vedeva un timer sbagliato e cadeva anche per un blocco
+della macchina. La forma nuova li separa. δ è il tempo da t del vecchio test all'armamento del
+testimone. Le prove M* sono nella sezione Mutazioni; una riga di questa tabella dice cosa ci si
+attende, il risultato misurato è nella riga della mutazione.
+
+| # | Scenario | Vecchio: t.elapsed() < 5 s | Nuovo: testimone e limite inferiore | Giudizio | Prova |
+|---|---|---|---|---|---|
+| 1 | timer giusto, nessun blocco | verde | verde | uguale | suite |
+| 2 | timer ignorato (135 s) | rosso | rosso a circa 5 s | stessa forza | M1, M4 |
+| 3 | timer sbagliato 6 s, sotto i 20 s di Hang | rosso (6 > 5) | rosso (testimone) | stessa forza: il punto duro è chiuso | M2, M3, B3 |
+| 4 | timer sbagliato 5,2 s | rosso | rosso se δ < 200 ms | stessa forza se δ è piccolo | M2b |
+| 5 | timer sbagliato fra 5 s e 5 s + δ | rosso | verde | più debole in una banda di δ | M2b misura δ |
+| 6 | timer sbagliato sotto i 5 s (es. 3 s) | verde | verde | uguale: nessuno dei due lo vede | letto dal codice |
+| 7 | timer che scatta prima (1/10) | verde | rosso (limite inferiore), salvo spesa prima del timer oltre i 9/10 di esso, perché r.seconds parte da t0: condizione di RISK-8, il rosso richiede spesa sotto 360 ms per caller e sotto 270 ms per abort | più forte, mai più debole: il vecchio non lo vedeva | M5, M5b, B2 |
+| 8 | stato sbagliato | rosso | rosso | stessa forza | M6 |
+| 9 | timer giusto, blocco simulato di 7 s in build() | rosso falso, misurato da B1 | verde | è il gap del tetto assoluto | M7, B1 |
+| 10 | timer giusto, blocco simulato di 7 s sul pool bloccante | rosso falso letto dal codice (t abbraccia tutto convert), non misurato | verde | è il gap del tetto assoluto | M8 per il nuovo; vecchio letto dal codice |
+| 11 | timer giusto, blocco simulato di 7 s dopo l'evento | rosso falso letto dal codice (t abbraccia tutto convert), non misurato | verde | è il gap del tetto assoluto | M9 per il nuovo; vecchio letto dal codice |
+| 12 | timer giusto, blocco di almeno 20 s dopo la richiesta | rosso falso | rosso falso (Error per la chiusura di Hang) | uguale, residuo accettato: mai osservato | letto dal codice |
+| 13 | timer sbagliato 6 s più blocco che copre la scadenza del timer o ritarda l'armamento di oltre (timer − 5 s) | rosso, non discriminante | verde falso | più debole in questo solo caso | M10 |
+
+Portata delle righe 9-11. Provano che un blocco simulato di 7 s non fa più cadere il test con il
+timer giusto. Non provano nulla sul ritardo di 7,096 s del primo giro su volume nuovo: quel
+ritardo è non riprodotto e la sua causa è non provata (sezione Diagnosi), quindi questa tabella
+non afferma che il blocco simulato sia ciò che è accaduto allora.
+
+Perché funziona, in quattro passi:
+1. Il timer giusto vince sempre sul testimone. Il timer nasce prima della richiesta, il testimone
+   dopo averla osservata con una finestra di 5 s, e 400 ms < 5 s: la scadenza del timer precede
+   sempre quella del testimone. Il driver di tokio segna come scaduti tutti i timer passati nello
+   stesso giro prima di risvegliare il task, e con biased si poll-a convert per primo;
+   Timeout::poll controlla il ritardo appena il future resta in attesa. Un blocco di qualunque
+   durata sotto i 20 s di Hang, in qualunque punto del thread, non può quindi far vincere il
+   testimone.
+2. Perché armarlo dall'evento e non da t. Le attese di metadata e read stanno sul pool bloccante,
+   con il thread del runtime libero: un testimone armato da t scatterebbe durante un blocco del
+   pool, con il timer non ancora creato. Sarebbe un rosso falso, ed è M8.
+3. Perché sleep dall'osservazione e non una scadenza assoluta con un istante preso dal server.
+   Con un istante del server la scadenza può essere già passata al primo poll del testimone:
+   scatta subito, mentre il Sleep del timer non è ancora stato segnato dal driver, e convert è già
+   stato poll-ato in quel giro. Sarebbe un rosso falso sotto carico. Con sleep dall'osservazione
+   la scadenza è sempre futura, il prezzo è l'armamento in ritardo, e quel prezzo sta nella riga 13.
+4. Un timer da 6 s perde. Senza blocchi il testimone scade a circa 5 s dalla richiesta, cioè prima
+   dei 6 s del timer. La mutazione è M2.
+
+Confronto sulla riga 13. Nella stessa esecuzione il vecchio tetto dava rosso, ma lo dava anche con
+il timer giusto (righe 9-11): quel rosso non distingue il difetto dal blocco. Il nuovo test, in
+quella sola esecuzione, dà verde. Il difetto del timer è però permanente nel codice, mentre il
+blocco è transitorio: il primo giro senza blocco lo fa cadere (riga 3). Il caso residuo costa quindi
+al più il ritardo di un giro; non è una zona che il test non vede mai. Resta dichiarato e provato da
+M10: su quella sola esecuzione il test nuovo è più debole del vecchio.
+
+Nota sulle scelte: candidato del testimone adottato. tokio::time::pause escluso perché richiede
+la feature test-util, che full non comprende, e il manifest non si tocca. build() non spostato
+fuori dal future perché è produzione.
+
+## Carico
+
+Stesso oneshot: nproc generatori, attesa di 20 s, 5 ripetizioni del comando delle mutazioni senza
+mutazioni, trap su EXIT sui generatori. Prima compilazione nel giro 1 (Compiling s02-parser solo lì).
+
+nproc=16
+generatori vivi dopo l'attesa di 20 s: 16 loadavg=4.62 1.10 0.36 17/414 27
+giro carico 1: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.42s] generatori_vivi=16 loadavg=5.62 1.36 0.45 17/414 275
+giro carico 2: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.42s] generatori_vivi=16 loadavg=5.62 1.36 0.45 17/414 303
+giro carico 3: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.41s] generatori_vivi=16 loadavg=6.45 1.60 0.53 17/414 331
+giro carico 4: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.41s] generatori_vivi=16 loadavg=6.45 1.60 0.53 17/414 359
+giro carico 5: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.41s] generatori_vivi=16 loadavg=6.45 1.60 0.53 17/414 387
+dopo sotto carico generatori: giri=5 falliti=0 vivi_prima=16 vivi_dopo=16 nproc=16 loadavg_finale=6.45 1.60 0.53
+condizione di TEST-14: prima cifra di /proc/loadavg di almeno nproc dal secondo giro: non soddisfatta, valori 5.62 6.45 6.45 6.45 contro nproc=16
+
+La condizione resta scritta com'è e non è stata riformulata né compensata con un giro più lungo: il
+load sopra nproc non è provato. Provato è solo che 16 generatori erano vivi prima e dopo ogni giro.
+
+## Suite finale
+
+touch di spikes/s02-parser/src/lib.rs, poi il comando della hard rule 2 (run_id
+01-7-02-20261105t175055z-ca88), somme delle righe test result di 13 binari.
+
+giro suite finale: compiling=si rc=0 pass=423 fail=0 ign=8 rossi=nessuno
+warning s02-parser nel runner: 0
+esito gate rust finale: fmt=0 clippy=0
+
+## Pulizia
+
+spikes/target/diag-01-7-02/ rimossa
+Container con label cka.run_id presenti:
+(fine elenco)
+volume /target di questo worktree: cka-spikes-target-d6ad152910c8
+volumi che restano all'utente per la rimozione a mano: cka-spikes-target-d6ad152910c8, cka-spikes-target-f7d254063c29
