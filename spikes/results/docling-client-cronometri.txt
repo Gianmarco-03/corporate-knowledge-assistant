@@ -3,6 +3,7 @@ Cronometri di docling-client: diagnosi del ritardo e prova legata a eventi (D-02
 **Modifica:** Claude (gsd-executor 01.7-02) · 2026-11-05 · evidenza della diagnosi e dei cronometri di docling-client (D-02, D-05)
 
 git_rev base: 9dbb2f9096c244ab44040b755a6ccd18deb78beb
+git_rev test: 608a4079d2ad374d64ff913c0b44425882916370
 copie ignorate dal checkout principale: spikes/target/pdfium, spikes/data/corpus/raw
 
 ## Diagnosi
@@ -82,6 +83,52 @@ B1: panic con 7.021390719s (caller) e 7.022270872s (abort). B3: panic con 6.0019
 B1 prova il rosso del vecchio tetto solo per il blocco in build(): per il pool bloccante e per
 il blocco dopo l'evento il rosso del vecchio è letto dal codice, perché t abbraccia tutto convert.
 
+### Mutazioni sul test nuovo (Task 3)
+
+Annotata prima di lanciare M5 e M5b: spesa prima del timer, metadata + read + armato + build + form
+dalle righe stadi della diagnosi, contro le soglie di RISK-8 (360 ms caller, 270 ms abort).
+spesa prima del timer tentativo 2: caller=19 ms abort=17 ms, sotto le soglie (giro senza blocco)
+spesa prima del timer tentativo 1: caller=3004 ms abort=3004 ms, sopra le soglie (build di 3 s)
+
+Comando: oneshot del comando delle mutazioni, una prenotazione (run_id
+01-7-02-20261105t174807z-f43a), pattern esatti del piano a conteggio 1, ripristino con checkout
+dopo ciascuna e trap su EXIT. Il motivo è letto dal messaggio di panic: timer non rispettato =
+testimone; limite inferiore: = limite; assert_eq con ConvertResult e left/right = stato.
+
+mutazione M1: applicata=si compiling=si caller=rosso abort=verde motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M1 caller: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M2: applicata=si compiling=si caller=rosso abort=verde motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M2 caller: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M2b: applicata=si compiling=si caller=rosso abort=verde motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M2b caller: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+banda cieca: minore di 200 ms
+La misura di M2b è di un giro senza carico: sotto carico δ cresce e la banda cieca si allarga.
+mutazione M3: applicata=si compiling=si caller=verde abort=rosso motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M3 abort: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M4: applicata=si compiling=si caller=verde abort=rosso motivo=testimone atteso=si running=2 finished_s=5.03 rc=101
+panico M4 abort: timer non rispettato: nessun esito entro 5 s dalla richiesta ricevuta
+mutazione M5: applicata=si compiling=si caller=rosso abort=verde motivo=limite atteso=si running=2 finished_s=0.30 rc=101
+panico M5 caller: limite inferiore: esito prima del timer 400ms: ConvertResult { status: ClientTimeout, body: None, seconds: 0.041946669 }
+mutazione M5b: applicata=si compiling=si caller=verde abort=rosso motivo=limite atteso=si running=2 finished_s=0.40 rc=101
+panico M5b abort: limite inferiore: esito prima del timer 300ms: ConvertResult { status: ClientAbort, body: None, seconds: 0.031326215 }
+M5 e M5b rosse al primo giro: nessun rilancio, nessuna riga di limite inferiore cieco.
+mutazione M6: applicata=si compiling=si caller=rosso abort=verde motivo=stato atteso=si running=2 finished_s=0.40 rc=101
+panico M6 caller: assertion `left == right` failed: ConvertResult { status: ClientAbort, body: None, seconds: 0.401494725 } | left: ClientAbort | right: ClientTimeout
+mutazione M7: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.02 rc=0
+mutazione M8: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.40 rc=0
+mutazione M9: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.03 rc=0
+mutazione M10: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=7.02 rc=0
+residuo riga 13: provato, verde falso con timer 6 s e blocco 7 s
+
+M7, M8, M9 e M10 hanno ciascuna "test result: ok. 2 passed" e finished in di almeno 7 s: il blocco è
+stato attraversato, il verde non è vacuo. Sono blocchi simulati e non dicono nulla sulla causa del
+ritardo di 7,096 s, che resta non riprodotto.
+
+main.rs dopo le mutazioni: identico al commit
+Confronto di M7, M8 e M9 con B1: B1 prova il vecchio rosso solo per il blocco in build(); per il
+pool bloccante e per il blocco dopo l'evento il vecchio rosso è letto dal codice, non misurato,
+mentre il verde del test nuovo è misurato in tutti e tre i casi.
+
 I due test riscritti (commit f709711 di test-write, esito GREEN_UNEXPECTED: comportamento già
 esistente, il rosso viene dalle mutazioni), senza mutazioni, con main.rs toccato per forzare la
 compilazione; running=2, 2 passati, finished in 0.40s:
@@ -92,8 +139,8 @@ esito gate rust: fmt=0 clippy=0
 
 Il vecchio tetto faceva due mestieri: vedeva un timer sbagliato e cadeva anche per un blocco
 della macchina. La forma nuova li separa. δ è il tempo da t del vecchio test all'armamento del
-testimone. Le prove M* sono registrate più sotto dalla Task 3; una riga di questa tabella dice
-cosa ci si attende, il risultato misurato è nella riga della mutazione.
+testimone. Le prove M* sono nella sezione Mutazioni; una riga di questa tabella dice cosa ci si
+attende, il risultato misurato è nella riga della mutazione.
 
 | # | Scenario | Vecchio: t.elapsed() < 5 s | Nuovo: testimone e limite inferiore | Giudizio | Prova |
 |---|---|---|---|---|---|
@@ -145,3 +192,38 @@ M10: su quella sola esecuzione il test nuovo è più debole del vecchio.
 Nota sulle scelte: candidato del testimone adottato. tokio::time::pause escluso perché richiede
 la feature test-util, che full non comprende, e il manifest non si tocca. build() non spostato
 fuori dal future perché è produzione.
+
+## Carico
+
+Stesso oneshot: nproc generatori, attesa di 20 s, 5 ripetizioni del comando delle mutazioni senza
+mutazioni, trap su EXIT sui generatori. Prima compilazione nel giro 1 (Compiling s02-parser solo lì).
+
+nproc=16
+generatori vivi dopo l'attesa di 20 s: 16 loadavg=4.62 1.10 0.36 17/414 27
+giro carico 1: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.42s] generatori_vivi=16 loadavg=5.62 1.36 0.45 17/414 275
+giro carico 2: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.42s] generatori_vivi=16 loadavg=5.62 1.36 0.45 17/414 303
+giro carico 3: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.41s] generatori_vivi=16 loadavg=6.45 1.60 0.53 17/414 331
+giro carico 4: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.41s] generatori_vivi=16 loadavg=6.45 1.60 0.53 17/414 359
+giro carico 5: rc=0 [running 2 tests] [test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.41s] generatori_vivi=16 loadavg=6.45 1.60 0.53 17/414 387
+dopo sotto carico generatori: giri=5 falliti=0 vivi_prima=16 vivi_dopo=16 nproc=16 loadavg_finale=6.45 1.60 0.53
+condizione di TEST-14: prima cifra di /proc/loadavg di almeno nproc dal secondo giro: non soddisfatta, valori 5.62 6.45 6.45 6.45 contro nproc=16
+
+La condizione resta scritta com'è e non è stata riformulata né compensata con un giro più lungo: il
+load sopra nproc non è provato. Provato è solo che 16 generatori erano vivi prima e dopo ogni giro.
+
+## Suite finale
+
+touch di spikes/s02-parser/src/lib.rs, poi il comando della hard rule 2 (run_id
+01-7-02-20261105t175055z-ca88), somme delle righe test result di 13 binari.
+
+giro suite finale: compiling=si rc=0 pass=423 fail=0 ign=8 rossi=nessuno
+warning s02-parser nel runner: 0
+esito gate rust finale: fmt=0 clippy=0
+
+## Pulizia
+
+spikes/target/diag-01-7-02/ rimossa
+Container con label cka.run_id presenti:
+(fine elenco)
+volume /target di questo worktree: cka-spikes-target-d6ad152910c8
+volumi che restano all'utente per la rimozione a mano: cka-spikes-target-d6ad152910c8, cka-spikes-target-f7d254063c29
