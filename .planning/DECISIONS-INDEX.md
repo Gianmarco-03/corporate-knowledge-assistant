@@ -119,7 +119,18 @@ Una riga per decisione, con puntatore all'artefatto che porta il rationale. Le s
 - 2026-10-26 · Argon2id 64 MiB t=3 p=4 in PHC con rehash; NIST min 15 + blocklist locale; throttling in PG 5/15 min per account; audit con HMAC dell'email → `phases/05-identita-e-accesso/05-CONTEXT.md#password-e-login-aree-d-e-j`
 - 2026-10-26 · Cambio ruoli con protezione dell'ultimo admin, acl_version e revoca sessioni; scope con elenco utenti, disattivazione, cambio password e password temporanea; primo admin da CLI → `phases/05-identita-e-accesso/05-CONTEXT.md#utenti-e-ruoli-aree-g-h-i`
 
+## Fase 6 — Upload e indicizzazione (discuss)
+
+- 2026-11-05 · Q-02: 4 livelli tradotti in etichette role:* e user:*, uploader sempre incluso, livello obbligatorio; Q-01: caricano manager e admin, gestisce l'uploader col ruolo attuale + admin → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#ruoli-e-classificazione-q-01-e-q-02-aree-b-c`
+- 2026-11-05 · Q-06: nessuna approvazione sull'upload, PDF attivo quarantined terminale; criterio 2 allineato a 25 MiB e ADR-0004; rifiuto su due livelli → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#quarantena-validazione-e-stati-q-06-area-a`
+- 2026-11-05 · Coda su tabella Postgres scritta a mano; retry per classe; worker morto riparte da zero con tentativo al claim; tetti 429 uploader e 503 globale → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#coda-retry-e-concorrenza-area-d`
+- 2026-11-05 · Idempotenza su tre casi (retry, stesso uploader → esistente o 409, altro uploader invisibile); dopo failed si ricarica → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#idempotenza-e-deduplica-area-e`
+- 2026-11-05 · Audit con outbox e relay, un evento per transizione di stato → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#audit-area-f`
+- 2026-11-05 · Docling in background sulla stessa versione con generazione interna e interruttore (idea utente); publish_version da estendere nel piano 3 → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#docling-e-ttq-area-g`
+- 2026-11-05 · Tombstone in fase 6, versioni solo come modello, polling, UI upload + i miei caricamenti + PATCH acl → `phases/06-upload-e-indicizzazione/06-CONTEXT.md#perimetro-aree-h-i-j`
+
 **Modifica:** Claude (Anthropic) · 2026-10-19 · creazione dell'indice con le decisioni dell'onda 1 della fase 1
 **Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 3
 **Modifica:** Claude (Anthropic) · 2026-10-21 · decisioni del discuss della fase 4
 **Modifica:** Claude (Anthropic) · 2026-10-26 · decisioni del discuss della fase 5
+**Modifica:** Claude (Anthropic) · 2026-11-05 · decisioni del discuss della fase 6

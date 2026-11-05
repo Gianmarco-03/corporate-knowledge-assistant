@@ -9,7 +9,7 @@ fase 01 / onda — / slice — / verify 1 secondo giro completato, gaps_found ·
 
 ## Prossima azione
 
-/plan 1.7 --gaps (01.7-CONTEXT.md) → /execute 1.7 → /verify 1 → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. 06-DISCUSS-CHECKPOINT.json in corso in altra sessione: non committarlo da qui. Fase 05: discuss completato (05-CONTEXT.md) → /plan 5 dopo i plan 02-04 (ordine provider-first).
+/plan 1.7 --gaps (01.7-CONTEXT.md) → /execute 1.7 → /verify 1 → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. Fasi 05 e 06: discuss completato (05-CONTEXT.md, 06-CONTEXT.md) → /plan 5 e /plan 6 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -119,6 +119,14 @@ fase 01 / onda — / slice — / verify 1 secondo giro completato, gaps_found ·
 - deviazioni livello a onda 4: `docker logs` in sola lettura fuori dalle eccezioni della hard rule 2 di 04; attesa di «Application startup complete» perché `up --wait` esce sull'healthcheck; copie ignorate di pdfium e data/corpus/raw; flake `quota_counts_job_dir_plus_out_dir` (01.6-07) caduto 2 volte sotto carico; human_judgment 01.6-04 ×6, 01.6-09 ×5 → SUMMARY
 - onda 5 di 01.6 chiusa, fase 1.6 eseguita 9/9: 01.6-06 (merge edb312c; hook con fmt/clippy degli spike e quarto esito NON COPERTO, filtro dei segreti in awk POSIX allineato a D-02 con le esclusioni del 2026-10-29, parità hook-scanner 33/33, commit di sola evidenza accettato, sonda della storia 0 righe su 30 commit); gate verde (s02 423/0/8 con Compiling, hook 15, scanner 131) → 01.6-06-SUMMARY.md
 - deviazioni livello a onda 5: `[[:space:]]` → `[ [:space:]]` per il verify «zero [[»; commento col manifest per il grep; `[{] [}]` per gawk POSIX; hook più severo dello scanner (env-secret-literal su tutti i tipi di file); human_judgment ×7 (parità solo ASCII, esclusione .py fuori tabella, solo gawk 5.0.0, merge senza --name-only, pre-push mai girato su un push reale) → SUMMARY
+- [f06] fase 06 criticità critica, ratificata utente 2026-11-05 → GPT risk-audit + test-design in plan → 06-CONTEXT.md
+- [f06] Q-02 4 livelli → etichette role:*/user:* + uploader, livello obbligatorio; Q-01 caricano manager+admin (contro raccomandazione), gestione uploader con ruolo attuale + admin (D-01..05) · fonte Area B/C, 03 D-06 → 06-CONTEXT.md
+- [f06] Q-06 nessuna approvazione, PDF attivo quarantined terminale; criterio 2 → 25 MiB + cifrati ADR; rifiuto due livelli, diagnostica a codici (D-06..10) · fonte corpus-strategy:88-89, ADR-0003/0004, T-10 → 06-CONTEXT.md
+- [f06] coda tabella PG a mano, SKIP LOCKED + lease; permanenti subito, transitori 5, crash parser 1; worker morto da zero, tentativo al claim; tetti 429 utente/503 globale (D-11..15) · fonte Area D, 02 D-06 → 06-CONTEXT.md
+- [f06] idempotency 3 casi (retry, stesso uploader → esistente/409, altro uploader invisibile); dopo failed si ricarica; outbox + relay, evento per transizione (D-16..19) · fonte draft idempotency-08, T-11/T-12, outbox → 06-CONTEXT.md
+- [f06] Docling background stessa versione, generazione interna, interruttore, chunk vecchi conservati; primo queryable ≈5 s stimati; rischio residuo tabelle piatte (D-20/21) · proposta utente, ADR-0004, 01 D-36 → 06-CONTEXT.md
+- [f06] tombstone in 6, versioni solo modello (endpoint 12), polling 1-2 s, UI upload + miei caricamenti + PATCH acl (D-22..25) · fonte Area H/I/J → 06-CONTEXT.md
+- [f06] brief 10 aree con fonti → 06-RICERCA-DISCUSSIONE.md; log → 06-DISCUSSION-LOG.md
 
 ## Limiti trovati
 
@@ -194,6 +202,13 @@ fase 01 / onda — / slice — / verify 1 secondo giro completato, gaps_found ·
 - [f05] interfaces-and-concurrency.md: rotte D-17 + race refresh fra schede; DEPENDENCIES Token → Decisa con Storia; .env.example chiavi firma/HMAC (proprietà file) → plan 5
 - [f05] assunzione provvisoria: EdDSA+JWK nel crate (jsonwebtoken 11) da verificare in plan, ripiego ES256 (D-01)
 - [f05] rischio pipeline: hook auth, route registry, fascia 05, slot AuditSink senza righe WM-NNN fino a plan 02 → riallineare vincoli CONTEXT 05
+- [f06] ROADMAP via gsd-tools: criterio 2 (D-07), criterio 5 «pagina» solo PDF, withdraw → 6 → 06-CONTEXT.md §TODO
+- [f06] riconciliazione plan 3: publish_version + generazione (D-21), VectorIndex::withdraw (D-22); emendare ADR-0012 e 03 D-09 con Storia → 06-CONTEXT.md §TODO
+- [f06] ADR ingestion nuovo in plan 6 (chiude 01 D-36, emenda ADR-0004); interfaces-and-concurrency: PATCH acl, miei caricamenti, stati, 429/503, race arricchimento; threat model: finestra tabelle piatte → 06-CONTEXT.md §TODO
+- [f06] discuss 13 valutazione a generazione finale; discuss 14 due TTQ (testo, tabelle), README target su primo queryable → 06-CONTEXT.md §TODO
+- [f06] assunzione provvisoria: ≈5 s primo queryable, somma misure separate, misura in fase 14; EventSource senza URL nel brief, citare spec HTML in plan → 06-CONTEXT.md §TODO
+- [f06] plan 3 coordina publish_version con 03.1 (archi nella stessa tx): generazione D-21 + archi → 06-CONTEXT.md §TODO, 03.1-RICERCA-DISCUSSIONE.md:99,103
+- [f06] rischio pipeline: fase 1 gaps_found (1.7); route registry, fascia 06, slot AuditSink, IdempotencyKey senza righe WM-NNN fino a plan 02 → riallineare vincoli CONTEXT 06
 
 ## Decisioni ratificate in corsa
 
@@ -236,5 +251,6 @@ fase 01 / onda — / slice — / verify 1 secondo giro completato, gaps_found ·
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 3
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 4
 **Modifica:** Claude (Anthropic) · 2026-10-29 · --exec: fase 1.6 onda 5, esecuzione completata
+**Modifica:** Claude (Anthropic) · 2026-11-05 · --discuss fase 06
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --verify-ecc: verify 1 secondo giro, diff 1.6
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --verify: verify 1 secondo giro, gaps_found, fase 1.7 inserita

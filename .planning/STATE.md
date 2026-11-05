@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Fase 5 discuss completato
-last_updated: "2026-10-29T00:53:31.745Z"
+stopped_at: Phase 6 context gathered
+last_updated: "2026-11-05T12:28:00.759Z"
 last_activity: "2026-10-29 — fase 1.6 eseguita: onda 5 chiusa (01.6-06 hook con fmt e clippy degli spike, NON COPERTO, segreti allineati a D-02)"
 progress:
-  total_phases: 21
-  completed_phases: 6
+  total_phases: 23
+  completed_phases: 7
   total_plans: 33
-  completed_plans: 24
-  percent: 29
+  completed_plans: 33
+  percent: 30
 ---
 
 # Project State
@@ -150,6 +150,7 @@ Recenti, rilevanti per il lavoro corrente:
 - [Phase 01]: 01-16: 13 porte candidate con async-trait; AuthorizedEvidence costruita solo da authorize_response lato RAG; Reranker separato da DecisionEngine; CacheKey con scope e acl_version → `docs/adr/0012-firme-porte-candidate.md`
 - [Phase 01]: 01-17: utente ratifica tutti gli ADR 0003-0012, threat model e ADR-0013 (AV/CDR rinviati a fase 14); DEPENDENCIES Decisa con valori reali → `phases/01-spike-tecnici/01-17-SUMMARY.md`
 - [Phase 5]: Discuss chiuso: JWT EdDSA 10 min con token inoltrato, refresh ruotato con revoca al riuso, Argon2id 64 MiB + NIST, throttling PG, ultimo admin, scope utenti (D-01..D-18) → `phases/05-identita-e-accesso/05-CONTEXT.md`
+- [Phase 6]: Discuss chiuso: Q-01, Q-02, Q-06; Docling in background → 06-CONTEXT.md
 
 ### Pending Todos
 
@@ -170,6 +171,6 @@ Recenti, rilevanti per il lavoro corrente:
 
 ## Session Continuity
 
-Last session: 2026-10-26T15:42:04.315Z
-Stopped at: Fase 5 discuss completato
-Resume file: .planning/phases/05-identita-e-accesso/05-CONTEXT.md
+Last session: 2026-11-05T12:28:00.753Z
+Stopped at: Phase 6 context gathered
+Resume file: .planning/phases/06-upload-e-indicizzazione/06-CONTEXT.md

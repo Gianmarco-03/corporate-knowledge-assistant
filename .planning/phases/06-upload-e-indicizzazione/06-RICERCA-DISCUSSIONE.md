@@ -1,6 +1,7 @@
 # 06 — Ricerca decisionale per il discuss (Upload e indicizzazione)
 
 **Modifica:** Claude (Anthropic) · 2026-10-26 · brief di ricerca del discuss della fase 6 (canale Claude, nessuna ricerca GPT richiesta)
+**Modifica:** Claude (Anthropic) · 2026-11-05 · stato pipeline aggiornato; Area G con misure e correzione su due passate
 
 Stile caveman full. Fonti esterne con URL + accesso 2026-10-26. Fonti repo con file:sezione: prevalgono su esterno finché utente non riapre.
 
@@ -9,7 +10,8 @@ Stile caveman full. Fonti esterne con URL + accesso 2026-10-26. Fonti repo con f
 - Goal ROADMAP: utente autorizzato carica doc con ACL esplicita → queryable; versione pubblicata atomica; chunk con pagina/posizione; provider fase 3 solo via porte. Req DOC-01, DOC-02, PLAT-05. Dipende 3, 5.
 - Decisioni da chiudere (ROADMAP §Decisioni aperte): Q-01 permessi per ruolo (vincola 7, 10), Q-02 classificazione (vincola 3, 7, 10), Q-06 quarantena upload manuale.
 - Criticità: ROADMAP già «critica (ingestion: upload, orchestrazione parsing file non fidati)». Regola skill: goal tocca ingestion → critica. Plan: GPT `implementation-risk-audit` + `test-design`.
-- Pipeline sfalsata: fase 1 verify gaps_found (1.6 da pianificare), fasi 2-5 discusse non pianificate. WIRING-MAP zero righe: seam Fondazione (fascia 06, route registry, slot AuditSink document, hook auth) promessi solo nei CONTEXT 02/04/05.
+- Pipeline sfalsata: fase 1 verify giro 2 gaps_found (1.6 eseguita, 1.7 inserita; agg. 2026-11-05), ADR 0003-0013 Accepted, fasi 2-5 discusse non pianificate, 03.1 in discuss. WIRING-MAP zero righe: seam Fondazione (fascia 06, route registry, slot AuditSink document, hook auth) promessi solo nei CONTEXT 02/04/05.
+  - *Storia:* fino 2026-11-05 riga diceva «1.6 da pianificare».
 - deferred-items.md: nessuno. Punti ereditati veri:
   - P1 · 03 D-03: job GC orfani + tabella `pending` + protocollo `live|deleting` → fase 6 (consumatore `DocumentStore::delete`). ADR-0003: N = 24 h; pulizia tempfile all'avvio.
   - P2 · 03 D-04: worker scarica originale in tempfile locale, poi `parse(&LocalFile)`.
@@ -123,6 +125,13 @@ Opzioni:
 - G2 due passate: pubblica subito testo PDFium, poi arricchimento tabelle → nuova versione indice: TTQ rispettato, complessità (doppio embedding, citazioni che cambiano chunk).
 - G3 Docling spento di default (flag): TTQ rispettato, tabelle solo come testo PDFium.
 Raccomandazione: G1 dietro flag di configurazione (G3 = interruttore), decisione definitiva in fase 14 sui numeri reali.
+
+Agg. 2026-11-05 (superata da 06-CONTEXT D-20/D-21, proposta utente):
+- Misure `der-it-01` 25 pp (spikes/s02-parser/RISULTATI-ocr.md:178): parete p95 20,2 s; extract_pdf 1,07 s; Docling 15,25 s su 13 pp; render + tesseract 2,5 s. Riavvio Docling ≈ 19 s (01 D-36). Embedding 25 pp 1,02 s (ADR-0007). Somma non misurata: G1 ≈ 22 s Docling pronto, ≈ 40 s con riavvio; prima pubblicazione senza Docling ≈ 5 s.
+- G2 costi sopravvalutati sopra: doppio embedding ≈ 1 s; locator PDF = pagina + rettangoli su stessi byte (ADR-0005) → citazioni valide se chunk vecchi conservati.
+- Costi veri G2: finestra tabelle piatte; job e stato separati; race con cancellazione/nuova versione; `publish_version` da estendere (generazione interna); TTQ da misurare doppio.
+- Scelta: G2 stessa `DocumentVersionId` + generazione interna + interruttore.
+- *Storia:* raccomandazione originale G1 resta scritta sopra.
 
 ## Area H — Tombstone, cancellazione, GC
 
