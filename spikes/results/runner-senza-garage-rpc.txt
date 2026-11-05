@@ -11,3 +11,17 @@ chiavi garage prima: totale=4 GARAGE_RPC_SECRET=1 POSTGRES_PASSWORD=0 DATABASE_U
 chiavi runner dopo: totale=33 GARAGE_RPC_SECRET=0 POSTGRES_PASSWORD=1 DATABASE_URL=1 GARAGE_ACCESS_KEY=1 GARAGE_SECRET_KEY=1
 chiavi runner-paid dopo: totale=35 GARAGE_RPC_SECRET=0 POSTGRES_PASSWORD=1 DATABASE_URL=1 GARAGE_ACCESS_KEY=1 GARAGE_SECRET_KEY=1
 chiavi garage dopo: totale=4 GARAGE_RPC_SECRET=1 POSTGRES_PASSWORD=0 DATABASE_URL=0 GARAGE_ACCESS_KEY=0 GARAGE_SECRET_KEY=0
+
+ambiente del container runner: GARAGE_RPC_SECRET=0 POSTGRES_PASSWORD=1 DATABASE_URL=1 GARAGE_ACCESS_KEY=1 GARAGE_SECRET_KEY=1
+giro suite primo: compiling=si rc=101 pass=421 fail=2 ign=8 rossi=caller_timeout_is_client_timeout_exit_3,abort_after_is_client_abort_exit_3 (attesi, cargo-target-per-worktree.txt:26-30; quota_counts_job_dir_plus_out_dir passato)
+nota: volume nuovo, nessun init-volumes necessario; touch spikes/s02-parser/src/lib.rs prima del secondo giro, git diff vuoto
+giro suite secondo: compiling=si rc=0 pass=423 fail=0 ign=8 rossi=nessuno
+giro valido: compiling=si rc=0 pass=423 fail=0 ign=8
+D-05: suite di s02 eseguita con la compose modificata; suite s01 non eseguita, garage invariato provato dal config
+
+spikes/target/diag-01-7-03/ rimossa
+PRENOTAZIONE: nessuna
+container con label cka.run_id:
+
+(fine elenco)
+volume /target di questo worktree: cka-spikes-target-54aa6734af2c
