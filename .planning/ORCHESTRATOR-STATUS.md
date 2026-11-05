@@ -5,11 +5,11 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.7 / onda — / slice — / plan completato · aggiornato: 2026-11-05
+fase 01.7 / onda 2 / slice 01.7-02 / execute completato · aggiornato: 2026-11-05
 
 ## Prossima azione
 
-/execute 1.7 (01.7-ONDE.md: onda 1 = 01+03, onda 2 = 02 da solo, nessun cargo nel runner prima del primo giro strumentato) → /verify 1 → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. Fasi 03.1, 05 e 06: discuss completato → /plan 3.1 con provider dopo /plan 3, poi /plan 5 e /plan 6 dopo i plan 02-04 (ordine provider-first).
+/verify 1 (execute 1.7 chiuso, 3/3 piani; judgment aperti nei tre 01.7-*-SUMMARY.md) → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. Fasi 03.1, 05 e 06: discuss completato → /plan 3.1 con provider dopo /plan 3, poi /plan 5 e /plan 6 dopo i plan 02-04 (ordine provider-first).
 
 ## Findings
 
@@ -20,6 +20,9 @@ fase 01.7 / onda — / slice — / plan completato · aggiornato: 2026-11-05
 - verify 1 giro 2: WIRING-MAP invariata (nessun seam in 1 e 1.6); contratto 1.6 deviato su test deterministici (G1) → 1.7; fase 1.7 inserita, criticità normale · utente 2026-11-05 → 01.7-CONTEXT.md
 - plan 01.7: 3 piani, 2 onde; gate conformi (security 3 giri: ripristino mutazioni, BASE vuoto fail-open), checker PASSED; test design Claude 42 RISK / 36 TEST, nessun HIGH scoperto; nessun seam, WIRING-MAP invariata; contratto emesso → 01.7-GATE.md, 01.7-CONTRATTO.md, 01.7-ONDE.md
 - 01.7 D-06 residui accettati, D-07 blocco in codice non di test: annota e prosegue · utente 2026-11-05 → 01.7-CONTEXT.md
+- exec 01.7 onda 1: 01.7-01, 01.7-03 fuse 9dbb2f9, gate 423/0/8; deviazione b M-Q4 corretta coordinatore, a registrate; judgment aperti per verify → 01.7-01-SUMMARY.md, 01.7-03-SUMMARY.md
+- exec 01.7-02 diagnosi: 7,096 s non riprodotto 2/2, causa non provata; sotto soglia 3 s in build() tentativo 1, dato per verify → spikes/results/docling-client-cronometri.txt
+- exec 01.7 onda 2: 01.7-02 fusa fefd1de, gate 423/0/8; M1-M10 attese; TEST-14 load 6.45 contro nproc 16 parziale; 9 judgment → 01.7-02-SUMMARY.md
 - fase 01 criticità critica, ratificata → 01-CONTEXT.md
 - storage S3 Garage, chiave sha256 + GC orfani, dedup invisibile (D-01/02) · fonte Area A
 - tempfile + validazione pre-persistenza; limite 25 MB; L1 + regole economiche (D-03..05)
@@ -262,3 +265,4 @@ fase 01.7 / onda — / slice — / plan completato · aggiornato: 2026-11-05
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --verify-ecc: verify 1 secondo giro, diff 1.6
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --verify: verify 1 secondo giro, gaps_found, fase 1.7 inserita
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --plan fase 01.7
+**Modifica:** Claude (Anthropic) · 2026-11-05 · --exec fase 01.7, onde 1 e 2 chiuse
