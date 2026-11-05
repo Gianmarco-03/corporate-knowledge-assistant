@@ -81,3 +81,67 @@ mutazione B3: applicata=si compiling=si caller=rosso abort=verde motivo=tempo at
 B1: panic con 7.021390719s (caller) e 7.022270872s (abort). B3: panic con 6.001944017s (caller).
 B1 prova il rosso del vecchio tetto solo per il blocco in build(): per il pool bloccante e per
 il blocco dopo l'evento il rosso del vecchio è letto dal codice, perché t abbraccia tutto convert.
+
+I due test riscritti (commit f709711 di test-write, esito GREEN_UNEXPECTED: comportamento già
+esistente, il rosso viene dalle mutazioni), senza mutazioni, con main.rs toccato per forzare la
+compilazione; running=2, 2 passati, finished in 0.40s:
+dopo singolo: rc=0 compiling=si
+esito gate rust: fmt=0 clippy=0
+
+## Forza
+
+Il vecchio tetto faceva due mestieri: vedeva un timer sbagliato e cadeva anche per un blocco
+della macchina. La forma nuova li separa. δ è il tempo da t del vecchio test all'armamento del
+testimone. Le prove M* sono registrate più sotto dalla Task 3; una riga di questa tabella dice
+cosa ci si attende, il risultato misurato è nella riga della mutazione.
+
+| # | Scenario | Vecchio: t.elapsed() < 5 s | Nuovo: testimone e limite inferiore | Giudizio | Prova |
+|---|---|---|---|---|---|
+| 1 | timer giusto, nessun blocco | verde | verde | uguale | suite |
+| 2 | timer ignorato (135 s) | rosso | rosso a circa 5 s | stessa forza | M1, M4 |
+| 3 | timer sbagliato 6 s, sotto i 20 s di Hang | rosso (6 > 5) | rosso (testimone) | stessa forza: il punto duro è chiuso | M2, M3, B3 |
+| 4 | timer sbagliato 5,2 s | rosso | rosso se δ < 200 ms | stessa forza se δ è piccolo | M2b |
+| 5 | timer sbagliato fra 5 s e 5 s + δ | rosso | verde | più debole in una banda di δ | M2b misura δ |
+| 6 | timer sbagliato sotto i 5 s (es. 3 s) | verde | verde | uguale: nessuno dei due lo vede | letto dal codice |
+| 7 | timer che scatta prima (1/10) | verde | rosso (limite inferiore), salvo spesa prima del timer oltre i 9/10 di esso, perché r.seconds parte da t0: condizione di RISK-8, il rosso richiede spesa sotto 360 ms per caller e sotto 270 ms per abort | più forte, mai più debole: il vecchio non lo vedeva | M5, M5b, B2 |
+| 8 | stato sbagliato | rosso | rosso | stessa forza | M6 |
+| 9 | timer giusto, blocco simulato di 7 s in build() | rosso falso, misurato da B1 | verde | è il gap del tetto assoluto | M7, B1 |
+| 10 | timer giusto, blocco simulato di 7 s sul pool bloccante | rosso falso letto dal codice (t abbraccia tutto convert), non misurato | verde | è il gap del tetto assoluto | M8 per il nuovo; vecchio letto dal codice |
+| 11 | timer giusto, blocco simulato di 7 s dopo l'evento | rosso falso letto dal codice (t abbraccia tutto convert), non misurato | verde | è il gap del tetto assoluto | M9 per il nuovo; vecchio letto dal codice |
+| 12 | timer giusto, blocco di almeno 20 s dopo la richiesta | rosso falso | rosso falso (Error per la chiusura di Hang) | uguale, residuo accettato: mai osservato | letto dal codice |
+| 13 | timer sbagliato 6 s più blocco che copre la scadenza del timer o ritarda l'armamento di oltre (timer − 5 s) | rosso, non discriminante | verde falso | più debole in questo solo caso | M10 |
+
+Portata delle righe 9-11. Provano che un blocco simulato di 7 s non fa più cadere il test con il
+timer giusto. Non provano nulla sul ritardo di 7,096 s del primo giro su volume nuovo: quel
+ritardo è non riprodotto e la sua causa è non provata (sezione Diagnosi), quindi questa tabella
+non afferma che il blocco simulato sia ciò che è accaduto allora.
+
+Perché funziona, in quattro passi:
+1. Il timer giusto vince sempre sul testimone. Il timer nasce prima della richiesta, il testimone
+   dopo averla osservata con una finestra di 5 s, e 400 ms < 5 s: la scadenza del timer precede
+   sempre quella del testimone. Il driver di tokio segna come scaduti tutti i timer passati nello
+   stesso giro prima di risvegliare il task, e con biased si poll-a convert per primo;
+   Timeout::poll controlla il ritardo appena il future resta in attesa. Un blocco di qualunque
+   durata sotto i 20 s di Hang, in qualunque punto del thread, non può quindi far vincere il
+   testimone.
+2. Perché armarlo dall'evento e non da t. Le attese di metadata e read stanno sul pool bloccante,
+   con il thread del runtime libero: un testimone armato da t scatterebbe durante un blocco del
+   pool, con il timer non ancora creato. Sarebbe un rosso falso, ed è M8.
+3. Perché sleep dall'osservazione e non una scadenza assoluta con un istante preso dal server.
+   Con un istante del server la scadenza può essere già passata al primo poll del testimone:
+   scatta subito, mentre il Sleep del timer non è ancora stato segnato dal driver, e convert è già
+   stato poll-ato in quel giro. Sarebbe un rosso falso sotto carico. Con sleep dall'osservazione
+   la scadenza è sempre futura, il prezzo è l'armamento in ritardo, e quel prezzo sta nella riga 13.
+4. Un timer da 6 s perde. Senza blocchi il testimone scade a circa 5 s dalla richiesta, cioè prima
+   dei 6 s del timer. La mutazione è M2.
+
+Confronto sulla riga 13. Nella stessa esecuzione il vecchio tetto dava rosso, ma lo dava anche con
+il timer giusto (righe 9-11): quel rosso non distingue il difetto dal blocco. Il nuovo test, in
+quella sola esecuzione, dà verde. Il difetto del timer è però permanente nel codice, mentre il
+blocco è transitorio: il primo giro senza blocco lo fa cadere (riga 3). Il caso residuo costa quindi
+al più il ritardo di un giro; non è una zona che il test non vede mai. Resta dichiarato e provato da
+M10: su quella sola esecuzione il test nuovo è più debole del vecchio.
+
+Nota sulle scelte: candidato del testimone adottato. tokio::time::pause escluso perché richiede
+la feature test-util, che full non comprende, e il manifest non si tocca. build() non spostato
+fuori dal future perché è produzione.
