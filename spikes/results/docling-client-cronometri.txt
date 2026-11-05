@@ -67,3 +67,17 @@ tentativo 2 la riga è una sola scrittura. Stadi, campi e comando non cambiano.
 strumento rimosso: si
 volumi di diagnosi da rimuovere a mano: cka-spikes-target-f7d254063c29
 volume di questo worktree, resta per le task successive: cka-spikes-target-d6ad152910c8
+
+## Mutazioni
+
+Confronto sul test vecchio, prima della riscrittura (Task 2 passo 1), una mutazione per volta
+con ripristino dopo ciascuna. Comando: oneshot del comando delle mutazioni, nell'albero del
+piano, volume cka-spikes-target-d6ad152910c8. Ogni riga ha "running 2 tests".
+
+mutazione B1: applicata=si compiling=si caller=rosso abort=rosso motivo=tempo atteso=si running=2 finished_s=7.02 rc=101
+mutazione B2: applicata=si compiling=si caller=verde abort=verde motivo=nessuno atteso=si running=2 finished_s=0.04 rc=0
+mutazione B3: applicata=si compiling=si caller=rosso abort=verde motivo=tempo atteso=si running=2 finished_s=6.00 rc=101
+
+B1: panic con 7.021390719s (caller) e 7.022270872s (abort). B3: panic con 6.001944017s (caller).
+B1 prova il rosso del vecchio tetto solo per il blocco in build(): per il pool bloccante e per
+il blocco dopo l'evento il rosso del vecchio è letto dal codice, perché t abbraccia tutto convert.
