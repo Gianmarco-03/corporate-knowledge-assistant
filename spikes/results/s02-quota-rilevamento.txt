@@ -44,7 +44,7 @@ Confronto fra il vecchio tetto `ritorno - scritto < 5 s` e il nuovo `morto - scr
 | scansione ogni 8 s, esito giusto | rosso (tempo) | rosso (tempo) | stessa forza | M-Q2 |
 | kill non consegnato | rosso | rosso (guardia o tempo) | stessa forza | M-Q3 |
 | processo mai partito o morto prima delle scritture | rosso per esito | rosso prima delle scritture | stessa forza, causa nominata. Se invece il processo è visto vivo e muore da solo dopo le scritture, l'esito `out_quota` viene dall'ultima scansione (`isolate.rs:843-849`), come prima | letto dal codice |
-| rilevamento fra `5 s - teardown` e 5 s | rosso | verde | più debole di `teardown`: voluto da D-01. Massimo misurato: vedi `ripartizione massima` | ripartizione misurata |
+| rilevamento fra `5 s - teardown` e 5 s | rosso | verde | più debole di `teardown`: voluto da D-01. Massimo misurato nei giri sotto carico: `teardown_ms=0`, cioè sotto la grana del polling da 10 ms e non un teardown nullo (vedi `ripartizione massima`) | ripartizione misurata |
 | teardown oltre 5 s con rilevamento rapido | rosso | verde sul tempo; `!jd.exists()` resta | fuori dalla proprietà: `01.6-07-PLAN.md:119` e `s02-test-stabili.txt:37` dichiarano che il test misura solo la latenza di rilevamento; il teardown ha un proprio limite in `REAP_DEADLINE` | M-Q4 |
 | carico che allunga solo il teardown | rosso falso | verde | è il gap | M-Q4, giri sotto carico |
 
@@ -80,3 +80,59 @@ Task 3 non eseguita.
 **Modifica:** Claude (gsd-executor 01.7-01) · 2026-11-05 · *Storia* del fermo su M-Q4 e formato nuovo della riga M-Q4
 
 *Storia.* Le due righe qui sopra, «PIANO FERMO» e «Task 3 non eseguita», restano scritte com'erano quando il piano si è fermato. Il criterio che le ha causate, `teardown_ms` di almeno 7000, era del coordinatore ed era sbagliato per il polling da 10 ms: `morto` si legge con quella grana e può cadere dopo l'uscita vera del processo, quindi il ritardo di 7 s non finisce per intero in `teardown_ms`. Il coordinatore lo ha corretto il 2026-11-05 in `totale_ms` di almeno 7000 e `rilevamento_ms` sotto 5000, senza rimisurare. I numeri sono quelli misurati allora (`rilevamento_ms=247 teardown_ms=6994 totale_ms=7241`, vecchio rosso a 7,24 s), e nella riga M-Q4 è cambiato solo il formato. Con il criterio corretto M-Q4 è rispettata, e il piano riprende dalla Task 3.
+
+## Sotto carico
+
+**Modifica:** Claude (gsd-executor 01.7-01) · 2026-11-05 · Task 3: giri sotto carico, ripartizione, suite finale, gate e pulizia
+
+Una sola prenotazione, run_id 01-7-01-20261105t171024z-eb7e. Tutti i giri, extra compreso, hanno `Compiling s02-parser`: prima di ciascuno il `touch` di `src/lib.rs`. La compilazione avviene quindi sotto lo stesso carico.
+
+dopo sotto carico generatori: giri=5 falliti=0
+generatori vivi prima=16 dopo=16
+Note dei generatori: attesa di 20 s prima dei giri; ogni giro `running 3 tests` e `test result: ok. 3 passed`; rc 0 in tutti i giri. /proc/loadavg a 1 minuto: inizio 0.02; giro 1 da 4.56 a 5.47; giro 2 da 5.47 a 6.31; giro 3 da 6.31 a 7.17; giro 4 da 7.17 a 8.04; giro 5 da 8.04 a 9.24. Nei 5 giri del piano il load è rimasto sotto nproc 16: stessa forma del precedente di `s02-test-stabili.txt:47`.
+giro extra generatori, non conteggiato: falliti=0 vivi=16 running 3 tests, 3 passed
+Note del giro extra: il load non è arrivato a nproc entro i 300 s di attesa, che sono scaduti a 15.96. Il giro ha compilato e girato da lì, e a fine giro il load era 17.72. Il valore di almeno nproc è quindi solo quello di fine giro, con la compilazione del test compresa.
+
+dopo carico reale: giri=3 falliti=0 compilazioni_completate=1
+altri rossi sotto carico reale: nessuno
+carico reale compilazione viva giro=1 si
+carico reale compilazione viva giro=2 si
+carico reale compilazione viva giro=3 si
+Note del carico reale: ogni giro `running 38 tests`, `test result: ok. 38 passed` e `test quota_counts_job_dir_plus_out_dir ... ok`; nessuna compilazione di carico fallita. /proc/loadavg a 1 minuto e `rustc` vivi: giro 1 da 14.02 (10) a 16.02 (7); giro 2 da 16.02 (7) a 18.82 (3); giro 3 da 18.82 (3) a 19.24 (2). Il load di partenza comprende il residuo del giro con i generatori, finito poco prima. La durata dei test è di 2.32, 2.20 e 2.14 s.
+cartella di carico rimossa: si
+
+Caduta a 10,9 s: non riprodotta. Né il test vecchio nella base né il test nuovo qui hanno mostrato nulla di simile: il `totale_ms` massimo sotto carico è 253, anche con il load sopra nproc. Il verde sotto carico è un'informazione e non prova la proprietà, perché il carico non genera il teardown lento che ha fatto cadere il test. La prova deterministica è M-Q4: con 7 s aggiunti al teardown il test nuovo è verde (`totale_ms=7241`, `rilevamento_ms=247`) e il test vecchio è rosso a 7,24 s.
+
+## Ripartizione
+
+ripartizione generatori giro=1 visti=1 rilevamento_ms=250 teardown_ms=0 totale_ms=244 wall_ms=254
+ripartizione generatori giro=2 visti=1 rilevamento_ms=11 teardown_ms=0 totale_ms=0 wall_ms=5
+ripartizione generatori giro=3 visti=1 rilevamento_ms=257 teardown_ms=0 totale_ms=253 wall_ms=257
+ripartizione generatori giro=4 visti=1 rilevamento_ms=259 teardown_ms=0 totale_ms=248 wall_ms=254
+ripartizione generatori giro=5 visti=1 rilevamento_ms=251 teardown_ms=0 totale_ms=248 wall_ms=255
+ripartizione reale giro=1 visti=1 rilevamento_ms=13 teardown_ms=0 totale_ms=6 wall_ms=45
+ripartizione reale giro=2 visti=1 rilevamento_ms=249 teardown_ms=0 totale_ms=249 wall_ms=258
+ripartizione reale giro=3 visti=1 rilevamento_ms=241 teardown_ms=0 totale_ms=241 wall_ms=253
+ripartizione extra non conteggiata: visti=1 rilevamento_ms=12 teardown_ms=0 totale_ms=1 wall_ms=5
+ripartizione massima: rilevamento_ms=259 teardown_ms=0 totale_ms=253
+Massimi calcolati sulle 8 righe conteggiate; la riga extra non li cambia.
+
+Quale parte pesa: questi numeri non lo distinguono. `teardown_ms` è 0 in tutti i giri perché `morto` si legge con il polling da 10 ms e cade dopo `ritorno`, quindi il teardown sta sotto quella grana e il suo valore vero resta non misurato. `totale_ms` non supera 253, in linea con il periodo di scansione di 250 ms. Nulla qui dice quale parte abbia pesato nelle cadute a 10,9 s, che non si sono riprodotte. La riga 5 della tabella di forza vale quindi, a questi carichi, meno di una grana di polling, ed è una misura di questi giri e non un limite generale.
+
+Valori non previsti dal test design, riportati al coordinatore: in 3 giri su 9 (generatori giro 2, reale giro 1, extra) il job finisce molto prima del periodo di 250 ms, con `rilevamento_ms` fra 11 e 13 e `wall_ms` fra 5 e 45. Esito `out_quota` e `visti=1` restano veri in tutti e tre. Lettura dal codice, non provata a parte: la prima scansione nasce al primo tick e gira in `spawn_blocking` (`isolate.rs:812-815`), su un altro thread rispetto alle scritture, che sono sincrone, e può quindi trovare già i due file. Il design di M-Q2 assume invece che il primo tick cada prima delle scritture. Sotto carico una M-Q2 potrebbe perciò uscire verde per questa via; è stata misurata una sola volta, senza carico, come prevede il design, ed è rossa.
+
+## Suite e gate
+
+giro suite finale: compiling=si rc=0 pass=423 fail=0 ign=8 rossi=nessuno
+hard rule 4: non applicata, i due test di docling non sono caduti
+esito gate rust: fmt=0 clippy=0
+warning s02-parser nel runner: 0
+Provenienza: fmt e clippy girano sull'host, da `spikes/`, perché il runner non li ha. `tests/isolation.rs` è `#![cfg(target_os = "linux")]`, quindi clippy sull'host non lo analizza: per quel file vale la compilazione nel runner, con 0 righe `warning` di cargo nell'uscita della suite finale.
+
+## Pulizia
+
+spikes/target/diag-01-7-01/: rimossa
+PRENOTAZIONE: nessuna
+Contenitori con label cka.run_id:
+(fine elenco)
+volume /target di questo worktree: cka-spikes-target-26efc0681e36 (`session.sh` non lo rimuove, resta all'utente)
