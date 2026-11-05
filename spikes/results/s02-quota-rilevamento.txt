@@ -24,3 +24,30 @@ giro 2 prima: load 7.60 rustc=7, dopo: load 8.35 rustc=6, durata test 2.26 s
 giro 3 prima: load 8.35 rustc=6, dopo: load 8.35 rustc=3, durata test 2.15 s
 
 Limite di questa base: il load a 1 minuto è rimasto sotto nproc 16 e i tre giri durano circa 7 s in tutto. Il verde è un'informazione, non una prova che il test vecchio regga sotto carico: le cadute a 10,9 s di 01.6-09 non sono state riprodotte qui.
+
+## Dopo la riscrittura
+
+**Modifica:** Claude (gsd-executor 01.7-01) · 2026-11-05 · Task 1 passi 4 e 5, Task 2 e Task 3. Autore reale del test: il `test-write` di 01.7-01 (commit b94857f); la firma `gsd-executor 01.7-01` in `isolation.rs` resta perché la chiede il verify.
+
+dopo singolo: rc=0 compiling=si
+quota_timing: visti=1 rilevamento_ms=248 teardown_ms=0 totale_ms=241 wall_ms=252
+
+Coerenza dei tempi: `morto` si legge con un polling da 10 ms e può cadere dopo `ritorno`, quindi `rilevamento` può superare `totale` e `teardown` satura a 0. Qui 248 contro 241, entro la grana del polling.
+
+## Forza
+
+Confronto fra il vecchio tetto `ritorno - scritto < 5 s` e il nuovo `morto - scritto < 5 s` con processo visto vivo.
+
+| Difetto | Vecchio | Nuovo | Giudizio | Prova |
+|---|---|---|---|---|
+| scansione spenta | rosso (esito Timeout) | rosso (esito Timeout) | stessa forza | M-Q1 |
+| scansione ogni 8 s, esito giusto | rosso (tempo) | rosso (tempo) | stessa forza | M-Q2 |
+| kill non consegnato | rosso | rosso (guardia o tempo) | stessa forza | M-Q3 |
+| processo mai partito o morto prima delle scritture | rosso per esito | rosso prima delle scritture | stessa forza, causa nominata. Se invece il processo è visto vivo e muore da solo dopo le scritture, l'esito `out_quota` viene dall'ultima scansione (`isolate.rs:843-849`), come prima | letto dal codice |
+| rilevamento fra `5 s - teardown` e 5 s | rosso | verde | più debole di `teardown`: voluto da D-01. Massimo misurato: vedi `ripartizione massima` | ripartizione misurata |
+| teardown oltre 5 s con rilevamento rapido | rosso | verde sul tempo; `!jd.exists()` resta | fuori dalla proprietà: `01.6-07-PLAN.md:119` e `s02-test-stabili.txt:37` dichiarano che il test misura solo la latenza di rilevamento; il teardown ha un proprio limite in `REAP_DEADLINE` | M-Q4 |
+| carico che allunga solo il teardown | rosso falso | verde | è il gap | M-Q4, giri sotto carico |
+
+Comportamento di `procs_with_cwd` che regge la misura:
+- zombie: un processo ucciso e non ancora raccolto ha `/proc/<pid>/cwd` illeggibile e non compare. Lista vuota vuol dire «processi usciti», anche prima di `reap_group`: la finestra si chiude sull'effetto del kill, senza contare il reap;
+- cwd rimossa: con la cartella rimossa e il processo vivo il link diventa `<percorso> (deleted)` e il processo sparisce dalla lista. Oggi non inganna, perché `remove_dir_all` (`isolate.rs:870`) viene dopo il kill e dopo `reap_group`. Se un difetto futuro invertisse quell'ordine la lista si svuoterebbe in anticipo e il test non lo vedrebbe, come non lo vedeva il vecchio tetto. Caso dichiarato, non provato (accettato da D-06).
