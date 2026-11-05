@@ -59,7 +59,10 @@ while read -r ref_locale sha_locale ref_remota sha_remota; do
     [ -z "$ref_locale" ] && continue
     [ "$sha_locale" = "$ZERO_SHA" ] && continue
     SHA_IN_PARTENZA="$SHA_IN_PARTENZA $sha_locale"
-    if [ "$sha_remota" = "$ZERO_SHA" ]; then
+    # Uno sha remoto assente in locale (force push senza fetch) vale come ref
+    # nuova: con $sha_remota..$sha_locale git log fallirebbe dentro la pipe e i
+    # passi darebbero PASS su zero righe.
+    if [ "$sha_remota" = "$ZERO_SHA" ] || ! git cat-file -e "$sha_remota^{commit}" 2>/dev/null; then
         INTERVALLI="$INTERVALLI|$sha_locale --not --remotes"
     else
         INTERVALLI="$INTERVALLI|$sha_remota..$sha_locale"

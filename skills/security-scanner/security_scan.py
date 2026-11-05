@@ -191,20 +191,34 @@ def is_counter_name(name):
     return m is not None and _SECRET_NAME_TERM.search(name[:m.start()]) is None
 
 
-# D-02, precisazione dell'utente del 2026-10-29 (B): in tutte le regole dei
-# segreti un valore fatto interamente di un numero con un'unita' di misura
-# (durata, dimensione, percentuale) non e' un segreto. L'unita' e' obbligatoria
-# e chiude il valore: un suffisso che non e' un'unita', o una coda alfanumerica
-# dopo l'unita', restano un finding. Le sole cifre senza unita' seguono la
-# regola dei contatori qui sotto.
+# D-02, precisazione dell'utente del 2026-10-29 (B), ristretta il 2026-11-05: un
+# valore fatto interamente di un numero con un'unita' di misura (durata,
+# dimensione, percentuale) non e' un segreto solo per `env-secret-literal` e
+# `hardcoded-apikey`, e solo sotto un nome che contiene `token` senza termini
+# forti (`tokenization_time`). L'unita' e' obbligatoria e chiude il valore: un
+# suffisso che non e' un'unita', o una coda alfanumerica dopo l'unita', restano
+# un finding. Le sole cifre senza unita' seguono la regola dei contatori qui
+# sotto.
+# Storia: fino al 2026-11-05 valeva in tutte le regole, e password, chiavi e
+# connection string di cifre piu' una lettera di unita' passavano pulite.
 _NUMBER_WITH_UNIT = re.compile(
     r"""^\d+(?:\.\d+)?"""
     r"""(?:ns|us|\u00b5s|\u03bcs|ms|s|sec|min|h|d|"""
     r"""b|kb|mb|gb|tb|kib|mib|gib|tib|%)$""", re.I)
 
 
+_UNIT_EXEMPT_RULES = frozenset({"env-secret-literal", "hardcoded-apikey"})
+_STRONG_SECRET_NAME = re.compile(
+    r"""password|passwd|pwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|jwt""", re.I)
+
+
 def is_number_with_unit(val):
     return val is not None and _NUMBER_WITH_UNIT.match(val.strip().strip("\"'")) is not None
+
+
+def number_with_unit_exempt(rid, name, val):
+    return (rid in _UNIT_EXEMPT_RULES and name is not None and "token" in name.lower()
+            and _STRONG_SECRET_NAME.search(name) is None and is_number_with_unit(val))
 
 
 # D-02, precisazione dell'utente del 2026-10-29 (A): nei file Python
@@ -1152,7 +1166,7 @@ def scan_file(path):
                         continue
                     if numeric_counter_exempt(rid, name, m.group("val")):
                         continue
-                    if is_number_with_unit(m.group("val")):
+                    if number_with_unit_exempt(rid, name, m.group("val")):
                         continue
                     if python_unquoted_exempt(rid, path, line, m):
                         continue

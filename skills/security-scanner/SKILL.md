@@ -331,9 +331,13 @@ contenuti non fidati in ruoli separati, chunk delimitati come dati.
    altri tipi di file (env, shell, Compose, documenti, testuali) un valore
    nudo resta un letterale.
 6. **Numeri con unità di misura (D-02, precisazione dell'utente del
-   2026-10-29).** In tutte le regole dei segreti un valore che è interamente
-   un numero (intero o decimale) seguito da un'unità di misura non è un
-   segreto: durate (`ns`, `us`, `µs`, `ms`, `s`, `sec`, `min`, `h`, `d`),
+   2026-10-29, ristretta il 2026-11-05).** Per `env-secret-literal` e
+   `hardcoded-apikey`, sotto un nome con `token` e senza termini forti
+   (password, secret, API key, access key, private key, JWT), un valore che è
+   interamente un numero (intero o decimale) seguito da un'unità di misura non
+   è un segreto. Nelle altre regole e sotto gli altri nomi resta un finding.
+   *Storia:* fino al 2026-11-05 valeva in tutte le regole, e una password fatta
+   di cifre più una lettera di unità passava pulita. Unità ammesse: durate (`ns`, `us`, `µs`, `ms`, `s`, `sec`, `min`, `h`, `d`),
    dimensioni (`b`, `kb`, `mb`, `gb`, `tb`, `kib`, `mib`, `gib`, `tib`) e
    percentuali (`%`), senza distinzione di maiuscole. L'unità è obbligatoria
    e chiude il valore: un numero seguito da un suffisso che non è un'unità, o

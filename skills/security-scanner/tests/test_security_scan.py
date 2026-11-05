@@ -1498,5 +1498,35 @@ class D02NumberWithUnit(Scanner0162):
         self.assertTrue({r for (_f, r, ln) in got if ln == 1}, sorted(got, key=str))
 
 
+class D02NumberWithUnitOnlyUnderTokenNames(Scanner0162):
+    """/verify 1, decisione dell'utente del 2026-11-05: l'esclusione del 2026-10-29
+    faceva passare password, chiavi e connection string fatte di cifre piu' una
+    lettera di unita'. Vale solo sotto un nome con `token` senza termini forti."""
+
+    def test_password_with_unit_like_value_stays_flagged(self):
+        text = kv_quoted(vname("db", "pass" + "word"), "123456" + "d")
+        self.assertOne("a.rs", text, {(RULE_HP, 1)})
+
+    def test_api_key_with_unit_like_value_stays_flagged(self):
+        text = kv_quoted(vname("svc", "api", "key"), "98765432" + "b")
+        self.assertOne("a.rs", text, {(HKEY, 1)})
+
+    def test_secret_name_with_unit_like_value_stays_flagged(self):
+        self.assertOne("app.env", env_line(vname("SVC", "SEC" + "RET", "WAIT"), "250" + "ms"),
+                       {(ENVLIT, 1)})
+
+    def test_token_and_secret_in_name_stays_flagged(self):
+        text = kv_quoted(vname("token", "sec" + "ret"), "98765432" + "b")
+        self.assertOne("run.txt", text, {(HKEY, 1)})
+
+    def test_connstring_with_unit_like_password_stays_flagged(self):
+        text = "".join(("post", "gres://u:", "30", "s@h/db\n"))
+        self.assertOne("run.txt", text, {("connstring-inline-pwd", 1)})
+
+    def test_rust_const_with_unit_like_value_stays_flagged(self):
+        text = "".join(("const ", vname("SVC", "TO" + "KEN"), ': &str = "', "30000", 'ms";\n'))
+        self.assertOne("a.rs", text, {("rust-const-secret", 1)})
+
+
 if __name__ == "__main__":
     unittest.main()

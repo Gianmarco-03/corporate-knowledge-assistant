@@ -342,7 +342,7 @@ filtra_nomi_segreti() {
 #    segnaposto della lista chiusa (ma un valore uguale al nome, o a una sua
 #    parola, non lo e'), sole cifre sotto un nome da contatore (suffisso in
 #    coda e nessun termine da segreto nel resto del nome), numero con unita'
-#    di misura, e nei file .py (dall'intestazione `+++ b/...` del diff) un
+#    di misura sotto un nome con token senza termini forti, e nei file .py (dall'intestazione `+++ b/...` del diff) un
 #    valore di env-secret-literal senza virgolette. L'hook applica le regole
 #    di D-02 a ogni tipo di file: dove lo scanner non applica
 #    env-secret-literal (.rs, .ts, .sql) l'hook resta piu' severo.
@@ -398,7 +398,9 @@ filtra_righe_segrete() {
         if (uguale_nome(v, n)) return 0
         return tolower(v) ~ /^(<[^>]*>|\$[{][^}]*[}]|\$[a-z0-9_]+|[{][{][^}]*[}][}]|%[a-z0-9_]+%|\*+|xxx+|\.\.\.|changeme|change[-_]me|replace[-_]?me|example[a-z0-9_]*|placeholder|dummy|your[-_][a-z0-9_]+|redacted|todo|none|null|test|fake[a-z0-9_]*)$/
     }
-    function numero_unita(v) {
+    function numero_unita(v, n) {
+        n = tolower(n)
+        if (n !~ /token/ || n ~ /password|passwd|pwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|jwt/) return 0
         return pulito(v) ~ /^[0-9]+(\.[0-9]+)?(ns|us|µs|μs|ms|s|sec|min|h|d|b|kb|mb|gb|tb|kib|mib|gib|tib|%)$/
     }
     function contatore(n) {
@@ -422,7 +424,7 @@ filtra_righe_segrete() {
         v = substr(r, 1, RLENGTH)
         if (segnaposto(v, nome)) return 0
         if (v ~ /^[0-9]+$/ && contatore(nome)) return 0
-        if (numero_unita(v)) return 0
+        if (numero_unita(v, nome)) return 0
         if (!virg && tolower(file) ~ /\.py$/) return 0
         return 1
     }
@@ -439,7 +441,7 @@ filtra_righe_segrete() {
                 if (ch == dq || ch == q) break
             }
             v = substr(v, i + 1)
-            if (!segnaposto(v, nome) && !numero_unita(v)) return 1
+            if (!segnaposto(v, nome) && !numero_unita(v, nome)) return 1
         }
         return 0
     }

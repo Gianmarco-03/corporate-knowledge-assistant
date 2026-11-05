@@ -325,6 +325,29 @@ class TestPrePushSpike(HookTestCase):
         self.assertFalse(has_line(out, f"NON COPERTO — {TEST_SPIKE}"))
         self.assertEqual(rc, 0)
 
+    # /verify 1 (2026-11-05): con uno sha remoto assente in locale (force push
+    # senza fetch) git log falliva dentro la pipe e i passi davano PASS o
+    # NON APPLICABILE su zero righe.
+    def test_prepush_unknown_remote_sha_still_checks_secrets(self):
+        r = self.repo
+        r.push_base()
+        r.write("config.txt", "GARAGE_SECRET" + "_KEY=abcd1234realsecret\n")
+        r.commit("segreto")
+        rc, out = r.pre_push("1" * 40)
+        self.assertTrue(has_line(out, "FAIL — segreti"),
+                        "con sha remoto ignoto il segreto in partenza deve dare 'FAIL — segreti'")
+        self.assertEqual(rc, 1)
+
+    def test_prepush_unknown_remote_sha_still_checks_spike_rust(self):
+        r = self.repo
+        r.push_base()
+        r.write("spikes/foglia/src/lib.rs", LIB_LINT)
+        r.commit("lint")
+        rc, out = r.pre_push("1" * 40)
+        self.assertTrue(has_line(out, f"FAIL — {CLIPPY}"),
+                        "con sha remoto ignoto clippy degli spike non può risultare NON APPLICABILE")
+        self.assertEqual(rc, 1)
+
 
 # =============================================================================
 # Scope degli spike (TEST-6, dubbio 1)
@@ -455,6 +478,12 @@ def parity_rows():
         (f"API_{T}_TTL=" + "36" + "00", True),          # 15 termine da segreto vince
         (f"MAX_{T}S={v12}", True),                      # 16 contatore, valore alfanumerico
         (f"SESSION_{T}_TTL=" + "36" + "00s", False),    # 17 numero con unita'
+        # /verify 1, 2026-11-05: l'unita' esenta solo sotto `token` senza termini forti
+        (f"APP_{S}_WAIT=" + "25" + "0ms", True),
+        (f'db_{P.lower()} = "' + "123456" + 'd"', True),
+        (f'svc_{AK.lower()} = "' + "98765432" + 'b"', True),
+        (f'{T.lower()}_{s} = "' + "98765432" + 'b"', True),
+        (f'{T.lower()}ization_time="' + "2.5" + 'ms"', False),
         # segnaposto e valore uguale al nome
         (f"APP_{S}=" + "change" + "-me", False),        # 18
         (f"APP_{S}=" + "${" + "VAULT_REF}", False),     # 19 ${VAR}
