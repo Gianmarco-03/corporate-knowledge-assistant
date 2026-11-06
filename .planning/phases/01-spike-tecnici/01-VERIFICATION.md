@@ -1,9 +1,10 @@
 ---
 phase: 01-spike-tecnici
 verified: 2026-10-26T14:20:00Z
-status: gaps_found
-score: 108/110 verità verificate alla ri-verifica del 2026-11-05 (105 must-have come prima, 4 per override; delle 5 verità della banda ECC, E1, E2 ed E4 chiuse dalla 1.6, E3 ed E5 chiuse in parte; prima della ri-verifica 105/110)
-overrides_applied: 4
+status: human_needed
+score: 110/110 verità verificate alla ri-verifica del 2026-11-06 (105 must-have, 4 per override; le 5 verità della banda ECC chiuse, E3 in parte per override D-04)
+score_storia: "108/110 verità verificate alla ri-verifica del 2026-11-05 (105 must-have come prima, 4 per override; delle 5 verità della banda ECC, E1, E2 ed E4 chiuse dalla 1.6, E3 ed E5 chiuse in parte; prima della ri-verifica 105/110); status gaps_found fino alla ri-verifica del 2026-11-06"
+overrides_applied: 5
 overrides:
   - must_have: "01-06: ogni oracolo ha il triplo guardrail completo, con un agente Claude separato dall'esecutore"
     reason: "Il derivatore è la stessa sessione gsd-executor di 01-06, distinta dall'orchestratore e dagli esecutori degli spike; double-check GPT e ratifica utente completi su 74 query e 11 oracoli del parser"
@@ -21,7 +22,21 @@ overrides:
     reason: "La regola D-31 è fallita sulle misure (0,6852 contro 0,7431 e 0,7241 contro 0,85, ricalcolati dal verifier su llm.csv); con D-33 Sonnet è il modello unico. La Choice di complessità JEV resta misurata (25/30)"
     accepted_by: "utente (D-33, ratificata con ADR-0011)"
     accepted_at: "2026-10-22T00:00:00Z"
+  - must_have: "E3, voce «Segreti passati solo ai job che li usano»: il runner riceve solo i segreti che i suoi job usano"
+    reason: "Override D-04 dell'utente (01.7-CONTEXT.md:16): POSTGRES_PASSWORD, DATABASE_URL, GARAGE_ACCESS_KEY e GARAGE_SECRET_KEY restano nell'ambiente del runner, perché sono credenziali di container locali usa e getta, i job le usano davvero e D-09 restringe la segregazione ai soli segreti a pagamento; nessuna segregazione per job. GARAGE_RPC_SECRET, senza consumatori, è uscito dal runner nella 1.7 (compose.yaml:79 è l'unico servizio che lo riceve); motivo scritto accanto alle chiavi a compose.yaml:269"
+    accepted_by: "utente"
+    accepted_at: "2026-11-05T00:00:00Z"
 re_verification:
+  verified: 2026-11-06T13:30:00Z
+  head: c71daef
+  previous_status: gaps_found
+  previous_score: 108/110
+  gaps_closed:
+    - "E3, voce «Segreti passati solo ai job che li usano»: GARAGE_RPC_SECRET fuori dal runner (1.7), credenziali locali per override D-04"
+    - "E5, voce «Test d'isolamento di s02 stabili sotto carico»: test di quota legato a eventi (1.7)"
+  gaps_remaining: []
+  regressions: []
+re_verification_storia_2026_11_05:
   verified: 2026-11-05T12:00:00Z
   head: 37fc79a
   previous_status: gaps_found
@@ -70,8 +85,10 @@ gaps:
     closed_by: "gap-closure 1.6, ri-verifica 2026-11-05: controlli-comuni.sh:154-190, :358; pre-commit:105-109; pre-push:135-141; test_hook_segreti.py:401, :509"
     missing: []
   - truth: "Il runner e i servizi del compose degli spike girano con privilegi minimi, segreti solo dove servono e pesi a revisione fissata"
-    status: partial
+    status: closed
     previous_status: failed
+    status_storia: "partial alla ri-verifica 2026-11-05, closed alla ri-verifica 2026-11-06"
+    closed_by: "gap-closure 1.7 e override D-04, ri-verifica 2026-11-06: GARAGE_RPC_SECRET tolto dal runner con una riga (diff b3058a8..HEAD di compose.yaml), passato solo a garage (compose.yaml:79), assente da runner-paid per extends (:342; runner-senza-garage-rpc.txt:11-15); le quattro credenziali locali restano per override dell'utente (voce overrides)"
     reason: "01-REVIEW.md §B.3, confermato sul file: il servizio runner (compose.yaml:219 e seguenti) non ha cap_drop, no-new-privileges né pids_limit e riceve tutti i segreti (GARAGE_SECRET_KEY, TYPESAFE_API_KEY, …); paddle (:203) ha cap_drop ma non read_only né pids_limit; docling-models scarica con --all (:175); le revisioni dei pesi hanno default mutabile ${EMBED_REVISION:-main} (:78) e ${RERANK_REVISION:-main} (:101)"
     artifacts_original:
       - path: "spikes/compose.yaml"
@@ -86,8 +103,9 @@ gaps:
     artifacts:
       - path: "spikes/compose.yaml"
         issue: ":269-273 POSTGRES_PASSWORD, DATABASE_URL, GARAGE_RPC_SECRET, GARAGE_ACCESS_KEY e GARAGE_SECRET_KEY nel servizio runner, ereditati da runner-paid"
-    missing:
+    missing_2026_11_05:
       - "Decisione dell'utente: accettare il restringimento di D-09 con un override, oppure togliere almeno GARAGE_RPC_SECRET e passare le credenziali locali solo ai job di s01 e s03"
+    missing: []
   - truth: "Ogni driver di misura esce con errore quando una componente della misura non riesce"
     status: closed
     previous_status: failed
@@ -113,8 +131,10 @@ gaps:
     closed_by: "gap-closure 1.6, ri-verifica 2026-11-05: run_ttq.sh:151-153, :231-232, :240-241; ttq.rs:190, :211, :221; vram.sh:97, :234, :277; budget_real.py:272-277; gen_hostile.py:749-771, :810; gen_sof.py:450-468, :507"
     missing: []
   - truth: "I test degli spike sono stabili e i TODO noti della fase sono chiusi"
-    status: partial
+    status: closed
     previous_status: failed
+    status_storia: "partial alla ri-verifica 2026-11-05, closed alla ri-verifica 2026-11-06"
+    closed_by: "gap-closure 1.7, ri-verifica 2026-11-06: isolation.rs:1287-1366 chiude la finestra su procs_with_cwd vuota (:1330) e asserisce su morto - scritto (:1362), soglia ed esito invariati; M-Q4 nuovo verde e vecchio rosso (s02-quota-rilevamento.txt:65-67); anche i due test di docling-client senza tetto assoluto (main.rs:807-896); s02 nel runner 423/0/8 il 2026-11-06 (ORCHESTRATOR-STATUS.md:158)"
     reason: "01-REVIEW.md §B.5: test d'isolamento di s02 instabili sotto carico, cartelle tmp dei test non pulite, inventario dei modelli Docling non allineato, calibrazione di BudgetExceeded aperta, quattro incoerenze di testo annotate"
     artifacts_original:
       - path: "spikes/s02-parser/tests/"
@@ -139,8 +159,9 @@ gaps:
     artifacts:
       - path: "spikes/s02-parser/tests/isolation.rs"
         issue: ":1314-1315 misura dopo il join! con run_child, cioè dopo kill e pulizia; tetto a :1323"
-    missing:
+    missing_2026_11_05:
       - "Nel test quota_counts_job_dir_plus_out_dir, misurare il rilevamento senza la chiusura di run_child, oppure legare l'asserzione a un evento; la verifica su ResourceLimit/out_quota resta identica"
+    missing: []
 deferred:
   - truth: "01-04 TEST-4: il semaforo delle validazioni non è mai arrivato a saturazione (picco 1 su 2)"
     addressed_in: "Phase 6"
@@ -179,21 +200,33 @@ human_verification:
   - test: "Riratificare docs/security/threat-model.md nella versione riscritta in /verify 1"
     expected: "L'utente accetta la nuova colonna Evidenza/Test di T-13, T-14, T-16, T-17, T-24, T-28 e T-29 (T-14, T-16, T-17, T-28 e T-29 passano a «da implementare»), il limite del contenimento di T-09 (setsid), le due voci nuove del rischio residuo (T-14 e T-09) e i nove vincoli per le fasi di prodotto; conferma anche i residui con responsabile l'utente: T-31 (dati presso JEV e Anthropic), T-33 (addebito JEV delle richieste cancellate, console non determinabile) e T-39 (antivirus e CDR)"
     why_human: "La versione ratificata il 2026-10-26 è stata modificata dopo la ratifica per decisione dell'utente («Riscrivi l'evidenza»); una ratifica è un atto dell'utente"
+    specie: "giudizio puro"
+    decision_proposta: "nessuna proposta: la ratifica del threat model è un atto dell'utente (docs/security/threat-model.md)"
   - test: "Confermare le soglie mancate e accettate con la ratifica degli ADR"
     expected: "Conferma esplicita di: estrazione PDFium E-1..E-3 (CER 9,48% e 21,58% contro 1%, IoU 77,0% contro 95%) ed E-4, E-6, E-7, E-9 di Docling (ADR-0004); TTQ-parse circa 20 s contro la quota di 5 s (ttq_parse.csv); CER e throughput OCR (34,5-34,9 s per 25 pagine con 2 job); M8 a 24 casi su 26 (deep-nesting e jbig2-malformed danno ok, contenimento intatto); L-4 a 8/11 (ADR-0005); latenza del reranker TEI p95 360 ms contro 300 (ADR-0009); memoria di Garage costante solo con parti da 2 MiB e una in volo (ADR-0003, condizione 1)"
     why_human: "Il SUMMARY di 01-17 dichiara che il bridge prova la corrispondenza fra stati e ratifica, non l'accettabilità delle soglie mancate: è un giudizio dell'utente"
+    specie: "orientato"
+    decision_proposta: "confermare: le soglie mancate sono già scritte negli ADR accettati (ADR-0003, ADR-0004, ADR-0005, ADR-0009) e in ttq_parse.csv; riguardano gli spike, il prodotto parte dai vincoli di fase 3 — Claude (Anthropic) 2026-11-06"
   - test: "Accettare le evidenze attestate solo da rapporti o da log grezzi non più disponibili, oppure chiederne la ripetizione"
     expected: "Decisione voce per voce o in blocco su: 01-02 TEST-1, TEST-2, TEST-4 (set di avvio, reclaim, smoke del runner); 01-03 TEST-4 (ramo exit 1 di fetch.sh solo statico); 01-04 TEST-2 (pdfgen con qpdf); 01-05 TEST-10 (p99 h2 dai grezzi); 01-08 TEST-1, TEST-3 e costo del riavvio Docling (19,1 e 20,8 s); 01-09 L-10 (job negativo) e lo stato precedente della correzione upload-in-memory; 01-10 query irraggiungibili, TEI CPU, seconda esportazione, copie di /info; 01-11 TEST-15 (varianza per candidato); 01-13 TEST-2, TEST-3, TEST-4, TEST-5, TEST-7, TEST-10 (configurazione e pesi PP-OCRv6 risolti, autocontrollo del ritardo); 01-14 numero di query in carico (2.679) e confronto coseno/prodotto interno; 01-15 legame misura-codice della sessione VRAM e TEST-9 (due prove di vram.sh); 01-18 TEST-4, TEST-13, TEST-18, TEST-19 (detail di validazione, exit 2, preflight) e cargo test --workspace nel runner (manca addr2line)"
     why_human: "I file di results/raw sono ignorati da git e i worktree sono stati rimossi: il verifier non può rileggerli; i CSV versionati che sostengono gli ADR sono stati invece ricontrollati"
+    specie: "orientato"
+    decision_proposta: "accettare in blocco: i CSV versionati che sostengono gli ADR sono stati ricontrollati dal verifier; le voci perse sono smoke, rami statici o diagnostica di spike, e D-12 di 1.6 vieta di rifare misure ratificate — Claude (Anthropic) 2026-11-06"
   - test: "Leggere i nove documenti sintetici di spikes/data/corpus/synthetic (01-03 TEST-10)"
     expected: "Persone citate solo per carica, società fittizie, nessun dato reale"
     why_human: "Il test design la assegna a una lettura umana, mai fatta né dall'esecutore né dal bridge"
+    specie: "giudizio puro"
+    decision_proposta: "nessuna proposta: lettura umana richiesta dal test design di 01-03"
   - test: "Controllo a mano del campione di oracoli (01-06 TEST-3): 10 query su PDF e 2 pagine di parser-it.json confrontate carattere per carattere con i PDF di raw/, con il seme scritto nel test design"
     expected: "Valori attesi ed estratti coincidono con il documento sorgente"
     why_human: "Un controllo automatico userebbe un estrattore di testo, cioè una pipeline: l'oracolo deve restare indipendente"
+    specie: "giudizio puro"
+    decision_proposta: "nessuna proposta: l'oracolo deve restare indipendente da qualunque estrattore (01-06 TEST-3)"
   - test: "Confermare l'approvazione dei pacchetti pip di PaddleOCR (01-13 TEST-1) e dei 34 crate di 01-01"
     expected: "L'utente conferma le approvazioni date in conversazione (lock dbb615b prima della prima build 7c85634; «Approvato» del 2026-10-19 sui 34 crate)"
     why_human: "Le approvazioni sono risposte in conversazione, riportate nei RISULTATI e nei commit, senza un artefatto che le provi"
+    specie: "conferma a un tocco"
+    decision_proposta: "confermare: lock dbb615b precede la prima build 7c85634; «Approvato» del 2026-10-19 sui 34 crate riportato in RISULTATI e commit — Claude (Anthropic) 2026-11-06"
 ---
 
 # Fase 1: Spike tecnici — Rapporto di verifica
@@ -621,3 +654,33 @@ Lo status resta `gaps_found` finché la fase 1.7 non è verificata.
 - **Credenziali nel runner (E3, G2):** override dell'utente per `POSTGRES_PASSWORD`, `DATABASE_URL`, `GARAGE_ACCESS_KEY` e `GARAGE_SECRET_KEY`: sono credenziali di container locali usa e getta, i job le usano e D-09 restringe la segregazione ai soli segreti a pagamento. `GARAGE_RPC_SECRET`, che nel runner non ha consumatori, esce dal compose nella 1.7.
 
 **Modifica:** Claude (Anthropic) · 2026-11-05 · decisioni dell'utente su G1 e G2, inserita la fase 1.7
+
+## Ri-verifica 2026-11-06 (dopo fase 1.7)
+
+**Modifica:** Claude (gsd-verifier) · 2026-11-06 · ri-verifica di E3 ed E5 dopo la fase 1.7, override D-04 nel frontmatter, status da gaps_found a human_needed
+
+Ho riletto il codice su HEAD `c71daef` e il diff `b3058a8..HEAD` sotto `spikes/`. Il rapporto completo della 1.7 è in `../01.7-gap-closure-di-verify-1-cronometri-dei-test-di-s02-e-garage-/01.7-VERIFICATION.md`.
+
+### E3: runner e compose — chiuso
+
+| Voce di `missing` | Esito | Prova a HEAD |
+|---|---|---|
+| Segreti passati solo ai job che li usano | **CHIUSA**, in parte per override | `GARAGE_RPC_SECRET` è tolto dal runner con una sola riga. `git grep` lo trova passato a un servizio solo in `compose.yaml:79` (garage); per il resto compare in `.env.example:22`, nei commenti e nell'evidenza. `runner-paid` lo perde per `extends` (`:342`). Per nome: runner 33 chiavi e runner-paid 35, entrambi con RPC=0; container del runner con RPC=0 (`runner-senza-garage-rpc.txt:11-15`). `POSTGRES_PASSWORD`, `DATABASE_URL`, `GARAGE_ACCESS_KEY` e `GARAGE_SECRET_KEY` restano per override D-04 dell'utente, accettato il 2026-11-05 e registrato nel frontmatter, con il motivo accanto a `compose.yaml:269` |
+
+Le altre quattro voci di E3 erano già chiuse il 2026-11-05. La 1.7 ha aggiunto un commento a `compose.yaml:10`, quindi i loro numeri di riga sono scesi di uno; il contenuto è invariato.
+
+### E5: test e TODO — chiuso
+
+| Voce di `missing` | Esito | Prova a HEAD |
+|---|---|---|
+| Test d'isolamento di s02 stabili sotto carico | **CHIUSA** | `quota_counts_job_dir_plus_out_dir` (`isolation.rs:1287-1366`) chiude la finestra quando i processi del job sono usciti (`:1330`) e asserisce su `rilevamento < 5 s` (`:1362`), senza contare reap e pulizia. Scrive solo dopo aver visto il processo vivo (`:1317-1324`, `:1360`). Soglia, `wall_timeout`, `out_quota` e `!jd.exists()` sono identici, e `isolate.rs` non è cambiato. M-Q4 lo prova senza carico: con 7 s aggiunti al teardown il test nuovo è verde e il vecchio rosso (`s02-quota-rilevamento.txt:65-67`). Sotto carico 5/5 con i generatori e 3/3 con carico reale (`:90`, `:96`). La suite di s02 nel runner del 2026-11-06 dà 423/0/8 (`ORCHESTRATOR-STATUS.md:158`) |
+
+L'avviso sui due rossi di `docling-client` a 7,096 s è risolto anche lui. I test non hanno più il tetto preso dal cronometro di test: un testimone di 5 s, armato dalla richiesta ricevuta, vede ancora un timer sbagliato (`main.rs:807-896`, M1-M4 rosse), e un blocco simulato di 7 s non li fa più cadere (M7-M9 verdi). Il ritardo originale non si è riprodotto in due tentativi su volume nuovo, e la sua causa resta non provata (`docling-client-cronometri.txt:39-45`). D-02 prevedeva questo esito, quindi è un residuo dichiarato. Il dato sotto soglia, 3003 ms in `reqwest::Client::builder().build()`, è differito alla fase 3, dove nasce l'adapter Docling di prodotto.
+
+I residui accettati dall'utente in D-06 (`01.7-CONTEXT.md:18`) sono scritti nell'evidenza come «più deboli», mai come «uguali». Sono tre: il teardown non conta più nel test di quota, un timer fra 5 s e 5 s + δ non si vede, e un timer sbagliato insieme a un blocco nello stesso giro dà verde.
+
+### Esito
+
+Le cinque verità della banda ECC sono chiuse, E3 in parte per override: punteggio 110/110 con 5 override. Lo status passa da `gaps_found` a `human_needed`, perché restano i sei punti di verifica umana del frontmatter, invariati, e il primo è la riratifica del threat model. Restano anche i quattro punti UAT di `01.6-VERIFICATION.md`.
+
+*Storia.* Alla ri-verifica del 2026-11-05 lo status era `gaps_found` con 108/110, ed E3 ed E5 erano `partial`. La sezione «Cosa resta alla fase» e il paragrafo «Lo status resta `gaps_found` finché la fase 1.7 non è verificata» sono superati da questa ri-verifica e restano scritti com'erano. Il blocco `re_verification` del 2026-11-05 è conservato nel frontmatter come `re_verification_storia_2026_11_05`. Le voci `missing` di E3 ed E5 sono conservate come `missing_2026_11_05`.

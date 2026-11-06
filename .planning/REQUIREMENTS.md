@@ -158,6 +158,7 @@ Rinviati; tracciati ma fuori dalla roadmap corrente.
 | DLV-02 | Phase 15 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 37 total (30 dai documenti + 7 derivati)
 - Mapped to phases: 37
 - Unmapped: 0 ✓

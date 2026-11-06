@@ -5,14 +5,15 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.7 / onda 2 / slice 01.7-02 / execute completato · aggiornato: 2026-11-05
+fase 01.7 / — / — / verify 1 giro 3 completato (1.7 chiusa) · aggiornato: 2026-11-06
 
 ## Prossima azione
 
-/verify 1 (execute 1.7 chiuso, 3/3 piani; judgment aperti nei tre 01.7-*-SUMMARY.md) → ricerca pre-UAT → UAT (6 punti fase 1 + 4 punti 1.6) → chiusura fase 1; push main dopo, primo giro reale del pre-push. Fasi 03.1, 05 e 06: discuss completato → /plan 3.1 con provider dopo /plan 3, poi /plan 5 e /plan 6 dopo i plan 02-04 (ordine provider-first).
+UAT fase 1 (6 punti) + 1.6 (4 punti), proposte con fonte in 01-VERIFICATION.md e 01.6-VERIFICATION.md (decision_proposta) → ratifica utente → phase complete 01.6 e 01; push main = primo giro reale pre-push. Poi /plan 3.1 dopo /plan 3, /plan 5 e /plan 6 dopo plan 02-04.
 
 ## Findings
 
+- verify 1 giro 3: contratto 1.7 onorato, WIRING-MAP invariata (nessun seam in 1.7) → 01.7-VERIFICATION.md, 01.7-CONTRATTO.md
 - fase 03.1 criticità critica, ratificata utente 2026-11-05 → 03.1-CONTEXT.md
 - 03.1 D-01..D-17: 5 layer, albero aree, rete sicurezza, assegnazione locale, ACL in espansione, tabelle PG, soglie accensione · fonti → 03.1-RICERCA-DISCUSSIONE.md
 - 03.1 rischio pipeline: fase 1 non verificata (1.7 aperta), annotato non bloccante → 03.1-CONTEXT.md
@@ -155,6 +156,7 @@ fase 01.7 / onda 2 / slice 01.7-02 / execute completato · aggiornato: 2026-11-0
 
 | Piano | Gate sul PLAN | Review ECC | Verifier GSD |
 | --- | --- | --- | --- |
+| fase 01.7 (01.7-01..03), verify 1 giro 3 su b3058a8..HEAD | conforme → 01.7-GATE.md | verde con residui: fmt 0, clippy --locked --offline -D warnings 0 spikes host; lint-stato verde; s02 runner sessione 01-7-verify-20261106t124908z-a032 Compiling s02-parser 1, rc 0, 423/0/8; scanner HIGH 0, MEDIUM 101 invariati; proprieta-file --fase 1.7 conforme (3 file riapertura 1.6, deviazione in SUMMARY + 01.7-CONTRATTO); rust-review approva, 0 HIGH; MEDIUM isolation.rs:1302-1330 panic scrittore droppa run_child → residuo accettato coordinatore: solo test già rosso, kill-on-drop + pulizia jd provati da isolation.rs:1108, od detrito possibile; 5 LOW accettati (msg /proc illeggibile, guardia 30 s ogni morte, assert visti ridondante, try_recv consuma f.requests, thread Hang 20 s preesistente); security 0 finding: GARAGE_RPC_SECRET solo garage, evidenze senza valori; e2e/eval n/a; valvole nessuna | 1.7 passed 17/17, chiusa 2026-11-06; G1/G2 (01.6) ed E3/E5 (01) chiusi, G2/E3 in parte per override D-04; 01.6 human_needed 60/60, 01 human_needed 110/110; triage 1.7 22: 20 chiusi, 2 differiti (fase 2 clippy cfg linux, fase 3 build() 3 s), 0 uat → 01.7-VERIFICATION.md |
 | fase 01.6 (01.6-01..09), verify 1 giro 2 su b22a1d2..HEAD | conforme → 01.6-GATE.md | verde con residui: fmt/clippy spikes, test host, s02 runner 423/0/8 a volume compilato; 1° giro volume nuovo 421/2/8 (2 docling-client 7,096 s vs 5 s, causa non verificata, 3 giri verdi dopo); scanner 137, hook 17, driver 7+6; scanner HIGH 0, MEDIUM 101; 3 valvole conformi; corretti: pre-push fail-open sha ignoto + numero+unità ristretta 0ffbb1c, /target per worktree 37fc79a (utente); residui: .py valore nudo in stringa (utente, solo tooling); nome solo token con numero+unità esente (criterio coordinatore, da confermare utente); merge e delete .rs in hook LOW; 55 capacity letti riga per riga: nessun campo lunghezza letto dal file, prescan.rs:1561 conteggio voci zip già limitato da upload 25 MiB; timer isolation.rs:1314 include teardown MEDIUM → spikes/results/cargo-target-per-worktree.txt, 01.6-CONTEXT D-02 | gaps_found: 01.6 58/60, fase 1 108/110; E1, E2, E4 chiusi; E5/G1 cronometri → 1.7; E3/G2 override utente, GARAGE_RPC_SECRET → 1.7; human_judgment 46: 35 chiusi, 7 differiti, 4 UAT → 01.6-VERIFICATION.md, 01-VERIFICATION.md, 01.7-CONTEXT.md |
 | fase 01 (01-01..01-18) | conforme (giri per piano → 01-GATE.md) | verde con gap: fmt/clippy spikes ok, test host ok tranne s02 runner-only (runner -p s02-parser tutti verdi, isolamento 37/37), lint-stato ok; prodotto/web/e2e/eval n/a; 4 review: 0 CRITICAL, 14 HIGH (scanner falsi verdi, hook senza manifest spike, runner compose senza hardening, run_ttq/vram/budget_real esiti non contati, threat model 7 righe «misurata» sopravvalutate, setsid fuori gruppo); verifica sui dati: 0 misure ratificate alterate; instradamento utente: threat model riscritto ora, 1.6 strumenti+TODO, pattern → vincoli fasi 2-4 → 01-REVIEW.md | gaps_found 105/110: 5 criteri ROADMAP + 100 must-have ok (4 override), 5 gap = §B 1.6; 11 differiti fasi 2-13; UAT 6 punti → 01-VERIFICATION.md |
 | 01.5-01 | conforme 6/6 (3 giri sul test design: D-09 JPX, D-10, residui a-c) → 01.5-GATE.md | verde: fmt/clippy host, runner -p s02-parser 333 pass (rebuild verificato), lint-stato, scanner --fail-on HIGH; rust-review Warning 0 gravi: MEDIUM un byte per campione (12/16 bit, JPX Ssiz>8) = RISK-14 accettato (dimensioni codificate ≤ dichiarate, RLIMIT_AS), LOW fail-closed accettati; security PASS con riserve: io::copy equivalente a read_to_end su Take (falso positivo lessicale upload-in-memory), deviazione non dichiarata → commento corretto 5239f0e e SUMMARY; follow-up scanner → TODO | passed 11/11, 0 gap; UAT 3/3 accettate → 01.5-VERIFICATION.md |
@@ -166,8 +168,8 @@ fase 01.7 / onda 2 / slice 01.7-02 / execute completato · aggiornato: 2026-11-0
 
 ## UAT
 
-- 01.6 pendenti, dopo 1.7: criterio nome per numero+unità (solo token esente); hook stampa righe segrete su stderr (pre-commit:91, con agente finiscono in trascrizione); primo giro reale pre-push; 359 residui vecchi in volume work-tmp → 01.6-VERIFICATION.md
-- fase 01 pendenti (dopo filtro perimetro): riratifica threat model v. verify 1; conferma soglie mancate ratificate; evidenze solo da rapporti/raw persi (01-02..01-18); lettura 9 doc sintetici (01-03 TEST-10); campione oracoli 10 query + 2 pagine (01-06 TEST-3); conferma approvazioni pip PaddleOCR e 34 crate → 01-VERIFICATION.md
+- 01.6 pendenti, UAT pronta 2026-11-06: criterio numero+unità (orientato: conferma); hook stampa righe segrete (orientato: solo file+riga+regola, gap-closure); push main (giudizio); 359 residui work-tmp (orientato: rimozione a mano) → 01.6-VERIFICATION.md decision_proposta
+- fase 01 pendenti, UAT pronta 2026-11-06: conferma a un tocco approvazioni pip/crate; orientati soglie mancate (conferma) ed evidenze perse (accetta in blocco); giudizi puri riratifica threat model, 9 doc sintetici, campione oracoli → 01-VERIFICATION.md decision_proposta
 - 01.5 accettata · utente 2026-10-23 · JPX solo sintetico (RISK-5), immagini inline debito fase 3/ADR-0004 (D-09), residui RISK-14/17 e T-01.5-09 accettati → 01.5-VERIFICATION.md
 - 01.4 accettata · utente 2026-10-23 · gate runner come prova 01.4-01, TEST-8 non scritto (RISK-7), docker version fuori session.sh: accettati; exit 0 di overhead con errori in status confermato (D-02); RISK-16 → verify fase 1 / 01-13 → 01.4-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
