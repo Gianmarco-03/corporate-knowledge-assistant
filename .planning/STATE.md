@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Verify 1 giro 3: 1.7 chiusa, UAT 1 e 1.6"
-last_updated: "2026-11-06T13:27:42.858Z"
+stopped_at: "UAT verify 1: 1.6 e 1.7 chiuse; fase 1 punti 3, 8, 9 aperti; poi 1.8"
+last_updated: "2026-11-06T13:29:10.615Z"
 last_activity: 2026-11-06
 progress:
-  total_phases: 23
+  total_phases: 24
   completed_phases: 8
   total_plans: 36
   completed_plans: 36
-  percent: 35
+  percent: 33
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-10-18)
 
 ## Current Position
 
-Phase: 02 of 15 (fondazione)
+Phase: 01 of 15 (Spike tecnici, UAT di verify 1)
 Plan: Not started
 Status: Ready to execute
 Last activity: 2026-11-06
@@ -39,7 +39,7 @@ Progress: [░░░░░░░░░░] 0%
 
 **Velocity:**
 
-- Total plans completed: 9
+- Total plans completed: 18
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 | 01.4 | 2 | - | - |
 | 01.5 | 1 | - | - |
 | 01.7 | 3 | - | - |
+| 01.6 | 9 | - | - |
 
 **Recent Trend:**
 
@@ -174,6 +175,6 @@ Recenti, rilevanti per il lavoro corrente:
 
 ## Session Continuity
 
-Last session: 2026-11-06T12:59:31.461Z
-Stopped at: Verify 1 giro 3: 1.7 chiusa, UAT 1 e 1.6
+Last session: 2026-11-06T13:29:10.608Z
+Stopped at: UAT verify 1: 1.6 e 1.7 chiuse; fase 1 punti 3, 8, 9 aperti; poi 1.8
 Resume file: None
