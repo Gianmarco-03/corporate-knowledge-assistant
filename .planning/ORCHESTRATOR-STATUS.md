@@ -9,7 +9,7 @@ fase 01 / — / — / UAT verify 1 in corso · aggiornato: 2026-11-06
 
 ## Prossima azione
 
-UAT fase 1 punti 3, 8, 9 (dettaglio chiesto dall'utente) → phase complete 01 e 01.6; /discuss 1.8 (hook segreti solo file+riga+regola); leggere primo giro reale pre-push. Poi /plan 3.1 dopo /plan 3, /plan 5 e /plan 6 dopo plan 02-04.
+UAT fase 1 punti 3, 8, 9 (dettaglio chiesto dall'utente) → phase complete 01 e 01.6; /discuss 1.8 (hook segreti solo file+riga+regola). Poi /plan 3.1 dopo /plan 3, /plan 5 e /plan 6 dopo plan 02-04.
 
 ## Findings
 
@@ -169,7 +169,7 @@ UAT fase 1 punti 3, 8, 9 (dettaglio chiesto dall'utente) → phase complete 01 e
 
 ## UAT
 
-- 01.6 UAT · utente 2026-11-06: criterio numero+unità confermato; hook segreti → gap-closure 01.8; residui work-tmp rimossi (389→0, suite 423/0/8, residui fine suite 0); push autorizzato, esito pre-push da leggere → 01.6-VERIFICATION.md uat_esito
+- 01.6 UAT · utente 2026-11-06: criterio numero+unità confermato; hook segreti → gap-closure 01.8; residui work-tmp rimossi (389→0, suite 423/0/8, residui fine suite 0); push 0ddacea superato, pre-push tutto verde (test spikes non coperto per D-08) → 01.6-VERIFICATION.md uat_esito
 - fase 01 UAT · utente 2026-11-06: approvazioni pip/crate e soglie mancate confermate, threat model riratificato; pendenti evidenze perse, 9 doc sintetici, campione oracoli (dettaglio chiesto) → 01-VERIFICATION.md uat_esito
 - 01.5 accettata · utente 2026-10-23 · JPX solo sintetico (RISK-5), immagini inline debito fase 3/ADR-0004 (D-09), residui RISK-14/17 e T-01.5-09 accettati → 01.5-VERIFICATION.md
 - 01.4 accettata · utente 2026-10-23 · gate runner come prova 01.4-01, TEST-8 non scritto (RISK-7), docker version fuori session.sh: accettati; exit 0 di overhead con errori in status confermato (D-02); RISK-16 → verify fase 1 / 01-13 → 01.4-VERIFICATION.md
