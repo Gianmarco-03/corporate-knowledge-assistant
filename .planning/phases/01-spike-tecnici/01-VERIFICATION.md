@@ -214,19 +214,19 @@ human_verification:
     why_human: "I file di results/raw sono ignorati da git e i worktree sono stati rimossi: il verifier non può rileggerli; i CSV versionati che sostengono gli ADR sono stati invece ricontrollati"
     specie: "orientato"
     decision_proposta: "accettare in blocco: i CSV versionati che sostengono gli ADR sono stati ricontrollati dal verifier; le voci perse sono smoke, rami statici o diagnostica di spike, e D-12 di 1.6 vieta di rifare misure ratificate — Claude (Anthropic) 2026-11-06"
-    uat_esito: "pendente: l'utente ha chiesto il dettaglio voce per voce · 2026-11-06"
+    uat_esito: "accettate in blocco · utente 2026-11-06"
   - test: "Leggere i nove documenti sintetici di spikes/data/corpus/synthetic (01-03 TEST-10)"
     expected: "Persone citate solo per carica, società fittizie, nessun dato reale"
     why_human: "Il test design la assegna a una lettura umana, mai fatta né dall'esecutore né dal bridge"
     specie: "giudizio puro"
     decision_proposta: "nessuna proposta: lettura umana richiesta dal test design di 01-03"
-    uat_esito: "pendente: l'utente ha chiesto il dettaglio; pre-lettura Claude senza dati reali, da ratificare · 2026-11-06"
+    uat_esito: "ratificato sulla pre-lettura Claude (società e località dichiarate fittizie, persone solo per carica, nessun contatto reale; injection di syn-07 e syn-08 volute) · utente 2026-11-06"
   - test: "Controllo a mano del campione di oracoli (01-06 TEST-3): 10 query su PDF e 2 pagine di parser-it.json confrontate carattere per carattere con i PDF di raw/, con il seme scritto nel test design"
     expected: "Valori attesi ed estratti coincidono con il documento sorgente"
     why_human: "Un controllo automatico userebbe un estrattore di testo, cioè una pipeline: l'oracolo deve restare indipendente"
     specie: "giudizio puro"
     decision_proposta: "nessuna proposta: l'oracolo deve restare indipendente da qualunque estrattore (01-06 TEST-3)"
-    uat_esito: "pendente: l'utente ha chiesto il dettaglio · 2026-11-06"
+    uat_esito: "accettato senza il controllo a mano: l'utente rinuncia al campione e si fida del triplo guardrail già completo (derivazione, double-check GPT, ratifica) · utente 2026-11-06"
   - test: "Confermare l'approvazione dei pacchetti pip di PaddleOCR (01-13 TEST-1) e dei 34 crate di 01-01"
     expected: "L'utente conferma le approvazioni date in conversazione (lock dbb615b prima della prima build 7c85634; «Approvato» del 2026-10-19 sui 34 crate)"
     why_human: "Le approvazioni sono risposte in conversazione, riportate nei RISULTATI e nei commit, senza un artefatto che le provi"
@@ -690,3 +690,9 @@ I residui accettati dall'utente in D-06 (`01.7-CONTEXT.md:18`) sono scritti nell
 Le cinque verità della banda ECC sono chiuse, E3 in parte per override: punteggio 110/110 con 5 override. Lo status passa da `gaps_found` a `human_needed`, perché restano i sei punti di verifica umana del frontmatter, invariati, e il primo è la riratifica del threat model. Restano anche i quattro punti UAT di `01.6-VERIFICATION.md`.
 
 *Storia.* Alla ri-verifica del 2026-11-05 lo status era `gaps_found` con 108/110, ed E3 ed E5 erano `partial`. La sezione «Cosa resta alla fase» e il paragrafo «Lo status resta `gaps_found` finché la fase 1.7 non è verificata» sono superati da questa ri-verifica e restano scritti com'erano. Il blocco `re_verification` del 2026-11-05 è conservato nel frontmatter come `re_verification_storia_2026_11_05`. Le voci `missing` di E3 ed E5 sono conservate come `missing_2026_11_05`.
+
+## Esito della UAT (2026-11-06)
+
+L'utente ha chiuso tutti e sei i punti di verifica umana. Ha ratificato il threat model riscritto e ha confermato le soglie mancate già scritte negli ADR. Ha accettato in blocco le evidenze attestate solo da rapporti: i CSV versionati che sostengono gli ADR erano stati ricontrollati, e D-12 vieta di rifare misure già ratificate. Ha ratificato i nove documenti sintetici sulla pre-lettura di Claude. Ha rinunciato al controllo a mano del campione di oracoli, affidandosi al triplo guardrail già completo, e la rinuncia resta scritta qui come scelta dell'utente, non come controllo eseguito. Ha infine confermato l'approvazione dei pacchetti pip e dei 34 crate. Con nessun punto aperto, la fase 1 si chiude con `phase complete`.
+
+**Modifica:** Claude (Anthropic) · 2026-11-06 · esito della UAT di verify 1 sulla fase 1 (decisioni dell'utente)

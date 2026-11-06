@@ -517,7 +517,7 @@ Discuss di tutte le fasi, poi Spike, poi plan di Fondazione e Provider, plan dei
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Spike tecnici | 18/18 | Complete   | 2026-10-26 |
+| 1. Spike tecnici | 18/18 | Complete    | 2026-11-06 |
 | 2. Fondazione | 0/TBD | Not started | - |
 | 3. Provider di ingestion e indice | 0/TBD | Not started | - |
 | 4. Provider di decisione, risposta e trasversali | 0/TBD | Not started | - |

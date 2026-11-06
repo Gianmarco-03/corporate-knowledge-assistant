@@ -64,7 +64,7 @@ Convenzione: tra parentesi l'ID originale (FR/NFR/BR) e la fonte. I requisiti ma
 - [ ] **PLAT-04**: Fan-out e worker sono bounded, con backpressure (`429` + `Retry-After`), deadline e cancellazione. (NFR-003, C-06, C-07, C-10)
 - [ ] **PLAT-05**: Il retry di upload, job ed eventi non duplica effetti. (NFR-004)
 - [ ] **PLAT-06**: **[derivato]** L'ambiente locale si avvia da un clone pulito con Docker Compose (PostgreSQL + `pgvector`, tre servizi, frontend) e la CI GitHub Actions verifica ogni push. (U-01, istruzioni orchestratore)
-- [ ] **PLAT-07**: **[derivato]** Il threat model è compilato (asset, attori, minacce prioritarie, mitigazioni mappate ai requisiti), chiudendo la lacuna M0. (docs/security/threat-model.md, M0)
+- [x] **PLAT-07**: **[derivato]** Il threat model è compilato (asset, attori, minacce prioritarie, mitigazioni mappate ai requisiti), chiudendo la lacuna M0. (docs/security/threat-model.md, M0)
 
 ### Grafo di conoscenza (GRAPH)
 
@@ -115,7 +115,7 @@ Rinviati; tracciati ma fuori dalla roadmap corrente.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLAT-07 | Phase 1 | Pending |
+| PLAT-07 | Phase 1 | Complete |
 | PLAT-02 | Phase 2 | Pending |
 | PLAT-03 | Phase 2 | Pending |
 | PLAT-06 | Phase 2 | Pending |
