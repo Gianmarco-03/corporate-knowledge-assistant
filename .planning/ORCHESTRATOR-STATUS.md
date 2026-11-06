@@ -5,14 +5,15 @@ Regole di sanità: (1) indice, non archivio — una riga + puntatore; (2) mai fa
 
 ## Posizione
 
-fase 01.7 / — / — / verify 1 giro 3 completato (1.7 chiusa) · aggiornato: 2026-11-06
+fase 01 / — / — / UAT verify 1 in corso · aggiornato: 2026-11-06
 
 ## Prossima azione
 
-UAT fase 1 (6 punti) + 1.6 (4 punti), proposte con fonte in 01-VERIFICATION.md e 01.6-VERIFICATION.md (decision_proposta) → ratifica utente → phase complete 01.6 e 01; push main = primo giro reale pre-push. Poi /plan 3.1 dopo /plan 3, /plan 5 e /plan 6 dopo plan 02-04.
+UAT fase 1 punti 3, 8, 9 (dettaglio chiesto dall'utente) → phase complete 01 e 01.6; /discuss 1.8 (hook segreti solo file+riga+regola); leggere primo giro reale pre-push. Poi /plan 3.1 dopo /plan 3, /plan 5 e /plan 6 dopo plan 02-04.
 
 ## Findings
 
+- 01.8 inserita: gap-closure hook segreti, stampa solo file+riga+regola (.githooks/pre-commit:91 e pre-push) · utente 2026-11-06 → 01.6-VERIFICATION.md
 - verify 1 giro 3: contratto 1.7 onorato, WIRING-MAP invariata (nessun seam in 1.7) → 01.7-VERIFICATION.md, 01.7-CONTRATTO.md
 - fase 03.1 criticità critica, ratificata utente 2026-11-05 → 03.1-CONTEXT.md
 - 03.1 D-01..D-17: 5 layer, albero aree, rete sicurezza, assegnazione locale, ACL in espansione, tabelle PG, soglie accensione · fonti → 03.1-RICERCA-DISCUSSIONE.md
@@ -168,8 +169,8 @@ UAT fase 1 (6 punti) + 1.6 (4 punti), proposte con fonte in 01-VERIFICATION.md e
 
 ## UAT
 
-- 01.6 pendenti, UAT pronta 2026-11-06: criterio numero+unità (orientato: conferma); hook stampa righe segrete (orientato: solo file+riga+regola, gap-closure); push main (giudizio); 359 residui work-tmp (orientato: rimozione a mano) → 01.6-VERIFICATION.md decision_proposta
-- fase 01 pendenti, UAT pronta 2026-11-06: conferma a un tocco approvazioni pip/crate; orientati soglie mancate (conferma) ed evidenze perse (accetta in blocco); giudizi puri riratifica threat model, 9 doc sintetici, campione oracoli → 01-VERIFICATION.md decision_proposta
+- 01.6 UAT · utente 2026-11-06: criterio numero+unità confermato; hook segreti → gap-closure 01.8; residui work-tmp rimossi (389→0, suite 423/0/8, residui fine suite 0); push autorizzato, esito pre-push da leggere → 01.6-VERIFICATION.md uat_esito
+- fase 01 UAT · utente 2026-11-06: approvazioni pip/crate e soglie mancate confermate, threat model riratificato; pendenti evidenze perse, 9 doc sintetici, campione oracoli (dettaglio chiesto) → 01-VERIFICATION.md uat_esito
 - 01.5 accettata · utente 2026-10-23 · JPX solo sintetico (RISK-5), immagini inline debito fase 3/ADR-0004 (D-09), residui RISK-14/17 e T-01.5-09 accettati → 01.5-VERIFICATION.md
 - 01.4 accettata · utente 2026-10-23 · gate runner come prova 01.4-01, TEST-8 non scritto (RISK-7), docker version fuori session.sh: accettati; exit 0 di overhead con errori in status confermato (D-02); RISK-16 → verify fase 1 / 01-13 → 01.4-VERIFICATION.md
 - 01.1 accettata · utente 2026-10-21 · TEST-8: letterale non ripetibile (sentinelle generate dal driver cancellato), controlli di forma su session-env-precedence.txt tutti 0 → 01.1-VERIFICATION.md
@@ -268,3 +269,4 @@ UAT fase 1 (6 punti) + 1.6 (4 punti), proposte con fonte in 01-VERIFICATION.md e
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --verify: verify 1 secondo giro, gaps_found, fase 1.7 inserita
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --plan fase 01.7
 **Modifica:** Claude (Anthropic) · 2026-11-05 · --exec fase 01.7, onde 1 e 2 chiuse
+**Modifica:** Claude (Anthropic) · 2026-11-06 · --verify-ecc, --verify e --uat di verify 1 giro 3

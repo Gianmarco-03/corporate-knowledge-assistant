@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: "Verify 1 giro 3: 1.7 chiusa, UAT 1 e 1.6"
-last_updated: "2026-11-06T12:59:31.468Z"
+last_updated: "2026-11-06T13:27:42.858Z"
 last_activity: 2026-11-06
 progress:
   total_phases: 23
